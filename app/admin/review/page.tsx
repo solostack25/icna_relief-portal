@@ -36,7 +36,7 @@ export default async function AdminReviewPage({
   if (!me || !allowedRoles.includes(me.role)) redirect("/select-app");
 
   // program directors only see tabs for programs they've been granted
-  let visiblePrograms = PROGRAMS;
+  let visiblePrograms: (typeof PROGRAMS)[number][] = [...PROGRAMS];
   if (me.role === "program_director") {
     const { data: access } = await supabase
       .from("employee_program_access")
