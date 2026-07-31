@@ -247,3 +247,4 @@ insert into app_registry (slug, display_name, route, sort_order) values
   ('hunger-prevention', 'Hunger Prevention', '/hunger-prevention', 1),
   ('transitional-housing', 'Transitional Housing', '/transitional-housing', 2),
   ('back-to-school', 'Back to School', '/back-to-school', 3);
+-- B2S module lives in a separate migration file: supabase/b2s_migration.sql
