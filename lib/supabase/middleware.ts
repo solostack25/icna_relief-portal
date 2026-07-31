@@ -35,10 +35,16 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname === "/";
+  // Public, no-login routes: the home/login screen, API routes (auth
+  // checked inside each route handler), and the public volunteer
+  // signup pages (visited by the public + fetched server-to-server
+  // by the WordPress plugin).
+  const isPublicPageRoute =
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.startsWith("/volunteer/public");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
-  if (!user && !isAuthRoute && !isApiRoute) {
+  if (!user && !isPublicPageRoute && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);

@@ -1,79 +1,83 @@
-# ICNA Relief Portal
+# ICNA Volunteer Signups — full build
 
-Main portal app: one login, one shared client database across every ICNA Relief
-program (Transitional Housing, Hunger Prevention, Back to School, etc.), an
-admin panel to manage employees + which apps they can access, and a
-post-login launcher screen.
+A SignUpGenius replacement that lives inside the portal, with a WordPress
+plugin so each office's page can embed live events without an iframe.
 
-## What's scaffolded
+## Install order
 
-- `app/page.tsx` — login
-- `app/select-app/page.tsx` — post-login launcher, shows only the apps the
-  employee has access to (admins see everything + the Admin Portal tile)
-- `app/admin/page.tsx` — employee list (admin-only)
-- `app/admin/employees/[id]/page.tsx` + `AccessEditor.tsx` — per-employee
-  checkbox list of program access + "send password reset" button
-- `app/api/admin/employees/route.ts` — PATCH endpoint that rewrites an
-  employee's `employee_program_access` rows
-- `app/api/admin/reset-password/route.ts` — admin-triggered password reset
-  email, uses the Supabase service role key server-side only
-- `lib/supabase/{client,server,middleware}.ts` — standard SSR auth pattern
-- `middleware.ts` — redirects unauthenticated requests to `/`
-- `supabase/schema.sql` — full schema: `clients`, `client_programs`,
-  `employees`, `employee_program_access`, `app_registry`, `th_intakes`
-  (first migrated module), plus RLS policies and a seed of the 3 known
-  programs
+### 1. Database (already applied — included here for reference)
+`supabase/volunteer_migration.sql` — you already ran this. Nothing to do.
 
-## Setup
-
-```bash
-npm install
-cp .env.local.example .env.local
-# fill in your Supabase project URL + keys
+### 2. Portal — copy into your Next.js project at these exact paths
+```
+app/volunteer/page.tsx
+app/volunteer/new/page.tsx
+app/volunteer/[id]/page.tsx
+app/volunteer/[id]/EventManager.tsx
+app/volunteer/public/[slug]/page.tsx
+app/volunteer/public/[slug]/SignupForm.tsx
+app/api/volunteer/events/route.ts
+app/api/volunteer/signup/route.ts
 ```
 
-Run the schema against a fresh Supabase project:
+### 3. Middleware — replace your existing file
+`lib/supabase/middleware.ts` — this is your current file with one change:
+`/volunteer/public/*` is now allowed without login (needed for the public
+signup page and for the WordPress plugin's server-to-server fetch). If
+you've customized this file since, just add the
+`isPublicPageRoute` check manually rather than overwriting.
 
-```bash
-# in the Supabase SQL editor, or via CLI:
-supabase db push --file supabase/schema.sql
+### 4. Register the app so staff can find it
+```sql
+insert into app_registry (slug, display_name, route, icon, is_active, sort_order)
+values ('volunteer', 'Volunteer Signups', '/volunteer', null, true,
+        (select coalesce(max(sort_order), 0) + 1 from app_registry));
 ```
+Then give staff access the same way you do for B2S/FATE/DRS — a row per
+employee in `employee_program_access` with `program_slug = 'volunteer'`
+(admins see it automatically).
 
-Then create your first admin employee manually:
-1. Create the user in Supabase Auth (dashboard or `admin.auth.admin.createUser`)
-2. Insert a row into `employees` with `role = 'admin'` and that user's
-   `auth_user_id`
+### 5. Deploy the portal, then note its URL
+e.g. `https://portal.icnarelief.org` — you'll need it in step 6.
 
-```bash
-npm run dev
+### 6. WordPress
+Upload `wordpress-plugin/icna-volunteer-signups.php` as a plugin (zip it
+into its own folder, or use a "single file plugin" uploader), activate
+it, then go to **Settings → ICNA Volunteer** and set the Portal Base URL
+from step 5.
+
+On any office's WordPress page, add:
 ```
+[icna_volunteer office="Dallas Office"]
+```
+(matches `b2s_offices.field_office` exactly) or, for a single event:
+```
+[icna_volunteer slug="dallas-food-pantry-aug-2026-x7q2"]
+```
+(the slug shown as the "Public link" on that event's page in the portal).
 
-## Not built yet (next steps)
+## How data flows
 
-- **Client search/match component** — the "search existing client by
-  phone/DOB/name before creating a new one" flow. This is the piece every
-  program's intake screen will import, so build it once, share everywhere.
-- **Transitional Housing intake migration** — port the existing barcode
-  scanner + invoice number generator (`TXHOU-MMDDYYYY-001`) + canvas
-  signature capture from the standalone app into `app/transitional-housing/`,
-  pointing writes at `th_intakes` (client_id FK) instead of the old
-  standalone schema.
-- **Data migration script** — one-time script to backfill `clients` from
-  the existing `mbllwbbyofqnbfrpiqne` Supabase project's TH intake records.
-- **Salesforce sync** — extend the existing push-stub pattern from the old
-  admin dashboard; one Salesforce Contact per client_id, child objects per
-  program.
-- **New program modules** (Hunger Prevention, Back to School) — once the
-  client search component exists, each new program is: a route, an intake
-  table, an `app_registry` row.
-- Password reset currently sends a Supabase reset email; you'll want a
-  `/reset-password` page to handle the callback (not scaffolded here).
+- **Staff** create/publish events and slots in the portal (`/volunteer`).
+- **Public portal page** (`/volunteer/public/[slug]`) reads published
+  events directly and writes signups straight into Supabase — no
+  WordPress involved.
+- **WordPress** never talks to Supabase directly. On page load, WordPress's
+  *server* calls `GET /api/volunteer/events` (cached 5 min via transient).
+  On signup, the browser posts to WordPress's own `admin-ajax.php`, which
+  proxies server-side to `POST /api/volunteer/signup`. No CORS, no
+  Supabase keys ever touch the browser on the WordPress side.
+- **Overbooking** is blocked by a Postgres trigger
+  (`check_volunteer_slot_capacity`) that locks the slot row, so two
+  people can't grab the last spot at the same instant — the loser gets a
+  clear "that slot just filled up" error from either surface.
 
-## Notes
-
-- Every multi-table read uses two separate queries merged in memory
-  (`select-app` and admin pages) — matches the known issue where relational
-  join syntax silently fails with the `sb_publishable_` key format.
-- RLS currently allows any authenticated employee to read/write the shared
-  `clients` table, since the whole point is cross-program lookup. Tighten
-  per-program only if ICNA specifically wants stricter separation later.
+## What's not built yet
+- No employee-facing edit-signup / cancel-signup flow (only add/delete
+  slots and view who signed up).
+- No email confirmations on signup (Resend integration exists elsewhere
+  in this codebase for donor receipts — same pattern could be reused
+  here if you want it).
+- No `program_director` RLS policy for volunteer data (easy to add,
+  mirrors the B2S/FATE/DRS pattern, once "volunteer" is a program slug
+  you assign directors to).
