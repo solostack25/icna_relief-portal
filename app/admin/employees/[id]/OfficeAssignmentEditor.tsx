@@ -46,7 +46,7 @@ export default function OfficeAssignmentEditor({
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
+    "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
 
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
@@ -106,7 +106,7 @@ export default function OfficeAssignmentEditor({
       <button
         onClick={handleSave}
         disabled={saving}
-        className="rounded-lg bg-[var(--color-accent)] text-black text-sm font-medium px-4 py-2 disabled:opacity-50"
+        className="rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
       >
         {saving ? "Saving..." : "Save"}
       </button>

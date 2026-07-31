@@ -72,7 +72,7 @@ export default function IntakeSearchPage() {
           <button
             type="submit"
             disabled={searching}
-            className="rounded-lg bg-[var(--color-accent)] text-black text-sm font-medium px-5 disabled:opacity-50"
+            className="rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-5 disabled:opacity-50"
           >
             {searching ? "Searching..." : "Search"}
           </button>
@@ -89,7 +89,7 @@ export default function IntakeSearchPage() {
                 <button
                   key={c.id}
                   onClick={() => router.push(`/clients/${c.id}`)}
-                  className="w-full text-left flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] last:border-0 hover:bg-black/20"
+                  className="w-full text-left flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] last:border-0 hover:bg-white"
                 >
                   <div>
                     <div className="text-sm font-medium">

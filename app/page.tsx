@@ -50,7 +50,7 @@ export default function LoginPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-4 rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+          className="w-full mb-4 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
         />
 
         <label className="block text-sm mb-1">Password</label>
@@ -59,17 +59,17 @@ export default function LoginPage() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-6 rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+          className="w-full mb-6 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
         />
 
         {error && (
-          <p className="text-sm text-red-400 mb-4">{error}</p>
+          <p className="text-sm text-[#B55139] mb-4">{error}</p>
         )}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-[var(--color-accent)] text-black font-medium py-2 text-sm disabled:opacity-50"
+          className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-2 text-sm disabled:opacity-50"
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>

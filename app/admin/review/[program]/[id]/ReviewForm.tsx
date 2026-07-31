@@ -57,24 +57,24 @@ export default function ReviewForm({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={3}
-        className="w-full mb-4 rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+        className="w-full mb-4 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
         placeholder="e.g. Backpack count doesn't match attendee count, please double check"
       />
 
-      {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
+      {error && <p className="text-sm text-[#B55139] mb-3">{error}</p>}
 
       <div className="flex gap-3">
         <button
           onClick={() => handleAction("reviewed")}
           disabled={saving !== null}
-          className="flex-1 rounded-lg bg-[var(--color-accent)] text-black text-sm font-medium py-2 disabled:opacity-50"
+          className="flex-1 rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-2 disabled:opacity-50"
         >
           {saving === "reviewed" ? "Saving..." : "Mark Reviewed"}
         </button>
         <button
           onClick={() => handleAction("flagged")}
           disabled={saving !== null}
-          className="flex-1 rounded-lg border border-red-400/40 text-red-400 text-sm font-medium py-2 hover:border-red-400 disabled:opacity-50"
+          className="flex-1 rounded-lg border border-[#B55139]/40 text-[#B55139] text-sm font-medium py-2 hover:border-[#B55139] disabled:opacity-50"
         >
           {saving === "flagged" ? "Saving..." : "Flag Issue"}
         </button>

@@ -83,7 +83,7 @@ export default async function AdminPage() {
                     {emp.is_active ? (
                       <span className="text-[var(--color-accent)]">Active</span>
                     ) : (
-                      <span className="text-red-400">Inactive</span>
+                      <span className="text-[#B55139]">Inactive</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">

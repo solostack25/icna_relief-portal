@@ -58,7 +58,7 @@ export default async function DrsPage() {
         <div className="flex gap-3 mb-8">
           <Link
             href="/drs/new"
-            className="flex-1 text-center rounded-lg bg-[var(--color-accent)] text-black text-sm font-medium py-3"
+            className="flex-1 text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3"
           >
             + New Submission
           </Link>
@@ -96,7 +96,7 @@ export default async function DrsPage() {
                         : " · No activity reported"}
                     </div>
                     {s.status === "flagged" && s.review_note && (
-                      <div className="text-xs text-red-400 mt-1">
+                      <div className="text-xs text-[#B55139] mt-1">
                         ⚠ {s.review_note}
                       </div>
                     )}

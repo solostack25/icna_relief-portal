@@ -146,7 +146,7 @@ export default async function AdminReviewPage({
                 <Link
                   key={s.id}
                   href={`/admin/review/${activeProgram.slug}/${s.id}`}
-                  className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] last:border-0 hover:bg-black/20"
+                  className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] last:border-0 hover:bg-white"
                 >
                   <div>
                     <div className="text-sm font-medium">

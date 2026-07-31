@@ -95,7 +95,7 @@ export default function NewEmployeePage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
+    "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
   const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
 
   return (
@@ -234,12 +234,12 @@ export default function NewEmployeePage() {
             </div>
           </section>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-[#B55139]">{error}</p>}
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-lg bg-[var(--color-accent)] text-black font-medium py-3 text-sm disabled:opacity-50"
+            className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-3 text-sm disabled:opacity-50"
           >
             {saving ? "Creating..." : "Create Employee & Send Invite"}
           </button>

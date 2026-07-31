@@ -1,16 +1,50 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
+/* ICNA Relief brand palette — from Brand Guidelines, last edited Sept. 2025 */
 :root {
-  --color-bg: #0a0a0f;
-  --color-surface: #14141c;
-  --color-border: #26262f;
-  --color-accent: #00ffd1;
-  --color-text: #e8e8ec;
-  --color-text-dim: #8a8a96;
+  color-scheme: light;
+
+  --color-bg: #ffffff;
+  --color-surface: #f7f8f4;
+  --color-border: #d9ded0;
+
+  /* Corporate logo colors */
+  --color-accent: #00a950;       /* Strong Green */
+  --color-accent-orange: #f28d1d; /* Bright Orange */
+
+  /* Secondary palette */
+  --color-yellow-green: #d2dac3;
+  --color-grayish-green: #789174;
+  --color-dark-green: #476040;
+  --color-bright-yellow: #e9ce3f;
+  --color-dull-red: #b55139;
+
+  --color-text: #1f2421;
+  --color-text-dim: #5c6b5f;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Roboto", system-ui, sans-serif;
+}
+
+h1, h2, h3 {
+  font-family: "Roboto", system-ui, sans-serif;
+  font-weight: 700;
+}
+
+/* Fix native <select> popup contrast — without an explicit color-scheme,
+   browsers render the options popup using OS defaults regardless of our
+   custom theme, which is what caused the washed-out/unreadable dropdown. */
+select {
+  color-scheme: light;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+option {
+  background-color: #ffffff;
+  color: var(--color-text);
 }
