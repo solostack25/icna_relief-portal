@@ -35,10 +35,14 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
-      <form
-        onSubmit={handleLogin}
-        className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8"
-      >
+      <div className="w-full max-w-sm">
+        <div className="flex justify-center mb-8">
+          <img src="/icna-relief-logo.png" alt="ICNA Relief" className="h-12" />
+        </div>
+        <form
+          onSubmit={handleLogin}
+          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8"
+        >
         <h1 className="text-xl font-semibold mb-1">ICNA Relief Portal</h1>
         <p className="text-sm text-[var(--color-text-dim)] mb-6">
           Staff sign in
@@ -73,7 +77,8 @@ export default function LoginPage() {
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>
-      </form>
+        </form>
+      </div>
     </main>
   );
 }

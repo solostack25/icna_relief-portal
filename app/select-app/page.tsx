@@ -51,6 +51,7 @@ export default async function SelectAppPage() {
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
+        <img src="/icna-relief-logo.png" alt="ICNA Relief" className="h-8 mb-6" />
         <h1 className="text-xl font-semibold mb-1">
           Welcome, {employee.first_name}
         </h1>
