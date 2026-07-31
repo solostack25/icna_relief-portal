@@ -33,12 +33,20 @@ export default async function AdminPage() {
               Manage employees and app access
             </p>
           </div>
-          <Link
-            href="/select-app"
-            className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-          >
-            ← Back to apps
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/review"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              Review Submissions
+            </Link>
+            <Link
+              href="/select-app"
+              className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+            >
+              ← Back to apps
+            </Link>
+          </div>
         </div>
 
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">

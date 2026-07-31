@@ -24,7 +24,7 @@ export default async function FatePage() {
   const { data: submissions } = await supabase
     .from("fate_submissions")
     .select(
-      "id, year, month, state, city, liaison_name, families_served_new, children_served_new, status, office_id, created_at"
+      "id, year, month, state, city, liaison_name, families_served_new, children_served_new, status, review_note, office_id, created_at"
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -97,6 +97,11 @@ export default async function FatePage() {
                         ? ` · ${s.families_served_new} families served`
                         : ""}
                     </div>
+                    {s.status === "flagged" && s.review_note && (
+                      <div className="text-xs text-red-400 mt-1">
+                        ⚠ {s.review_note}
+                      </div>
+                    )}
                   </div>
                   <span className="text-xs text-[var(--color-text-dim)] capitalize">
                     {s.status}

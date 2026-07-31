@@ -25,7 +25,7 @@ export default async function B2SPage() {
   const { data: submissions } = await supabase
     .from("b2s_submissions")
     .select(
-      "id, year, month, distribution_city, elementary_backpacks, middle_backpacks, high_backpacks, status, office_id, created_at"
+      "id, year, month, distribution_city, elementary_backpacks, middle_backpacks, high_backpacks, status, review_note, office_id, created_at"
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -99,6 +99,11 @@ export default async function B2SPage() {
                       {s.distribution_city ? ` · ${s.distribution_city}` : ""}
                       {totalBackpacks ? ` · ${totalBackpacks} backpacks` : ""}
                     </div>
+                    {s.status === "flagged" && s.review_note && (
+                      <div className="text-xs text-red-400 mt-1">
+                        ⚠ {s.review_note}
+                      </div>
+                    )}
                   </div>
                   <span className="text-xs text-[var(--color-text-dim)] capitalize">
                     {s.status}

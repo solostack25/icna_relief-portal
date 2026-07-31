@@ -24,7 +24,7 @@ export default async function DrsPage() {
   const { data: submissions } = await supabase
     .from("drs_submissions")
     .select(
-      "id, year, month, activity_occurred, activity_type, activity_name, individuals_served, status, office_id, created_at"
+      "id, year, month, activity_occurred, activity_type, activity_name, individuals_served, status, review_note, office_id, created_at"
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -95,6 +95,11 @@ export default async function DrsPage() {
                         ? ` · ${s.activity_type ?? "Activity"}${s.activity_name ? ` — ${s.activity_name}` : ""}`
                         : " · No activity reported"}
                     </div>
+                    {s.status === "flagged" && s.review_note && (
+                      <div className="text-xs text-red-400 mt-1">
+                        ⚠ {s.review_note}
+                      </div>
+                    )}
                   </div>
                   <span className="text-xs text-[var(--color-text-dim)] capitalize">
                     {s.status}
