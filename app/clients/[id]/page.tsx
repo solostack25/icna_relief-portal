@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import GenerateCardButton from "./GenerateCardButton";
+import DistributeBackpackButton from "./DistributeBackpackButton";
 
 export default async function ClientProfilePage({
   params,
@@ -30,7 +31,7 @@ export default async function ClientProfilePage({
   // separate queries, merged in memory — no relational joins
   const { data: members } = await supabase
     .from("household_members")
-    .select("id, first_name, last_name, dob, relationship")
+    .select("id, first_name, last_name, dob, relationship, gender")
     .eq("client_id", id)
     .order("dob");
 
@@ -70,6 +71,15 @@ export default async function ClientProfilePage({
               {clientRecord.client_number}
             </p>
           </div>
+          <DistributeBackpackButton
+            clientId={id}
+            members={(members ?? []).map((m) => ({
+              id: m.id,
+              first_name: m.first_name,
+              dob: m.dob,
+              gender: m.gender,
+            }))}
+          />
         </div>
 
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
