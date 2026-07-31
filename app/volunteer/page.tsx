@@ -10,6 +10,12 @@ export default async function VolunteerPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
+  const { data: me } = await supabase
+    .from("employees")
+    .select("role")
+    .eq("auth_user_id", user.id)
+    .single();
+
   const { data: events } = await supabase
     .from("volunteer_events")
     .select("id, office_id, title, slug, starts_on, ends_on, is_published, created_at")
@@ -56,12 +62,22 @@ export default async function VolunteerPage() {
           </Link>
         </div>
 
-        <Link
-          href="/volunteer/new"
-          className="block text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 mb-8"
-        >
-          + New Event
-        </Link>
+        <div className="flex gap-3 mb-8">
+          <Link
+            href="/volunteer/new"
+            className="flex-1 text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3"
+          >
+            + New Event
+          </Link>
+          {me?.role === "admin" && (
+            <a
+              href="/api/volunteer/export"
+              className="flex-1 text-center rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] text-sm font-medium py-3 hover:border-[var(--color-accent)]"
+            >
+              Export Signups (CSV)
+            </a>
+          )}
+        </div>
 
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
           {(events ?? []).length === 0 ? (
