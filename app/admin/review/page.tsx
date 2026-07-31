@@ -28,13 +28,37 @@ export default async function AdminReviewPage({
 
   const { data: me } = await supabase
     .from("employees")
-    .select("role")
+    .select("id, role, assigned_region")
     .eq("auth_user_id", user.id)
     .single();
-  if (me?.role !== "admin") redirect("/select-app");
 
-  const activeProgram = PROGRAMS.find((p) => p.slug === programParam) ?? PROGRAMS[0];
+  const allowedRoles = ["admin", "regional_director", "program_director"];
+  if (!me || !allowedRoles.includes(me.role)) redirect("/select-app");
+
+  // program directors only see tabs for programs they've been granted
+  let visiblePrograms = PROGRAMS;
+  if (me.role === "program_director") {
+    const { data: access } = await supabase
+      .from("employee_program_access")
+      .select("program_slug")
+      .eq("employee_id", me.id);
+    const slugs = new Set((access ?? []).map((a) => a.program_slug));
+    const slugMap: Record<string, string> = { b2s: "back-to-school", fate: "fate", drs: "drs" };
+    visiblePrograms = PROGRAMS.filter((p) => slugs.has(slugMap[p.slug]));
+  }
+
+  const activeProgram = visiblePrograms.find((p) => p.slug === programParam) ?? visiblePrograms[0];
   const activeStatus = statusParam ?? "submitted";
+
+  if (!activeProgram) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4">
+        <p className="text-sm text-[var(--color-text-dim)]">
+          You don't have review access to any program yet. Contact an admin.
+        </p>
+      </main>
+    );
+  }
 
   let query = supabase
     .from(activeProgram.table)
@@ -71,15 +95,15 @@ export default async function AdminReviewPage({
             </p>
           </div>
           <Link
-            href="/admin"
+            href={me.role === "admin" ? "/admin" : "/select-app"}
             className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
           >
-            ← Admin
+            ← {me.role === "admin" ? "Admin" : "Back"}
           </Link>
         </div>
 
         <div className="flex gap-2 mb-4">
-          {PROGRAMS.map((p) => (
+          {visiblePrograms.map((p) => (
             <Link
               key={p.slug}
               href={tabHref(p.slug, activeStatus)}

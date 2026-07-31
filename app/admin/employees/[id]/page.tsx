@@ -26,7 +26,7 @@ export default async function EmployeeDetailPage({
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, email, role, is_active, auth_user_id, assigned_office_id")
+    .select("id, first_name, last_name, email, role, is_active, auth_user_id, assigned_office_id, assigned_region")
     .eq("id", id)
     .single();
 
@@ -49,6 +49,11 @@ export default async function EmployeeDetailPage({
     .select("id, region, field_office, state")
     .eq("is_active", true)
     .order("region");
+
+  const { data: regions } = await supabase
+    .from("b2s_regions")
+    .select("region, rsn")
+    .order("rsn");
 
   const grantedSlugs = (access ?? []).map((a) => a.program_slug);
 
@@ -73,7 +78,10 @@ export default async function EmployeeDetailPage({
           <OfficeAssignmentEditor
             employeeId={employee.id}
             offices={offices ?? []}
+            regions={regions ?? []}
             currentOfficeId={employee.assigned_office_id}
+            currentRegion={employee.assigned_region}
+            currentRole={employee.role}
           />
 
           <AccessEditor

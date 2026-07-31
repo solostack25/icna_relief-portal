@@ -7,12 +7,14 @@ import { createClient } from "@/lib/supabase/client";
 
 type Office = { id: string; region: string; field_office: string; state: string | null };
 type App = { slug: string; display_name: string };
+type Region = { region: string; rsn: number };
 
 export default function NewEmployeePage() {
   const supabase = createClient();
   const router = useRouter();
 
   const [offices, setOffices] = useState<Office[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [apps, setApps] = useState<App[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +25,7 @@ export default function NewEmployeePage() {
     email: "",
     role: "staff",
     assignedOfficeId: "",
+    assignedRegion: "",
   });
   const [selectedApps, setSelectedApps] = useState<Set<string>>(new Set());
 
@@ -33,6 +36,12 @@ export default function NewEmployeePage() {
       .eq("is_active", true)
       .order("region")
       .then(({ data }) => setOffices(data ?? []));
+
+    supabase
+      .from("b2s_regions")
+      .select("region, rsn")
+      .order("rsn")
+      .then(({ data }) => setRegions(data ?? []));
 
     supabase
       .from("app_registry")
@@ -69,6 +78,7 @@ export default function NewEmployeePage() {
         email: form.email,
         role: form.role,
         assignedOfficeId: form.assignedOfficeId || null,
+        assignedRegion: form.assignedRegion || null,
         programSlugs: Array.from(selectedApps),
       }),
     });
@@ -145,32 +155,67 @@ export default function NewEmployeePage() {
                 className={inputClass}
               >
                 <option value="staff">Staff</option>
+                <option value="regional_director">Regional Director</option>
+                <option value="program_director">Program Director</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
           </section>
 
-          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
-            <h2 className="text-sm font-medium">Office / State / Region Assignment</h2>
-            <p className="text-xs text-[var(--color-text-dim)]">
-              Whatever this person reports on (B2S, F.A.T.E., D.R.S.) will
-              automatically use this office — they won't need to pick it
-              each time.
-            </p>
-            <select
-              value={form.assignedOfficeId}
-              onChange={(e) => setForm((f) => ({ ...f, assignedOfficeId: e.target.value }))}
-              className={inputClass}
-            >
-              <option value="">No assignment (e.g. HQ / reviewer)</option>
-              {offices.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.region} — {o.field_office}
-                  {o.state ? ` (${o.state})` : ""}
-                </option>
-              ))}
-            </select>
-          </section>
+          {form.role === "staff" && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+              <h2 className="text-sm font-medium">Office / State Assignment</h2>
+              <p className="text-xs text-[var(--color-text-dim)]">
+                This person can only submit reports for this office —
+                enforced at the database level, not just hidden in the UI.
+              </p>
+              <select
+                value={form.assignedOfficeId}
+                onChange={(e) => setForm((f) => ({ ...f, assignedOfficeId: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="">Select an office...</option>
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.region} — {o.field_office}
+                    {o.state ? ` (${o.state})` : ""}
+                  </option>
+                ))}
+              </select>
+            </section>
+          )}
+
+          {form.role === "regional_director" && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+              <h2 className="text-sm font-medium">Region Assignment</h2>
+              <p className="text-xs text-[var(--color-text-dim)]">
+                Sees and reviews every office's submissions within this
+                region, across whichever programs they're granted below.
+              </p>
+              <select
+                value={form.assignedRegion}
+                onChange={(e) => setForm((f) => ({ ...f, assignedRegion: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="">Select a region...</option>
+                {regions.map((r) => (
+                  <option key={r.region} value={r.region}>
+                    {r.region}
+                  </option>
+                ))}
+              </select>
+            </section>
+          )}
+
+          {form.role === "program_director" && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+              <h2 className="text-sm font-medium mb-1">Program Scope</h2>
+              <p className="text-xs text-[var(--color-text-dim)]">
+                Sees and reviews every office/region's submissions, but only
+                for the program(s) checked below.
+              </p>
+            </section>
+          )}
 
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
             <h2 className="text-sm font-medium">App Access</h2>

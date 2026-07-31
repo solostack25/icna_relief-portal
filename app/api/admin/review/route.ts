@@ -23,7 +23,8 @@ export async function PATCH(request: NextRequest) {
     .eq("auth_user_id", user.id)
     .single();
 
-  if (me?.role !== "admin") {
+  const allowedRoles = ["admin", "regional_director", "program_director"];
+  if (!me || !allowedRoles.includes(me.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -34,7 +35,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from(table)
     .update({
       status,
@@ -42,10 +43,18 @@ export async function PATCH(request: NextRequest) {
       reviewed_by: me.id,
       reviewed_at: new Date().toISOString(),
     })
-    .eq("id", submissionId);
+    .eq("id", submissionId)
+    .select("id");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "You don't have permission to review this submission." },
+      { status: 403 }
+    );
   }
 
   return NextResponse.json({ ok: true });

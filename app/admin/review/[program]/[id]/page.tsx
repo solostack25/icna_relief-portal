@@ -47,7 +47,8 @@ export default async function ReviewDetailPage({
     .select("role")
     .eq("auth_user_id", user.id)
     .single();
-  if (me?.role !== "admin") redirect("/select-app");
+  const allowedRoles = ["admin", "regional_director", "program_director"];
+  if (!me || !allowedRoles.includes(me.role)) redirect("/select-app");
 
   const { data: submission } = await supabase
     .from(table)

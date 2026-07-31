@@ -91,6 +91,22 @@ export default async function SelectAppPage() {
               </div>
             </Link>
           )}
+
+          {(employee.role === "regional_director" || employee.role === "program_director") && (
+            <Link
+              href="/admin/review"
+              className="rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
+            >
+              <div className="text-lg font-medium text-[var(--color-accent)]">
+                Review Submissions
+              </div>
+              <div className="text-xs text-[var(--color-text-dim)] mt-1">
+                {employee.role === "regional_director"
+                  ? "Your region's submissions"
+                  : "Your program's submissions"}
+              </div>
+            </Link>
+          )}
         </div>
 
         {visibleApps.length === 0 && employee.role !== "admin" && (

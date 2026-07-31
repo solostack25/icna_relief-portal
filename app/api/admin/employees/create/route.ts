@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     email,
     role,
     assignedOfficeId,
+    assignedRegion,
     programSlugs,
   } = await request.json();
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       email,
       role: role ?? "staff",
       assigned_office_id: assignedOfficeId || null,
+      assigned_region: assignedRegion || null,
     })
     .select("id")
     .single();
