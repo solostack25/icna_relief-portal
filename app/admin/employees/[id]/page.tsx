@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import AccessEditor from "./AccessEditor";
+import OfficeAssignmentEditor from "./OfficeAssignmentEditor";
 
 export default async function EmployeeDetailPage({
   params,
@@ -25,7 +26,7 @@ export default async function EmployeeDetailPage({
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, email, role, is_active, auth_user_id")
+    .select("id, first_name, last_name, email, role, is_active, auth_user_id, assigned_office_id")
     .eq("id", id)
     .single();
 
@@ -42,6 +43,12 @@ export default async function EmployeeDetailPage({
     .from("employee_program_access")
     .select("program_slug")
     .eq("employee_id", employee.id);
+
+  const { data: offices } = await supabase
+    .from("b2s_offices")
+    .select("id, region, field_office, state")
+    .eq("is_active", true)
+    .order("region");
 
   const grantedSlugs = (access ?? []).map((a) => a.program_slug);
 
@@ -62,12 +69,20 @@ export default async function EmployeeDetailPage({
           {employee.email}
         </p>
 
-        <AccessEditor
-          employeeId={employee.id}
-          authUserId={employee.auth_user_id}
-          allApps={allApps ?? []}
-          grantedSlugs={grantedSlugs}
-        />
+        <div className="space-y-8">
+          <OfficeAssignmentEditor
+            employeeId={employee.id}
+            offices={offices ?? []}
+            currentOfficeId={employee.assigned_office_id}
+          />
+
+          <AccessEditor
+            employeeId={employee.id}
+            authUserId={employee.auth_user_id}
+            allApps={allApps ?? []}
+            grantedSlugs={grantedSlugs}
+          />
+        </div>
       </div>
     </main>
   );

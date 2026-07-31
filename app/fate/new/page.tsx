@@ -17,6 +17,7 @@ export default function NewFateSubmissionPage() {
   const router = useRouter();
 
   const [offices, setOffices] = useState<Office[]>([]);
+  const [assignedOffice, setAssignedOffice] = useState<Office | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +66,32 @@ export default function NewFateSubmissionPage() {
       .eq("is_active", true)
       .order("region")
       .then(({ data }) => setOffices(data ?? []));
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: me } = await supabase
+        .from("employees")
+        .select("assigned_office_id")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (me?.assigned_office_id) {
+        const { data: office } = await supabase
+          .from("b2s_offices")
+          .select("id, region, field_office")
+          .eq("id", me.assigned_office_id)
+          .single();
+
+        if (office) {
+          setAssignedOffice(office);
+          update("office_id", office.id);
+        }
+      }
+    })();
   }, []);
 
   function update<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
@@ -162,19 +189,25 @@ export default function NewFateSubmissionPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-3 sm:col-span-1">
                 <label className={labelClass}>Office *</label>
-                <select
-                  required
-                  value={form.office_id}
-                  onChange={(e) => update("office_id", e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Select...</option>
-                  {offices.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.region} — {o.field_office}
-                    </option>
-                  ))}
-                </select>
+                {assignedOffice ? (
+                  <div className={inputClass + " flex items-center"}>
+                    {assignedOffice.region} — {assignedOffice.field_office}
+                  </div>
+                ) : (
+                  <select
+                    required
+                    value={form.office_id}
+                    onChange={(e) => update("office_id", e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select...</option>
+                    {offices.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.region} — {o.field_office}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Month</label>

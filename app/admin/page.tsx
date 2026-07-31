@@ -35,6 +35,12 @@ export default async function AdminPage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
+              href="/admin/employees/new"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              + Add Employee
+            </Link>
+            <Link
               href="/admin/review"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >
