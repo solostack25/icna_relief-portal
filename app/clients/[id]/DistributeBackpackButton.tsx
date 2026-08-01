@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Confetti from "./Confetti";
+import { getBackpackKindMessage } from "@/lib/kindMessages";
 
 type Member = {
   id: string;
@@ -43,6 +45,7 @@ export default function DistributeBackpackButton({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [assignedOfficeId, setAssignedOfficeId] = useState<string | null>(null);
   const [offices, setOffices] = useState<Office[]>([]);
@@ -193,7 +196,12 @@ export default function DistributeBackpackButton({
       return;
     }
 
+    setSuccessMessage(getBackpackKindMessage(chosen.length));
+  }
+
+  function handleDone() {
     setOpen(false);
+    setSuccessMessage(null);
     router.refresh();
   }
 
@@ -220,8 +228,27 @@ export default function DistributeBackpackButton({
 
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-          <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-            <h2 className="text-sm font-medium mb-1">Distribute Backpacks</h2>
+          <div className="relative w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 overflow-hidden">
+            {successMessage ? (
+              <>
+                <Confetti />
+                <div className="text-center py-6">
+                  <div className="text-4xl mb-3">🎒</div>
+                  <p className="text-base font-medium mb-2">{successMessage}</p>
+                  <p className="text-xs text-[var(--color-text-dim)] mb-6">
+                    Distribution logged successfully.
+                  </p>
+                  <button
+                    onClick={handleDone}
+                    className="rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-6 py-2"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-sm font-medium mb-1">Distribute Backpacks</h2>
             <p className="text-xs text-[var(--color-text-dim)] mb-4">
               {eligible.length} eligible child{eligible.length !== 1 ? "ren" : ""} on file
               (ages 5–18)
@@ -301,6 +328,8 @@ export default function DistributeBackpackButton({
                 {saving ? "Saving..." : "Confirm"}
               </button>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}
