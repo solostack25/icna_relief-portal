@@ -76,11 +76,18 @@ async function runSync() {
 
   // apply to matching employees rows
   for (const [email, want] of Object.entries(desired)) {
-    const { data: employee } = await admin
+    const { data: employeeRaw } = await admin
       .from("employees")
       .select("id, role, assigned_office_id, assigned_region")
       .eq("email", email)
       .single();
+
+    const employee = employeeRaw as {
+      id: string;
+      role: string;
+      assigned_office_id: string | null;
+      assigned_region: string | null;
+    } | null;
 
     if (!employee) continue; // no portal account yet — provisioned at first login instead
 
@@ -107,7 +114,9 @@ async function runSync() {
       .from("employee_program_access")
       .select("program_slug")
       .eq("employee_id", employee.id);
-    const currentSlugs = new Set((currentAccess ?? []).map((a: { program_slug: string }) => a.program_slug));
+    const currentSlugs = new Set<string>(
+      ((currentAccess ?? []) as { program_slug: string }[]).map((a) => a.program_slug)
+    );
 
     for (const slug of want.programSlugs) {
       if (!currentSlugs.has(slug)) {

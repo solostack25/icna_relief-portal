@@ -64,7 +64,7 @@ export async function POST() {
   const firstName = nameParts[0] ?? email;
   const lastName = nameParts.slice(1).join(" ") || "—";
 
-  const { data: newEmployee, error } = await admin
+  const { data: newEmployeeRaw, error } = await admin
     .from("employees")
     .insert({
       auth_user_id: user.id,
@@ -78,6 +78,8 @@ export async function POST() {
     })
     .select("id")
     .single();
+
+  const newEmployee = newEmployeeRaw as { id: string } | null;
 
   if (error || !newEmployee) {
     return NextResponse.json({ error: error?.message }, { status: 500 });
