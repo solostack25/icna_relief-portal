@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import SuccessScreen from "@/app/components/SuccessScreen";
+import { getB2SActivityKindMessage } from "@/lib/kindMessages";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -19,6 +21,7 @@ export default function NewB2SActivityPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [assignedOffice, setAssignedOffice] = useState<Office | null>(null);
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const now = new Date();
@@ -142,7 +145,7 @@ export default function NewB2SActivityPage() {
       return;
     }
 
-    router.push("/back-to-school");
+    setSuccessMessage(getB2SActivityKindMessage());
   }
 
   const inputClass =
@@ -169,6 +172,17 @@ export default function NewB2SActivityPage() {
         <h2 className="text-sm font-medium">{title}</h2>
         {children}
       </section>
+    );
+  }
+
+  if (successMessage) {
+    return (
+      <SuccessScreen
+        emoji="📋"
+        message={successMessage}
+        subtext="Activity logged successfully."
+        onDone={() => router.push("/back-to-school")}
+      />
     );
   }
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import SuccessScreen from "@/app/components/SuccessScreen";
+import { getDrsKindMessage } from "@/lib/kindMessages";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -21,6 +23,7 @@ export default function NewDrsSubmissionPage() {
   const [assignedOffice, setAssignedOffice] = useState<Office | null>(null);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const now = new Date();
@@ -145,7 +148,11 @@ export default function NewDrsSubmissionPage() {
       return;
     }
 
-    router.push("/drs");
+    if (form.activity_occurred) {
+      setSuccessMessage(getDrsKindMessage());
+    } else {
+      router.push("/drs");
+    }
   }
 
   const inputClass =
@@ -176,6 +183,17 @@ export default function NewDrsSubmissionPage() {
   }
 
   const suggestedPrefix = activityTypes.find((t) => t.type_name === form.activity_type)?.id_prefix;
+
+  if (successMessage) {
+    return (
+      <SuccessScreen
+        emoji="🚨"
+        message={successMessage}
+        subtext="Activity logged successfully."
+        onDone={() => router.push("/drs")}
+      />
+    );
+  }
 
   return (
     <main className="min-h-screen px-4 py-12">

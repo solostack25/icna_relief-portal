@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import SuccessScreen from "@/app/components/SuccessScreen";
+import { getClientIntakeKindMessage } from "@/lib/kindMessages";
 
 type HouseholdMember = {
   first_name: string;
@@ -41,6 +43,8 @@ export default function NewIntakePage() {
 
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [newClientRedirectId, setNewClientRedirectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function updateField(field: keyof typeof form, value: string) {
@@ -110,13 +114,26 @@ export default function NewIntakePage() {
 
     const newClientId = data?.[0]?.client_id;
     if (newClientId) {
-      router.push(`/clients/${newClientId}?created=1`);
+      setNewClientRedirectId(newClientId);
+      setSuccessMessage(getClientIntakeKindMessage());
     }
   }
 
   const inputClass =
     "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
   const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
+
+  if (successMessage && newClientRedirectId) {
+    return (
+      <SuccessScreen
+        emoji="🧾"
+        message={successMessage}
+        subtext="Client registered successfully."
+        doneLabel="View Client Profile"
+        onDone={() => router.push(`/clients/${newClientRedirectId}?created=1`)}
+      />
+    );
+  }
 
   return (
     <main className="min-h-screen px-4 py-12">

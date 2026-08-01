@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import SuccessScreen from "@/app/components/SuccessScreen";
+import { getFateKindMessage } from "@/lib/kindMessages";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -19,6 +21,7 @@ export default function NewFateSubmissionPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [assignedOffice, setAssignedOffice] = useState<Office | null>(null);
   const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const now = new Date();
@@ -141,7 +144,7 @@ export default function NewFateSubmissionPage() {
       return;
     }
 
-    router.push("/fate");
+    setSuccessMessage(getFateKindMessage());
   }
 
   const inputClass =
@@ -168,6 +171,17 @@ export default function NewFateSubmissionPage() {
         <h2 className="text-sm font-medium">{title}</h2>
         {children}
       </section>
+    );
+  }
+
+  if (successMessage) {
+    return (
+      <SuccessScreen
+        emoji="🤝"
+        message={successMessage}
+        subtext="Submission logged successfully."
+        onDone={() => router.push("/fate")}
+      />
     );
   }
 
