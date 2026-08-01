@@ -69,7 +69,7 @@ export default async function AdMappingsPage() {
               No mappings yet — add one to start driving access from AD groups.
             </p>
           ) : (
-            (mappings ?? []).map((m) => (
+            (mappings ?? []).map((m: any) => (
               <div
                 key={m.id}
                 className="px-4 py-3 border-b border-[var(--color-border)] last:border-0"
@@ -92,7 +92,7 @@ export default async function AdMappingsPage() {
               No sync activity yet.
             </p>
           ) : (
-            (recentSyncs ?? []).map((s, i) => (
+            (recentSyncs ?? []).map((s: any, i: number) => (
               <div
                 key={i}
                 className="px-4 py-2 border-b border-[var(--color-border)] last:border-0 text-xs"

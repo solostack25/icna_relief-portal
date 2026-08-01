@@ -107,7 +107,7 @@ async function runSync() {
       .from("employee_program_access")
       .select("program_slug")
       .eq("employee_id", employee.id);
-    const currentSlugs = new Set((currentAccess ?? []).map((a) => a.program_slug));
+    const currentSlugs = new Set((currentAccess ?? []).map((a: { program_slug: string }) => a.program_slug));
 
     for (const slug of want.programSlugs) {
       if (!currentSlugs.has(slug)) {
