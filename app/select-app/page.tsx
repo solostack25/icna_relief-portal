@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import DayAtAGlance from "./DayAtAGlance";
+import LogoutButton from "./LogoutButton";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -100,7 +101,10 @@ export default async function SelectAppPage() {
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <img src="/icna-relief-logo.png" alt="ICNA Relief" className="h-8 mb-6" />
+        <div className="flex items-center justify-between mb-6">
+          <img src="/icna-relief-logo.png" alt="ICNA Relief" className="h-8" />
+          <LogoutButton />
+        </div>
         <h1 className="text-xl font-semibold mb-1">
           Welcome, {employee.first_name}
         </h1>
