@@ -70,17 +70,23 @@ export default async function AdMappingsPage() {
             </p>
           ) : (
             (mappings ?? []).map((m: any) => (
-              <div
+              <Link
                 key={m.id}
-                className="px-4 py-3 border-b border-[var(--color-border)] last:border-0"
+                href={`/admin/ad-mappings/${m.id}`}
+                className="block px-4 py-3 border-b border-[var(--color-border)] last:border-0 hover:bg-black/5"
               >
-                <div className="text-sm font-medium">{m.ad_group_name}</div>
-                <div className="text-xs text-[var(--color-text-dim)]">
-                  → {m.portal_role}
-                  {m.assigned_region ? ` · ${m.assigned_region}` : ""}
-                  {m.program_slugs?.length ? ` · ${m.program_slugs.join(", ")}` : ""}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium">{m.ad_group_name}</div>
+                    <div className="text-xs text-[var(--color-text-dim)]">
+                      → {m.portal_role}
+                      {m.assigned_region ? ` · ${m.assigned_region}` : ""}
+                      {m.program_slugs?.length ? ` · ${m.program_slugs.join(", ")}` : ""}
+                    </div>
+                  </div>
+                  <span className="text-[var(--color-accent)] text-sm">Edit →</span>
                 </div>
-              </div>
+              </Link>
             ))
           )}
         </div>
