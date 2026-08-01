@@ -1,4 +1,5 @@
 import "./globals.css";
+import HadithBanner from "./HadithBanner";
 
 export const metadata = {
   title: "ICNA Relief Portal",
@@ -12,7 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <HadithBanner />
+        {children}
+      </body>
     </html>
   );
 }

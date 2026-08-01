@@ -48,3 +48,22 @@ option {
   background-color: #ffffff;
   color: var(--color-text);
 }
+
+/* Hadith of the Day ticker */
+.ticker-track {
+  display: inline-flex;
+  animation: ticker-scroll 40s linear infinite;
+}
+
+.ticker-item {
+  display: inline-block;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
