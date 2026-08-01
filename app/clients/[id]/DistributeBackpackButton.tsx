@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -10,6 +10,8 @@ type Member = {
   dob: string;
   gender: "male" | "female" | null;
 };
+
+type Office = { id: string; region: string; field_office: string };
 
 function calcAge(dob: string) {
   const diff = Date.now() - new Date(dob).getTime();
@@ -42,6 +44,38 @@ export default function DistributeBackpackButton({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [assignedOfficeId, setAssignedOfficeId] = useState<string | null>(null);
+  const [offices, setOffices] = useState<Office[]>([]);
+  const [selectedOfficeId, setSelectedOfficeId] = useState("");
+  const [checkingOffice, setCheckingOffice] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: me } = await supabase
+        .from("employees")
+        .select("assigned_office_id")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (me?.assigned_office_id) {
+        setAssignedOfficeId(me.assigned_office_id);
+      } else {
+        const { data: allOffices } = await supabase
+          .from("b2s_offices")
+          .select("id, region, field_office")
+          .eq("is_active", true)
+          .order("region");
+        setOffices(allOffices ?? []);
+      }
+      setCheckingOffice(false);
+    })();
+  }, []);
+
   const eligible = members
     .map((m) => ({ ...m, age: calcAge(m.dob), level: levelFor(calcAge(m.dob)) }))
     .filter((m) => m.level !== null) as {
@@ -63,6 +97,7 @@ export default function DistributeBackpackButton({
       initial[child.id] = { give: true, gender: child.gender ?? "" };
     }
     setSelections(initial);
+    setSelectedOfficeId("");
     setError(null);
     setOpen(true);
   }
@@ -73,6 +108,12 @@ export default function DistributeBackpackButton({
 
   async function handleSubmit() {
     setError(null);
+
+    const officeId = assignedOfficeId ?? selectedOfficeId;
+    if (!officeId) {
+      setError("Select an office for this distribution.");
+      return;
+    }
 
     const chosen = eligible.filter((c) => selections[c.id]?.give);
 
@@ -94,15 +135,9 @@ export default function DistributeBackpackButton({
 
     const { data: me } = await supabase
       .from("employees")
-      .select("id, assigned_office_id, role")
+      .select("id")
       .eq("auth_user_id", user?.id)
       .single();
-
-    if (!me?.assigned_office_id && me?.role !== "admin") {
-      setSaving(false);
-      setError("Your account isn't assigned to an office yet — contact an admin.");
-      return;
-    }
 
     const counts = {
       elementary_boys: 0,
@@ -135,8 +170,8 @@ export default function DistributeBackpackButton({
 
     const { error: insertError } = await supabase.from("b2s_submissions").insert({
       client_id: clientId,
-      office_id: me.assigned_office_id,
-      employee_id: me.id,
+      office_id: officeId,
+      employee_id: me?.id,
       year: now.getFullYear(),
       month: now.getMonth() + 1,
       elementary_backpacks: counts.elementary_boys + counts.elementary_girls,
@@ -191,6 +226,27 @@ export default function DistributeBackpackButton({
               {eligible.length} eligible child{eligible.length !== 1 ? "ren" : ""} on file
               (ages 5–18)
             </p>
+
+            {!checkingOffice && !assignedOfficeId && (
+              <div className="mb-4">
+                <label className="block text-xs mb-1 text-[var(--color-text-dim)]">
+                  Office (your account isn't assigned one — pick which office to
+                  attribute this to)
+                </label>
+                <select
+                  value={selectedOfficeId}
+                  onChange={(e) => setSelectedOfficeId(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">Select an office...</option>
+                  {offices.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.region} — {o.field_office}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
               {eligible.map((child) => {
