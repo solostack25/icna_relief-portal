@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import DayAtAGlance from "./DayAtAGlance";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -48,6 +49,54 @@ export default async function SelectAppPage() {
     employee.role === "admin" ? true : allowedSlugs.includes(a.slug)
   );
 
+  // 4. Day at a Glance stats — this employee's activity this month,
+  //    only for programs they actually have access to
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const hasProgram = (slug: string) =>
+    employee.role === "admin" || allowedSlugs.includes(slug);
+
+  const glanceCards: { label: string; value: number | string; connected: boolean }[] = [];
+
+  if (hasProgram("back-to-school")) {
+    const { data: b2s } = await supabase
+      .from("b2s_submissions")
+      .select("elementary_backpacks, middle_backpacks, high_backpacks")
+      .eq("employee_id", employee.id)
+      .eq("year", year)
+      .eq("month", month);
+    const backpacks = (b2s ?? []).reduce(
+      (sum, r) => sum + (r.elementary_backpacks ?? 0) + (r.middle_backpacks ?? 0) + (r.high_backpacks ?? 0),
+      0
+    );
+    glanceCards.push({ label: "Backpacks Distributed (This Month)", value: backpacks, connected: true });
+  }
+
+  if (hasProgram("fate")) {
+    const { count } = await supabase
+      .from("fate_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employee.id)
+      .eq("year", year)
+      .eq("month", month);
+    glanceCards.push({ label: "F.A.T.E. Submissions (This Month)", value: count ?? 0, connected: true });
+  }
+
+  if (hasProgram("drs")) {
+    const { count } = await supabase
+      .from("drs_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employee.id)
+      .eq("year", year)
+      .eq("month", month)
+      .eq("activity_occurred", true);
+    glanceCards.push({ label: "D.R.S. Activity Logged (This Month)", value: count ?? 0, connected: true });
+  }
+
+  glanceCards.push({ label: "Open Help Desk Tickets", value: "—", connected: false });
+  glanceCards.push({ label: "Pending Approvals", value: "—", connected: false });
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
@@ -55,9 +104,11 @@ export default async function SelectAppPage() {
         <h1 className="text-xl font-semibold mb-1">
           Welcome, {employee.first_name}
         </h1>
-        <p className="text-sm text-[var(--color-text-dim)] mb-8">
+        <p className="text-sm text-[var(--color-text-dim)] mb-6">
           Choose an app to continue
         </p>
+
+        <DayAtAGlance cards={glanceCards} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {(visibleApps.length > 0 || employee.role === "admin") && (
