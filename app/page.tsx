@@ -33,20 +33,50 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  async function handleMicrosoftLogin() {
+    setError(null);
+    await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: "email openid profile",
+      },
+    });
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
           <img src="/icna-relief-logo.png" alt="ICNA Relief" className="h-12" />
         </div>
-        <form
-          onSubmit={handleLogin}
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8"
-        >
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
         <h1 className="text-xl font-semibold mb-1">ICNA Relief Portal</h1>
         <p className="text-sm text-[var(--color-text-dim)] mb-6">
           Staff sign in
         </p>
+
+        <button
+          onClick={handleMicrosoftLogin}
+          type="button"
+          className="w-full mb-4 flex items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-white text-sm font-medium py-2 hover:border-[var(--color-accent)]"
+        >
+          <svg width="16" height="16" viewBox="0 0 21 21">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+          </svg>
+          Sign in with Microsoft
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-[var(--color-border)]" />
+          <span className="text-xs text-[var(--color-text-dim)]">or</span>
+          <div className="flex-1 h-px bg-[var(--color-border)]" />
+        </div>
+
+        <form onSubmit={handleLogin}>
 
         <label className="block text-sm mb-1">Email</label>
         <input
@@ -78,6 +108,7 @@ export default function LoginPage() {
           {loading ? "Signing in..." : "Sign in"}
         </button>
         </form>
+        </div>
       </div>
     </main>
   );

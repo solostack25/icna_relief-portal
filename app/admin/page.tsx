@@ -41,6 +41,12 @@ export default async function AdminPage() {
               + Add Employee
             </Link>
             <Link
+              href="/admin/ad-mappings"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              AD Mappings
+            </Link>
+            <Link
               href="/admin/review"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >
