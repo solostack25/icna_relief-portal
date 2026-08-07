@@ -5,6 +5,7 @@ import GenerateCardButton from "./GenerateCardButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
 import LogServiceButton from "./LogServiceButton";
+import ProgramSection from "./ProgramSection";
 
 export default async function ClientProfilePage({
   params,
@@ -71,11 +72,15 @@ export default async function ClientProfilePage({
     .order("created_at", { ascending: false })
     .limit(20);
 
-  const programLabels: Record<string, string> = {
-    "hunger-prevention": "Food Distribution",
-    drs: "DRS Assistance",
-    rsce: "RSCE Assistance",
-  };
+  const { data: backpackDistributions } = await supabase
+    .from("b2s_client_distributions")
+    .select("id, school_year, backpacks_distributed, notes, distributed_at")
+    .eq("client_id", id)
+    .order("distributed_at", { ascending: false });
+
+  const foodLog = (serviceLog ?? []).filter((e) => e.program_slug === "hunger-prevention");
+  const drsLog = (serviceLog ?? []).filter((e) => e.program_slug === "drs");
+  const rsceLog = (serviceLog ?? []).filter((e) => e.program_slug === "rsce");
 
   function calcAge(dob: string) {
     const diff = Date.now() - new Date(dob).getTime();
@@ -106,48 +111,6 @@ export default async function ClientProfilePage({
             <p className="text-sm text-[var(--color-text-dim)]">
               {clientRecord.client_number}
             </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <DistributeBackpackButton
-              clientId={id}
-              members={(members ?? []).map((m) => ({
-                id: m.id,
-                first_name: m.first_name,
-                dob: m.dob,
-                gender: m.gender,
-              }))}
-            />
-            <LogServiceButton
-              clientId={id}
-              programSlug="hunger-prevention"
-              buttonLabel="Distribute Food"
-              modalTitle="Distribute Food"
-            />
-            <LogServiceButton
-              clientId={id}
-              programSlug="drs"
-              buttonLabel="Log DRS Assistance"
-              modalTitle="Log DRS Assistance"
-              subtitle="Disaster Relief Services"
-            />
-            <LogServiceButton
-              clientId={id}
-              programSlug="rsce"
-              buttonLabel="Log RSCE Assistance"
-              modalTitle="Log RSCE Assistance"
-              subtitle="Refugee Services & Community Empowerment"
-            />
-            {!hasActiveStay && !requiresReadmissionApproval && (
-              <AdmitToHousingButton clientId={id} />
-            )}
-            {requiresReadmissionApproval && (
-              <a
-                href={`/transitional-housing/readmissions/new?client=${id}`}
-                className="rounded-lg border border-[var(--color-accent-orange)] text-[var(--color-accent-orange)] text-sm font-medium px-4 py-2 hover:bg-[var(--color-accent-orange)]/10"
-              >
-                File Readmission Request
-              </a>
-            )}
           </div>
         </div>
 
@@ -206,71 +169,210 @@ export default async function ClientProfilePage({
           )}
         </section>
 
-        {requiresReadmissionApproval && (
-          <div className="rounded-xl border border-[var(--color-accent-orange)]/40 bg-[var(--color-accent-orange)]/10 px-4 py-3 text-sm text-[var(--color-accent-orange)] mb-6">
-            This client has a prior Transitional Housing stay and is not currently housed.
-            Re-admission requires an approved readmission request — not a direct admission.
+        <ProgramSection
+          title="Back to School"
+          hasHistory={(backpackDistributions ?? []).length > 0}
+          summary={
+            (backpackDistributions ?? []).length > 0
+              ? `${(backpackDistributions ?? []).length} distribution${(backpackDistributions ?? []).length === 1 ? "" : "s"} · last on ${new Date((backpackDistributions ?? [])[0].distributed_at).toLocaleDateString()}`
+              : undefined
+          }
+          emptyText="No backpacks distributed yet."
+          action={
+            <DistributeBackpackButton
+              clientId={id}
+              members={(members ?? []).map((m) => ({
+                id: m.id,
+                first_name: m.first_name,
+                dob: m.dob,
+                gender: m.gender,
+              }))}
+            />
+          }
+        >
+          <div className="space-y-2">
+            {(backpackDistributions ?? []).map((d) => (
+              <div
+                key={d.id}
+                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span>
+                  {d.backpacks_distributed} backpack{d.backpacks_distributed === 1 ? "" : "s"}
+                  {d.school_year ? ` · ${d.school_year}` : ""}
+                  {d.notes && <span className="text-[var(--color-text-dim)]"> · {d.notes}</span>}
+                </span>
+                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
+                  {new Date(d.distributed_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
+        </ProgramSection>
 
-        {(thStays ?? []).length > 0 && (
-          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
-            <h2 className="text-sm font-medium mb-4">Transitional Housing</h2>
-            <div className="space-y-2">
-              {(thStays ?? []).map((s) => {
-                const bed = bedById.get(s.bed_id);
-                const house = bed ? houseById.get(bed.house_id) : null;
-                return (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
-                  >
-                    <span>
-                      {house?.name ?? "Unknown house"} · Bed {bed?.label ?? "?"}
-                      <span className="text-[var(--color-text-dim)]">
-                        {" "}
-                        · {s.move_in_date} → {s.expected_exit_date}
-                      </span>
-                    </span>
-                    <span
-                      className={
-                        s.status === "active"
-                          ? "text-[var(--color-accent)] font-medium"
-                          : "text-[var(--color-text-dim)]"
-                      }
-                    >
-                      {s.status === "active" ? "Active" : `Vacated (${s.vacated_reason ?? "—"})`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        <ProgramSection
+          title="Food Distribution"
+          hasHistory={foodLog.length > 0}
+          summary={
+            foodLog.length > 0
+              ? `${foodLog.length} logged · last on ${new Date(foodLog[0].created_at).toLocaleDateString()}`
+              : undefined
+          }
+          emptyText="No food distributions logged yet."
+          action={
+            <LogServiceButton
+              clientId={id}
+              programSlug="hunger-prevention"
+              buttonLabel="Distribute Food"
+              modalTitle="Distribute Food"
+            />
+          }
+        >
+          <div className="space-y-2">
+            {foodLog.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span>{entry.notes ?? "Logged"}</span>
+                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
+                  {new Date(entry.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </ProgramSection>
 
-        {(serviceLog ?? []).length > 0 && (
-          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
-            <h2 className="text-sm font-medium mb-4">Service History</h2>
-            <div className="space-y-2">
-              {(serviceLog ?? []).map((entry) => (
+        <ProgramSection
+          title="DRS"
+          hasHistory={drsLog.length > 0}
+          summary={
+            drsLog.length > 0
+              ? `${drsLog.length} logged · last on ${new Date(drsLog[0].created_at).toLocaleDateString()}`
+              : undefined
+          }
+          emptyText="No DRS assistance logged yet."
+          action={
+            <LogServiceButton
+              clientId={id}
+              programSlug="drs"
+              buttonLabel="Log DRS Assistance"
+              modalTitle="Log DRS Assistance"
+              subtitle="Disaster Relief Services"
+            />
+          }
+        >
+          <div className="space-y-2">
+            {drsLog.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span>{entry.notes ?? "Logged"}</span>
+                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
+                  {new Date(entry.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </ProgramSection>
+
+        <ProgramSection
+          title="RSCE"
+          hasHistory={rsceLog.length > 0}
+          summary={
+            rsceLog.length > 0
+              ? `${rsceLog.length} logged · last on ${new Date(rsceLog[0].created_at).toLocaleDateString()}`
+              : undefined
+          }
+          emptyText="No RSCE assistance logged yet."
+          action={
+            <LogServiceButton
+              clientId={id}
+              programSlug="rsce"
+              buttonLabel="Log RSCE Assistance"
+              modalTitle="Log RSCE Assistance"
+              subtitle="Refugee Services & Community Empowerment"
+            />
+          }
+        >
+          <div className="space-y-2">
+            {rsceLog.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span>{entry.notes ?? "Logged"}</span>
+                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
+                  {new Date(entry.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </ProgramSection>
+
+        <ProgramSection
+          title="Transitional Housing"
+          statusBadge={
+            hasActiveStay ? (
+              <span className="text-xs font-medium text-[var(--color-accent)] bg-[var(--color-accent)]/10 rounded-full px-2 py-0.5">
+                Active
+              </span>
+            ) : requiresReadmissionApproval ? (
+              <span className="text-xs font-medium text-[var(--color-accent-orange)] bg-[var(--color-accent-orange)]/10 rounded-full px-2 py-0.5">
+                Requires approval to re-admit
+              </span>
+            ) : null
+          }
+          hasHistory={(thStays ?? []).length > 0}
+          summary={
+            (thStays ?? []).length > 0
+              ? `${(thStays ?? []).length} stay${(thStays ?? []).length === 1 ? "" : "s"} on record`
+              : undefined
+          }
+          emptyText="No Transitional Housing stays on record."
+          action={
+            !hasActiveStay && !requiresReadmissionApproval ? (
+              <AdmitToHousingButton clientId={id} />
+            ) : requiresReadmissionApproval ? (
+              <a
+                href={`/transitional-housing/readmissions/new?client=${id}`}
+                className="rounded-lg border border-[var(--color-accent-orange)] text-[var(--color-accent-orange)] text-sm font-medium px-4 py-2 hover:bg-[var(--color-accent-orange)]/10"
+              >
+                File Readmission Request
+              </a>
+            ) : null
+          }
+        >
+          <div className="space-y-2">
+            {(thStays ?? []).map((s) => {
+              const bed = bedById.get(s.bed_id);
+              const house = bed ? houseById.get(bed.house_id) : null;
+              return (
                 <div
-                  key={entry.id}
-                  className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                  key={s.id}
+                  className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
                 >
                   <span>
-                    {programLabels[entry.program_slug] ?? entry.program_slug}
-                    {entry.notes && (
-                      <span className="text-[var(--color-text-dim)]"> · {entry.notes}</span>
-                    )}
+                    {house?.name ?? "Unknown house"} · Bed {bed?.label ?? "?"}
+                    <span className="text-[var(--color-text-dim)]">
+                      {" "}
+                      · {s.move_in_date} → {s.expected_exit_date}
+                    </span>
                   </span>
-                  <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
-                    {new Date(entry.created_at).toLocaleDateString()}
+                  <span
+                    className={
+                      s.status === "active"
+                        ? "text-[var(--color-accent)] font-medium"
+                        : "text-[var(--color-text-dim)]"
+                    }
+                  >
+                    {s.status === "active" ? "Active" : `Vacated (${s.vacated_reason ?? "—"})`}
                   </span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+              );
+            })}
+          </div>
+        </ProgramSection>
 
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
           <h2 className="text-sm font-medium mb-4">ID Cards</h2>
