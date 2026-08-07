@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import GenerateCardButton from "./GenerateCardButton";
+import ViewIdCardButton from "./ViewIdCardButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
 import LogServiceButton from "./LogServiceButton";
@@ -390,7 +391,14 @@ export default async function ClientProfilePage({
               </div>
             ))}
           </div>
-          <GenerateCardButton clientId={id} />
+          <div className="flex flex-wrap items-center gap-2">
+            <GenerateCardButton clientId={id} />
+            <ViewIdCardButton
+              cardNumber={(cards ?? []).find((c) => c.is_active)?.card_number ?? null}
+              firstName={clientRecord.first_name}
+              lastName={clientRecord.last_name}
+            />
+          </div>
         </section>
       </div>
     </main>
