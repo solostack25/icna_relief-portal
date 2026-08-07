@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import GenerateCardButton from "./GenerateCardButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
+import AdmitToHousingButton from "./AdmitToHousingButton";
 
 export default async function ClientProfilePage({
   params,
@@ -92,15 +93,28 @@ export default async function ClientProfilePage({
               {clientRecord.client_number}
             </p>
           </div>
-          <DistributeBackpackButton
-            clientId={id}
-            members={(members ?? []).map((m) => ({
-              id: m.id,
-              first_name: m.first_name,
-              dob: m.dob,
-              gender: m.gender,
-            }))}
-          />
+          <div className="flex items-center gap-2">
+            <DistributeBackpackButton
+              clientId={id}
+              members={(members ?? []).map((m) => ({
+                id: m.id,
+                first_name: m.first_name,
+                dob: m.dob,
+                gender: m.gender,
+              }))}
+            />
+            {!hasActiveStay && !requiresReadmissionApproval && (
+              <AdmitToHousingButton clientId={id} />
+            )}
+            {requiresReadmissionApproval && (
+              <a
+                href={`/transitional-housing/readmissions/new?client=${id}`}
+                className="rounded-lg border border-[var(--color-accent-orange)] text-[var(--color-accent-orange)] text-sm font-medium px-4 py-2 hover:bg-[var(--color-accent-orange)]/10"
+              >
+                File Readmission Request
+              </a>
+            )}
+          </div>
         </div>
 
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
