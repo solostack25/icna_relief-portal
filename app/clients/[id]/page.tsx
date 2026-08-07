@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import GenerateCardButton from "./GenerateCardButton";
 import ViewIdCardButton from "./ViewIdCardButton";
+import PushToSalesforceButton from "./PushToSalesforceButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
 import LogServiceButton from "./LogServiceButton";
@@ -47,7 +48,7 @@ export default async function ClientProfilePage({
 
   const { data: thStays } = await supabase
     .from("th_stays")
-    .select("id, bed_id, move_in_date, expected_exit_date, status, vacated_at, vacated_reason")
+    .select("id, bed_id, move_in_date, expected_exit_date, status, vacated_at, vacated_reason, salesforce_synced, salesforce_case_id")
     .eq("client_id", id)
     .order("move_in_date", { ascending: false });
 
@@ -68,14 +69,14 @@ export default async function ClientProfilePage({
 
   const { data: serviceLog } = await supabase
     .from("client_service_log")
-    .select("id, program_slug, notes, created_at")
+    .select("id, program_slug, notes, created_at, salesforce_synced, salesforce_case_id")
     .eq("client_id", id)
     .order("created_at", { ascending: false })
     .limit(20);
 
   const { data: backpackDistributions } = await supabase
     .from("b2s_client_distributions")
-    .select("id, school_year, backpacks_distributed, notes, distributed_at")
+    .select("id, school_year, backpacks_distributed, notes, distributed_at, salesforce_synced, salesforce_case_id")
     .eq("client_id", id)
     .order("distributed_at", { ascending: false });
 
@@ -195,15 +196,23 @@ export default async function ClientProfilePage({
             {(backpackDistributions ?? []).map((d) => (
               <div
                 key={d.id}
-                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
               >
                 <span>
                   {d.backpacks_distributed} backpack{d.backpacks_distributed === 1 ? "" : "s"}
                   {d.school_year ? ` · ${d.school_year}` : ""}
                   {d.notes && <span className="text-[var(--color-text-dim)]"> · {d.notes}</span>}
                 </span>
-                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
-                  {new Date(d.distributed_at).toLocaleDateString()}
+                <span className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-[var(--color-text-dim)]">
+                    {new Date(d.distributed_at).toLocaleDateString()}
+                  </span>
+                  <PushToSalesforceButton
+                    recordId={d.id}
+                    table="backpack"
+                    alreadySynced={d.salesforce_synced}
+                    salesforceCaseId={d.salesforce_case_id}
+                  />
                 </span>
               </div>
             ))}
@@ -232,11 +241,19 @@ export default async function ClientProfilePage({
             {foodLog.map((entry) => (
               <div
                 key={entry.id}
-                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
               >
                 <span>{entry.notes ?? "Logged"}</span>
-                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
-                  {new Date(entry.created_at).toLocaleDateString()}
+                <span className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-[var(--color-text-dim)]">
+                    {new Date(entry.created_at).toLocaleDateString()}
+                  </span>
+                  <PushToSalesforceButton
+                    recordId={entry.id}
+                    table="service"
+                    alreadySynced={entry.salesforce_synced}
+                    salesforceCaseId={entry.salesforce_case_id}
+                  />
                 </span>
               </div>
             ))}
@@ -266,11 +283,19 @@ export default async function ClientProfilePage({
             {drsLog.map((entry) => (
               <div
                 key={entry.id}
-                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
               >
                 <span>{entry.notes ?? "Logged"}</span>
-                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
-                  {new Date(entry.created_at).toLocaleDateString()}
+                <span className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-[var(--color-text-dim)]">
+                    {new Date(entry.created_at).toLocaleDateString()}
+                  </span>
+                  <PushToSalesforceButton
+                    recordId={entry.id}
+                    table="service"
+                    alreadySynced={entry.salesforce_synced}
+                    salesforceCaseId={entry.salesforce_case_id}
+                  />
                 </span>
               </div>
             ))}
@@ -300,11 +325,19 @@ export default async function ClientProfilePage({
             {rsceLog.map((entry) => (
               <div
                 key={entry.id}
-                className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
               >
                 <span>{entry.notes ?? "Logged"}</span>
-                <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
-                  {new Date(entry.created_at).toLocaleDateString()}
+                <span className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-[var(--color-text-dim)]">
+                    {new Date(entry.created_at).toLocaleDateString()}
+                  </span>
+                  <PushToSalesforceButton
+                    recordId={entry.id}
+                    table="service"
+                    alreadySynced={entry.salesforce_synced}
+                    salesforceCaseId={entry.salesforce_case_id}
+                  />
                 </span>
               </div>
             ))}
@@ -360,14 +393,22 @@ export default async function ClientProfilePage({
                       · {s.move_in_date} → {s.expected_exit_date}
                     </span>
                   </span>
-                  <span
-                    className={
-                      s.status === "active"
-                        ? "text-[var(--color-accent)] font-medium"
-                        : "text-[var(--color-text-dim)]"
-                    }
-                  >
-                    {s.status === "active" ? "Active" : `Vacated (${s.vacated_reason ?? "—"})`}
+                  <span className="flex items-center gap-3 shrink-0 ml-3">
+                    <span
+                      className={
+                        s.status === "active"
+                          ? "text-[var(--color-accent)] font-medium"
+                          : "text-[var(--color-text-dim)]"
+                      }
+                    >
+                      {s.status === "active" ? "Active" : `Vacated (${s.vacated_reason ?? "—"})`}
+                    </span>
+                    <PushToSalesforceButton
+                      recordId={s.id}
+                      table="housing"
+                      alreadySynced={s.salesforce_synced}
+                      salesforceCaseId={s.salesforce_case_id}
+                    />
                   </span>
                 </div>
               );
