@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import GenerateCardButton from "./GenerateCardButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
+import LogServiceButton from "./LogServiceButton";
 
 export default async function ClientProfilePage({
   params,
@@ -63,6 +64,19 @@ export default async function ClientProfilePage({
   const hasActiveStay = (thStays ?? []).some((s) => s.status === "active");
   const requiresReadmissionApproval = (thStays ?? []).length > 0 && !hasActiveStay;
 
+  const { data: serviceLog } = await supabase
+    .from("client_service_log")
+    .select("id, program_slug, notes, created_at")
+    .eq("client_id", id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const programLabels: Record<string, string> = {
+    "hunger-prevention": "Food Distribution",
+    drs: "DRS Assistance",
+    rsce: "RSCE Assistance",
+  };
+
   function calcAge(dob: string) {
     const diff = Date.now() - new Date(dob).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
@@ -93,7 +107,7 @@ export default async function ClientProfilePage({
               {clientRecord.client_number}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DistributeBackpackButton
               clientId={id}
               members={(members ?? []).map((m) => ({
@@ -102,6 +116,26 @@ export default async function ClientProfilePage({
                 dob: m.dob,
                 gender: m.gender,
               }))}
+            />
+            <LogServiceButton
+              clientId={id}
+              programSlug="hunger-prevention"
+              buttonLabel="Distribute Food"
+              modalTitle="Distribute Food"
+            />
+            <LogServiceButton
+              clientId={id}
+              programSlug="drs"
+              buttonLabel="Log DRS Assistance"
+              modalTitle="Log DRS Assistance"
+              subtitle="Disaster Relief Services"
+            />
+            <LogServiceButton
+              clientId={id}
+              programSlug="rsce"
+              buttonLabel="Log RSCE Assistance"
+              modalTitle="Log RSCE Assistance"
+              subtitle="Refugee Services & Community Empowerment"
             />
             {!hasActiveStay && !requiresReadmissionApproval && (
               <AdmitToHousingButton clientId={id} />
@@ -210,6 +244,30 @@ export default async function ClientProfilePage({
                   </div>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {(serviceLog ?? []).length > 0 && (
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
+            <h2 className="text-sm font-medium mb-4">Service History</h2>
+            <div className="space-y-2">
+              {(serviceLog ?? []).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                >
+                  <span>
+                    {programLabels[entry.program_slug] ?? entry.program_slug}
+                    {entry.notes && (
+                      <span className="text-[var(--color-text-dim)]"> · {entry.notes}</span>
+                    )}
+                  </span>
+                  <span className="text-[var(--color-text-dim)] shrink-0 ml-3">
+                    {new Date(entry.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
             </div>
           </section>
         )}
