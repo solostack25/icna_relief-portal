@@ -41,6 +41,27 @@ export default async function ClientProfilePage({
     .eq("client_id", id)
     .order("issued_at", { ascending: false });
 
+  const { data: thStays } = await supabase
+    .from("th_stays")
+    .select("id, bed_id, move_in_date, expected_exit_date, status, vacated_at, vacated_reason")
+    .eq("client_id", id)
+    .order("move_in_date", { ascending: false });
+
+  const bedIds = [...new Set((thStays ?? []).map((s) => s.bed_id))];
+  const { data: thBeds } = bedIds.length
+    ? await supabase.from("th_beds").select("id, house_id, label").in("id", bedIds)
+    : { data: [] };
+  const houseIds = [...new Set((thBeds ?? []).map((b) => b.house_id))];
+  const { data: thHouses } = houseIds.length
+    ? await supabase.from("th_houses").select("id, name").in("id", houseIds)
+    : { data: [] };
+
+  const bedById = new Map((thBeds ?? []).map((b) => [b.id, b]));
+  const houseById = new Map((thHouses ?? []).map((h) => [h.id, h]));
+
+  const hasActiveStay = (thStays ?? []).some((s) => s.status === "active");
+  const requiresReadmissionApproval = (thStays ?? []).length > 0 && !hasActiveStay;
+
   function calcAge(dob: string) {
     const diff = Date.now() - new Date(dob).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
@@ -136,6 +157,48 @@ export default async function ClientProfilePage({
             </p>
           )}
         </section>
+
+        {requiresReadmissionApproval && (
+          <div className="rounded-xl border border-[var(--color-accent-orange)]/40 bg-[var(--color-accent-orange)]/10 px-4 py-3 text-sm text-[var(--color-accent-orange)] mb-6">
+            This client has a prior Transitional Housing stay and is not currently housed.
+            Re-admission requires an approved readmission request — not a direct admission.
+          </div>
+        )}
+
+        {(thStays ?? []).length > 0 && (
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
+            <h2 className="text-sm font-medium mb-4">Transitional Housing</h2>
+            <div className="space-y-2">
+              {(thStays ?? []).map((s) => {
+                const bed = bedById.get(s.bed_id);
+                const house = bed ? houseById.get(bed.house_id) : null;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                  >
+                    <span>
+                      {house?.name ?? "Unknown house"} · Bed {bed?.label ?? "?"}
+                      <span className="text-[var(--color-text-dim)]">
+                        {" "}
+                        · {s.move_in_date} → {s.expected_exit_date}
+                      </span>
+                    </span>
+                    <span
+                      className={
+                        s.status === "active"
+                          ? "text-[var(--color-accent)] font-medium"
+                          : "text-[var(--color-text-dim)]"
+                      }
+                    >
+                      {s.status === "active" ? "Active" : `Vacated (${s.vacated_reason ?? "—"})`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
           <h2 className="text-sm font-medium mb-4">ID Cards</h2>
