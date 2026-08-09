@@ -96,6 +96,18 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  // Per-card timer state -- lives on the card, not the ticket.
+  let timerByCard = new Map<string, { accumulated_seconds: number; running_since: string | null }>();
+  if (cardIds.length > 0) {
+    const { data: timerRows } = await supabase
+      .from("workboard_card_timers")
+      .select("card_id, accumulated_seconds, running_since")
+      .in("card_id", cardIds);
+    for (const row of timerRows ?? []) {
+      timerByCard.set(row.card_id, { accumulated_seconds: row.accumulated_seconds, running_since: row.running_since });
+    }
+  }
+
   return (
     <main
       style={{
@@ -139,6 +151,7 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
           assignableStaff={assignableStaff}
           assigneeNameMap={Object.fromEntries(assigneeNameMap)}
           noteCountByCard={Object.fromEntries(noteCountByCard)}
+          timerByCard={Object.fromEntries(timerByCard)}
         />
       </div>
     </main>
