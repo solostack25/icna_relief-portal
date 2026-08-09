@@ -5,6 +5,7 @@ import {
   DEPARTMENT_LABELS,
   LEG_STATUS_LABELS,
   getManagedDepartments,
+  getDepartmentStaff,
   type Department,
   type LegStatus,
 } from "@/lib/helpdesk";
@@ -55,6 +56,13 @@ export default async function HelpdeskRequestPage({
   // already handed off to IT). Admins already see everything via
   // getManagedDepartments returning all four.
   if (!isSubmitter && !managesAnyLegDepartment) redirect("/helpdesk");
+
+  const currentLegDept = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off")
+    ?.department as Department | undefined;
+  const departmentStaff =
+    currentLegDept && managedDepartments.includes(currentLegDept)
+      ? await getDepartmentStaff(supabase, currentLegDept)
+      : [];
 
   const legIds = (legs ?? []).map((l) => l.id);
 
@@ -167,6 +175,8 @@ export default async function HelpdeskRequestPage({
                     department={leg.department}
                     status={leg.status}
                     currentUserId={me.id}
+                    departmentStaff={departmentStaff}
+                    assignedToEmployeeId={leg.assigned_to_employee_id}
                   />
                 )}
               </div>

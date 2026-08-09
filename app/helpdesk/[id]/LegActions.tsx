@@ -14,6 +14,8 @@ export default function LegActions({
   status,
   currentUserId,
   commentOnly = false,
+  departmentStaff = [],
+  assignedToEmployeeId = null,
 }: {
   legId: string;
   requestId: string;
@@ -21,6 +23,8 @@ export default function LegActions({
   status: LegStatus;
   currentUserId: string;
   commentOnly?: boolean;
+  departmentStaff?: { id: string; first_name: string; last_name: string }[];
+  assignedToEmployeeId?: string | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -29,6 +33,24 @@ export default function LegActions({
   const [error, setError] = useState<string | null>(null);
   const [handoffTarget, setHandoffTarget] = useState<Department | "">("");
   const [comment, setComment] = useState("");
+  const [assignee, setAssignee] = useState(assignedToEmployeeId ?? "");
+
+  async function submitAssign() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase
+        .from("helpdesk_request_legs")
+        .update({ assigned_to_employee_id: assignee || null })
+        .eq("id", legId);
+      if (err) throw new Error(err.message);
+      router.refresh();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to assign");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function updateStatus(newStatus: LegStatus) {
     setBusy(true);
@@ -115,6 +137,28 @@ export default function LegActions({
 
   return (
     <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-3">
+      <div className="flex items-center gap-2">
+        <select
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          className="text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5"
+        >
+          <option value="">Unassigned</option>
+          {departmentStaff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.first_name} {s.last_name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={submitAssign}
+          disabled={busy || assignee === (assignedToEmployeeId ?? "")}
+          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50"
+        >
+          Assign
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {status !== "in_progress" && (
           <button

@@ -38,6 +38,31 @@ export async function getManagedDepartments(
   return ALL_DEPARTMENTS.filter((d) => slugs.has(departmentSlug(d)));
 }
 
+// Employees who manage a given department -- the pool a ticket can
+// actually be assigned to. Two queries rather than a nested select,
+// same pattern as elsewhere in this app (see select-app's comment on
+// avoiding relational joins with the publishable client key).
+export async function getDepartmentStaff(
+  supabase: SupabaseClient,
+  dept: Department
+): Promise<{ id: string; first_name: string; last_name: string }[]> {
+  const { data: access } = await supabase
+    .from("employee_program_access")
+    .select("employee_id")
+    .eq("program_slug", departmentSlug(dept));
+
+  const ids = (access ?? []).map((a) => a.employee_id);
+  if (ids.length === 0) return [];
+
+  const { data: staff } = await supabase
+    .from("employees")
+    .select("id, first_name, last_name")
+    .in("id", ids)
+    .order("last_name");
+
+  return staff ?? [];
+}
+
 
 export const DEPARTMENT_LABELS: Record<Department, string> = {
   it: "IT",
