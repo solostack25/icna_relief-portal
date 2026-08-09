@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getOpenItTicketCount } from "@/lib/sharepoint";
+import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import DayAtAGlance from "./DayAtAGlance";
 import LogoutButton from "./LogoutButton";
 
@@ -97,14 +97,16 @@ export default async function SelectAppPage() {
   }
 
   // IT HelpDesk ticket count — SharePoint list, not this app's
-  // Supabase project. Failing shouldn't break the whole dashboard,
-  // so this falls back to the "not connected" state on any error
-  // (missing Graph permission, list renamed, etc).
+  // Supabase project. Scoped to this employee's own assigned
+  // tickets (matched by display name against AssignedTechnician).
+  // Failing shouldn't break the whole dashboard, so this falls back
+  // to the "not connected" state on any error.
   try {
-    const openTickets = await getOpenItTicketCount();
-    glanceCards.push({ label: "Open Help Desk Tickets", value: openTickets, connected: true });
+    const fullName = `${employee.first_name} ${employee.last_name}`;
+    const openTickets = await getOpenItTicketCountForTechnician(fullName);
+    glanceCards.push({ label: "My Open Help Desk Tickets", value: openTickets, connected: true });
   } catch {
-    glanceCards.push({ label: "Open Help Desk Tickets", value: "—", connected: false });
+    glanceCards.push({ label: "My Open Help Desk Tickets", value: "—", connected: false });
   }
 
   glanceCards.push({ label: "Pending Approvals", value: "—", connected: false });

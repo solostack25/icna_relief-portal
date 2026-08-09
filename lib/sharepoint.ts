@@ -13,17 +13,32 @@ const IT_TICKETS_LIST_ID = "9e162e9c-7b8d-42dd-baa9-ef1038e7e4d0";
 // without a code change here.
 const CLOSED_STATUS = "Closed";
 
-// Counts org-wide open tickets. Fetches all items (only ~175 total,
-// cheap as a single call) and filters client-side rather than using
-// SharePoint's $count/$filter over Graph, which is unreliable against
-// lookup-backed fields like AssignedTechnician.
+// Counts open tickets assigned to a specific technician, matched by
+// full display name (e.g. "Travis Ali") — AssignedTechnician is a
+// SharePoint Person field, and Graph returns its display name string
+// directly when selected without the "LookupId" suffix, so no extra
+// lookup-ID resolution step is needed.
 //
-// Note: this is the *org-wide* open count, matching the existing
-// "Open Help Desk Tickets" dashboard card label — not "tickets
-// assigned to the current employee". AssignedTechnicianLookupId is a
-// Person-lookup field (a SharePoint internal user ID, not an email),
-// so scoping this to "my tickets" needs one more resolution step to
-// look up the signed-in employee's SharePoint user ID first.
+// Name matching is a little fragile in the abstract (relies on the
+// employees table's first_name + last_name lining up exactly with
+// what's in SharePoint), but this is a small, stable IT team — worth
+// it to avoid standing up SharePoint's separate legacy REST auth just
+// to resolve a person field to an ID.
+export async function getOpenItTicketCountForTechnician(
+  technicianFullName: string
+): Promise<number> {
+  const items = await graphGetAll(
+    `/v1.0/sites/${SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status,AssignedTechnician)&$top=200`
+  );
+  return items.filter(
+    (item) =>
+      item.fields?.Status !== CLOSED_STATUS &&
+      item.fields?.AssignedTechnician === technicianFullName
+  ).length;
+}
+
+// Org-wide open count, kept in case it's useful elsewhere (e.g. an
+// admin-only view) — not used by the per-employee dashboard card.
 export async function getOpenItTicketCount(): Promise<number> {
   const items = await graphGetAll(
     `/v1.0/sites/${SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status)&$top=200`
