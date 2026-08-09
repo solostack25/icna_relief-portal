@@ -57,7 +57,13 @@ export default function LegActions({
     setError(null);
     try {
       if (newStatus === "closed") {
-        await closeLeg(supabase, { legId, requestId });
+        await closeLeg(supabase, {
+          legId,
+          requestId,
+          department,
+          closedByEmployeeId: currentUserId,
+          assignedToEmployeeId: assignee || null,
+        });
       } else {
         const { error: err } = await supabase
           .from("helpdesk_request_legs")

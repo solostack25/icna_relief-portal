@@ -141,7 +141,7 @@ export default async function HelpdeskPage({
             <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
               Department Queue
             </h2>
-            <div className="flex gap-2 mb-4 flex-wrap">
+            <div className="flex gap-2 mb-4 flex-wrap items-center">
               {managedDepartments.map((d) => (
                 <Link
                   key={d}
@@ -155,6 +155,15 @@ export default async function HelpdeskPage({
                   {DEPARTMENT_LABELS[d]}
                 </Link>
               ))}
+              {activeDept === "it" && (
+                <Link
+                  href="/helpdesk/it-quest"
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)" }}
+                >
+                  🎮 Quest Board
+                </Link>
+              )}
             </div>
 
             <div className="flex gap-2 mb-6">

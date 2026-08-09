@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/th-daily",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/helpdesk-weekly-tally",
+      "schedule": "0 23 * * 5"
     }
   ]
 }

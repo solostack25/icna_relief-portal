@@ -210,18 +210,89 @@ export async function handoffLeg(
   return { newLegId: newLeg.id };
 }
 
+// Determines if a timestamp counts as "after hours" for the IT points
+// bonus: any time on Sat/Sun, or after 6pm on a weekday. Evaluated in
+// Houston's local time (America/Chicago), not server/UTC time --
+// otherwise the 6pm cutoff would silently be wrong depending on
+// where the serverless function happens to run.
+function isAfterHours(date: Date): boolean {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "short",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(date);
+
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const hour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+
+  const isWeekend = weekday === "Sat" || weekday === "Sun";
+  const isEvening = hour >= 18; // 6pm or later, 24hr format
+  return isWeekend || isEvening;
+}
+
+// Awards points for closing an IT ticket (IT only, per how this was
+// specced -- other departments don't get scored). Writes to the
+// append-only ledger rather than a running total column, so standings
+// are always re-derivable and auditable.
+async function awardClosePoints(
+  supabase: SupabaseClient,
+  params: { legId: string; closedByEmployeeId: string; assignedToEmployeeId: string | null }
+): Promise<void> {
+  const now = new Date();
+
+  const baseReason = !params.assignedToEmployeeId || params.assignedToEmployeeId === params.closedByEmployeeId
+    ? "own_ticket"
+    : "took_ticket";
+  const basePoints = baseReason === "own_ticket" ? 5 : 10;
+
+  const entries = [
+    { leg_id: params.legId, employee_id: params.closedByEmployeeId, points: basePoints, reason: baseReason, awarded_at: now.toISOString() },
+  ];
+
+  if (isAfterHours(now)) {
+    entries.push({
+      leg_id: params.legId,
+      employee_id: params.closedByEmployeeId,
+      points: 10,
+      reason: "after_hours_bonus",
+      awarded_at: now.toISOString(),
+    });
+  }
+
+  await supabase.from("helpdesk_points_ledger").insert(entries);
+}
+
 // Closes a leg, and closes the parent request too if this was the
 // last active leg -- so overall_status stays accurate without a DB
 // trigger (see schema comment on helpdesk_requests.overall_status).
 export async function closeLeg(
   supabase: SupabaseClient,
-  params: { legId: string; requestId: string }
+  params: {
+    legId: string;
+    requestId: string;
+    department: Department;
+    closedByEmployeeId: string;
+    assignedToEmployeeId: string | null;
+  }
 ): Promise<void> {
   const { error } = await supabase
     .from("helpdesk_request_legs")
-    .update({ status: "closed", closed_at: new Date().toISOString() })
+    .update({
+      status: "closed",
+      closed_at: new Date().toISOString(),
+      closed_by_employee_id: params.closedByEmployeeId,
+    })
     .eq("id", params.legId);
   if (error) throw new Error(error.message);
+
+  if (params.department === "it") {
+    await awardClosePoints(supabase, {
+      legId: params.legId,
+      closedByEmployeeId: params.closedByEmployeeId,
+      assignedToEmployeeId: params.assignedToEmployeeId,
+    });
+  }
 
   const { data: remainingLegs } = await supabase
     .from("helpdesk_request_legs")
@@ -236,4 +307,33 @@ export async function closeLeg(
       .update({ overall_status: "closed" })
       .eq("id", params.requestId);
   }
+}
+
+// This week's (Mon-Sun, America/Chicago) live IT leaderboard, summed
+// directly from the ledger -- always accurate, not dependent on the
+// Friday snapshot having run.
+export async function getWeeklyItLeaderboard(
+  supabase: SupabaseClient
+): Promise<{ employeeId: string; points: number }[]> {
+  const now = new Date();
+  const chicagoNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+  const dayOfWeek = chicagoNow.getDay(); // 0 = Sunday
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  const weekStart = new Date(chicagoNow);
+  weekStart.setDate(chicagoNow.getDate() - daysSinceMonday);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const { data } = await supabase
+    .from("helpdesk_points_ledger")
+    .select("employee_id, points")
+    .gte("awarded_at", weekStart.toISOString());
+
+  const totals = new Map<string, number>();
+  for (const row of data ?? []) {
+    totals.set(row.employee_id, (totals.get(row.employee_id) ?? 0) + row.points);
+  }
+
+  return [...totals.entries()]
+    .map(([employeeId, points]) => ({ employeeId, points }))
+    .sort((a, b) => b.points - a.points);
 }
