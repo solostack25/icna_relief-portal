@@ -35,6 +35,15 @@ export function formatTicketAge(createdAt: string, now: Date = new Date()): stri
   return `open ${dayPart}${hourPart}`;
 }
 
+// A ticket counts as overdue once it's been open more than 48 hours
+// and hasn't been closed or handed off yet -- closed/handed-off legs
+// are done, not late.
+export function isOverdue(createdAt: string, status: LegStatus, now: Date = new Date()): boolean {
+  if (status === "closed" || status === "handed_off") return false;
+  const hoursOpen = (now.getTime() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
+  return hoursOpen > 48;
+}
+
 // Hours remaining until a bonus window (5h email bonus, 24h close
 // bonus) closes, for the countdown banners. Null once expired.
 export function hoursRemainingInWindow(

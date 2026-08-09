@@ -8,6 +8,7 @@ import {
   getDepartmentStaff,
   formatTicketAge,
   hoursRemainingInWindow,
+  isOverdue,
   type Department,
   type LegStatus,
 } from "@/lib/helpdesk";
@@ -170,7 +171,8 @@ export default async function HelpdeskRequestPage({
           )}
 
           {currentLeg && (
-            <p style={{ fontSize: 11, color: "#9C8FD9", marginBottom: 16 }}>
+            <p style={{ fontSize: 11, color: isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) ? "#FF6B6B" : "#9C8FD9", fontWeight: isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) ? 700 : 400, marginBottom: 16 }}>
+              {isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) && "⚠ OVERDUE · "}
               ⏱ {formatTicketAge(currentLeg.created_at)}
             </p>
           )}

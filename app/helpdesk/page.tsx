@@ -7,7 +7,9 @@ import {
   getManagedDepartments,
   getWeeklyItLeaderboard,
   formatTicketAge,
+  isOverdue,
   type Department,
+  type LegStatus,
 } from "@/lib/helpdesk";
 
 const DIFFICULTY_BY_PRIORITY: Record<string, { label: string; cls: string }> = {
@@ -82,6 +84,16 @@ export default async function HelpdeskPage({
     legs = data ?? [];
   }
 
+  // Overdue (open >48h) tickets bubble to the top regardless of
+  // department queue order. Array.sort is stable in modern JS
+  // engines, so this preserves the existing created_at-desc order
+  // within each bucket rather than shuffling everything.
+  legs.sort((a, b) => {
+    const aOverdue = isOverdue(a.created_at, a.status as LegStatus) ? 1 : 0;
+    const bOverdue = isOverdue(b.created_at, b.status as LegStatus) ? 1 : 0;
+    return bOverdue - aOverdue;
+  });
+
   const requestIds = [...new Set(legs.map((l) => l.request_id))];
   const { data: requests } = await supabase
     .from("helpdesk_requests")
@@ -130,7 +142,8 @@ export default async function HelpdeskPage({
           @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap');
           a.qbtn:hover{ border-color:#FF3EA5 !important; }
         `}</style>
-        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <div style={{ maxWidth: 640, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
               ← Back
@@ -339,6 +352,7 @@ export default async function HelpdeskPage({
               )}
             </div>
           )}
+          </div>
 
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
             {statusFilter === "open" ? "Open Quests" : "Completed Quests"}
@@ -348,76 +362,101 @@ export default async function HelpdeskPage({
             <p style={{ fontSize: 12, color: "#9C8FD9" }}>Nothing here right now. 🎉</p>
           )}
 
-          {legs.map((leg) => {
-            const req = requestMap.get(leg.request_id);
-            const diff = DIFFICULTY_BY_PRIORITY[leg.priority] ?? DIFFICULTY_BY_PRIORITY.normal;
-            const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
-            const assigneeLabel = assignee
-              ? `${assignee.first_name} ${assignee.last_name}`
-              : leg.assigned_to_raw_name
-                ? `${leg.assigned_to_raw_name} (legacy)`
-                : "Unclaimed";
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {legs.map((leg) => {
+              const req = requestMap.get(leg.request_id);
+              const diff = DIFFICULTY_BY_PRIORITY[leg.priority] ?? DIFFICULTY_BY_PRIORITY.normal;
+              const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
+              const assigneeLabel = assignee
+                ? `${assignee.first_name} ${assignee.last_name}`
+                : leg.assigned_to_raw_name
+                  ? `${leg.assigned_to_raw_name} (legacy)`
+                  : "Unclaimed";
+              const overdue = isOverdue(leg.created_at, leg.status as LegStatus);
 
-            return (
-              <Link
-                key={leg.id}
-                href={`/helpdesk/${leg.request_id}`}
-                style={{
-                  display: "block",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid #3A2C68",
-                  borderRadius: 14,
-                  padding: 14,
-                  marginBottom: 12,
-                  position: "relative",
-                  textDecoration: "none",
-                  color: "inherit",
-                }}
-              >
-                <span
+              return (
+                <Link
+                  key={leg.id}
+                  href={`/helpdesk/${leg.request_id}`}
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    fontSize: 9,
-                    fontWeight: 800,
-                    padding: "4px 10px",
-                    borderBottomLeftRadius: 10,
-                    background: diff.cls === "epic" ? "#4D3A1E" : diff.cls === "hard" ? "#4D1E2A" : "#1E4D3A",
-                    color: diff.cls === "epic" ? "#FFD700" : diff.cls === "hard" ? "#FF6B9C" : "#5FFFAE",
+                    display: "block",
+                    background: "rgba(255,255,255,0.05)",
+                    border: `1px solid ${overdue ? "#FF3E3E" : "#3A2C68"}`,
+                    borderRadius: 14,
+                    padding: 12,
+                    position: "relative",
+                    textDecoration: "none",
+                    color: "inherit",
+                    boxShadow: overdue ? "0 0 14px rgba(255,62,62,0.25)" : "none",
                   }}
                 >
-                  {diff.label}
-                </span>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 5, paddingRight: 60 }}>
-                  {req?.title ?? "Untitled request"}
-                </div>
-                <div style={{ fontSize: 11, color: "#9C8FD9" }}>
-                  {req?.submitted_by} · {assigneeLabel}
-                  {leg.handed_off_from_leg_id && <span style={{ color: "#00E5FF" }}> · ↳ handed off</span>}
-                </div>
-                <div style={{ fontSize: 10, color: "#7A6FAE", marginTop: 3 }}>
-                  ⏱ {formatTicketAge(leg.created_at)}
-                </div>
-                {leg.department === "it" && statusFilter === "open" && (
-                  <span
-                    style={{
-                      display: "inline-block",
-                      marginTop: 8,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: "#FFD700",
-                      background: "rgba(255,215,0,0.1)",
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                    }}
-                  >
-                    5–10 pts to close · +10 after hours
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+                  <div style={{ display: "flex", gap: 4, position: "absolute", top: 0, right: 0 }}>
+                    {overdue && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          padding: "4px 8px",
+                          background: "#FF3E3E",
+                          color: "#fff",
+                          borderBottomLeftRadius: diff ? 0 : 10,
+                        }}
+                      >
+                        ⚠ OVERDUE
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 800,
+                        padding: "4px 8px",
+                        borderBottomLeftRadius: overdue ? 0 : 10,
+                        background: diff.cls === "epic" ? "#4D3A1E" : diff.cls === "hard" ? "#4D1E2A" : "#1E4D3A",
+                        color: diff.cls === "epic" ? "#FFD700" : diff.cls === "hard" ? "#FF6B9C" : "#5FFFAE",
+                      }}
+                    >
+                      {diff.label}
+                    </span>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginTop: 14, marginBottom: 6, lineHeight: 1.3 }}>
+                    {req?.title ?? "Untitled request"}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "#9C8FD9", marginBottom: 2 }}>
+                    {req?.submitted_by}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "#9C8FD9", marginBottom: 4 }}>
+                    {assigneeLabel}
+                    {leg.handed_off_from_leg_id && <span style={{ color: "#00E5FF" }}> · ↳</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: overdue ? "#FF6B6B" : "#7A6FAE", fontWeight: overdue ? 700 : 400 }}>
+                    ⏱ {formatTicketAge(leg.created_at)}
+                  </div>
+                  {leg.department === "it" && statusFilter === "open" && (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        marginTop: 8,
+                        fontSize: 9,
+                        fontWeight: 800,
+                        color: "#FFD700",
+                        background: "rgba(255,215,0,0.1)",
+                        padding: "2px 7px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      +pts
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </main>
     );
@@ -529,11 +568,14 @@ export default async function HelpdeskPage({
                   const assignee = leg.assigned_to_employee_id
                     ? assigneeMap.get(leg.assigned_to_employee_id)
                     : null;
+                  const overdue = isOverdue(leg.created_at, leg.status as LegStatus);
                   return (
                     <Link
                       key={leg.id}
                       href={`/helpdesk/${leg.request_id}`}
-                      className="block px-5 py-4 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
+                      className={`block px-5 py-4 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors ${
+                        overdue ? "bg-red-50/50" : ""
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -541,6 +583,11 @@ export default async function HelpdeskPage({
                             <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-accent)]">
                               {DEPARTMENT_LABELS[leg.department as Department]}
                             </span>
+                            {overdue && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white">
+                                ⚠ OVERDUE
+                              </span>
+                            )}
                             {leg.handed_off_from_leg_id && (
                               <span className="text-[10px] text-[var(--color-text-dim)]">
                                 (handed off)
@@ -557,6 +604,8 @@ export default async function HelpdeskPage({
                               : leg.assigned_to_raw_name
                                 ? `${leg.assigned_to_raw_name} (legacy)`
                                 : "Unassigned"}
+                            {" · "}
+                            {formatTicketAge(leg.created_at)}
                           </div>
                         </div>
                         <span className="text-xs whitespace-nowrap px-2 py-1 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
