@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { handoffLeg, closeLeg, DEPARTMENT_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
+import { startTimer, pauseTimer, formatDuration } from "@/lib/workTimer";
 
 const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
 
@@ -18,6 +19,8 @@ export default function LegActions({
   assignedToEmployeeId = null,
   theme = "plain",
   legCreatedAt,
+  initialAccumulatedSeconds = 0,
+  initialRunningSince = null,
 }: {
   legId: string;
   requestId: string;
@@ -29,6 +32,8 @@ export default function LegActions({
   assignedToEmployeeId?: string | null;
   theme?: "plain" | "quest";
   legCreatedAt?: string;
+  initialAccumulatedSeconds?: number;
+  initialRunningSince?: string | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -38,6 +43,30 @@ export default function LegActions({
   const [handoffTarget, setHandoffTarget] = useState<Department | "">("");
   const [comment, setComment] = useState("");
   const [assignee, setAssignee] = useState(assignedToEmployeeId ?? "");
+
+  // Active-work timer -- quest theme only. Deliberately separate from
+  // `status`: Start Quest / Pause used to change status directly
+  // (in_progress / on_hold), which conflated "what state is this
+  // ticket in" with "am I actively working on it right now." This
+  // just tracks elapsed time; status now only changes via the
+  // workboard, Send to QA, and Complete Quest.
+  const [accumulatedSeconds, setAccumulatedSeconds] = useState(initialAccumulatedSeconds);
+  const [runningSince, setRunningSince] = useState<string | null>(initialRunningSince);
+  const [displaySeconds, setDisplaySeconds] = useState(initialAccumulatedSeconds);
+
+  useEffect(() => {
+    if (!runningSince) {
+      setDisplaySeconds(accumulatedSeconds);
+      return;
+    }
+    const tick = () => {
+      const elapsed = Math.max(0, (Date.now() - new Date(runningSince).getTime()) / 1000);
+      setDisplaySeconds(accumulatedSeconds + elapsed);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [runningSince, accumulatedSeconds]);
 
   async function submitAssign() {
     setBusy(true);
@@ -56,11 +85,44 @@ export default function LegActions({
     }
   }
 
+  async function handleStartTimer() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { running_since } = await startTimer(supabase, legId);
+      setRunningSince(running_since);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to start timer");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePauseTimer() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { accumulated_seconds } = await pauseTimer(supabase, legId);
+      setAccumulatedSeconds(accumulated_seconds);
+      setRunningSince(null);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to pause timer");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateStatus(newStatus: LegStatus) {
     setBusy(true);
     setError(null);
     try {
       if (newStatus === "closed") {
+        // A running timer shouldn't keep accumulating time against a
+        // ticket that's now closed -- fold it into accumulated_seconds
+        // the same way a manual Pause would, as part of closing.
+        if (runningSince) {
+          await pauseTimer(supabase, legId);
+        }
         await closeLeg(supabase, {
           legId,
           requestId,
@@ -161,6 +223,22 @@ export default function LegActions({
 
   return (
     <div className={`mt-3 pt-3 border-t ${dividerCls} space-y-3`}>
+      {isQuest && (
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: runningSince ? "#5FFFAE" : "#9C8FD9",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {runningSince ? "🟢" : "⏱"} Active work time: {formatDuration(displaySeconds)}
+          {runningSince && <span style={{ color: "#5FFFAE" }}>(running)</span>}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <select value={assignee} onChange={(e) => setAssignee(e.target.value)} className={selectCls}>
           <option value="">Unassigned</option>
@@ -180,15 +258,29 @@ export default function LegActions({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {status !== "in_progress" && (
-          <button onClick={() => updateStatus("in_progress")} disabled={busy} className={btnCls}>
-            {isQuest ? "⚔️ Start Quest" : "Mark In Progress"}
-          </button>
-        )}
-        {status !== "on_hold" && (
-          <button onClick={() => updateStatus("on_hold")} disabled={busy} className={btnCls}>
-            {isQuest ? "⏸ Pause" : "Put On Hold"}
-          </button>
+        {isQuest ? (
+          runningSince ? (
+            <button onClick={handlePauseTimer} disabled={busy} className={btnCls}>
+              ⏸ Pause
+            </button>
+          ) : (
+            <button onClick={handleStartTimer} disabled={busy} className={btnCls}>
+              ⚔️ {accumulatedSeconds > 0 ? "Resume Quest" : "Start Quest"}
+            </button>
+          )
+        ) : (
+          <>
+            {status !== "in_progress" && (
+              <button onClick={() => updateStatus("in_progress")} disabled={busy} className={btnCls}>
+                Mark In Progress
+              </button>
+            )}
+            {status !== "on_hold" && (
+              <button onClick={() => updateStatus("on_hold")} disabled={busy} className={btnCls}>
+                Put On Hold
+              </button>
+            )}
+          </>
         )}
         {department === "it" && status !== "quality_assurance" && (
           <button onClick={() => updateStatus("quality_assurance")} disabled={busy} className={btnCls}>
