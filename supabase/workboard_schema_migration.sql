@@ -77,7 +77,7 @@ create policy "workboard access" on workboards
 -- prior statement), so a subquery back to workboards is safe here --
 -- no chicken-and-egg problem like workboards' own policy would have.
 create or replace function helpdesk_can_access_board(p_board_id uuid) returns boolean
-language sql security definer stable as $$
+language sql security definer stable set search_path = public as $$
   select exists (
     select 1 from workboards b
     where b.id = p_board_id
