@@ -40,20 +40,44 @@ const PRIORITY_MAP: Record<string, string> = {
 async function runImport() {
   const admin = createAdminClient();
 
-  const items = await graphGetAll(
-    `/v1.0/sites/${IT_TICKETS_SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items` +
-      `?$expand=fields($select=Title,AdditionalNotes,RequestCategory,Status,Priority,` +
-      `AssignedTechnician,SubmittedBy,SubmittedByEmail,Created,ApprovalRequired,` +
-      `SupervisorApproved_x003f_,COOApproved,SupervisorName,DateOfApproval,GrantName,Solution)` +
-      `&$top=200`
-  );
-
   const { data: employees } = await admin.from("employees").select("id, first_name, last_name");
   const employeeByName = new Map<string, string>(
     (employees ?? []).map((e: { id: string; first_name: string; last_name: string }) => [
       `${e.first_name} ${e.last_name}`.toLowerCase(),
       e.id,
     ])
+  );
+
+  // Backfill pass first: any previously-imported leg that's still
+  // unmatched might now resolve, since more employees log into the
+  // portal (and get an employees row) over time. This is what makes
+  // "safe to run again" actually useful, not just a no-op for old
+  // tickets.
+  let backfilled = 0;
+  const { data: unresolvedLegs } = await admin
+    .from("helpdesk_request_legs")
+    .select("id, assigned_to_raw_name")
+    .eq("department", "it")
+    .is("assigned_to_employee_id", null)
+    .not("assigned_to_raw_name", "is", null);
+
+  for (const leg of unresolvedLegs ?? []) {
+    const match = employeeByName.get((leg.assigned_to_raw_name ?? "").toLowerCase());
+    if (match) {
+      await admin
+        .from("helpdesk_request_legs")
+        .update({ assigned_to_employee_id: match })
+        .eq("id", leg.id);
+      backfilled++;
+    }
+  }
+
+  const items = await graphGetAll(
+    `/v1.0/sites/${IT_TICKETS_SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items` +
+      `?$expand=fields($select=Title,AdditionalNotes,RequestCategory,Status,Priority,` +
+      `AssignedTechnician,SubmittedBy,SubmittedByEmail,Created,ApprovalRequired,` +
+      `SupervisorApproved_x003f_,COOApproved,SupervisorName,DateOfApproval,GrantName,Solution)` +
+      `&$top=200`
   );
 
   let imported = 0;
@@ -122,6 +146,7 @@ async function runImport() {
           priority: priority ?? "normal",
           category: f.RequestCategory || null,
           assigned_to_employee_id: assignedToEmployeeId,
+          assigned_to_raw_name: f.AssignedTechnician || null,
           created_at: createdAt,
           closed_at: closedAt,
         })
@@ -151,6 +176,7 @@ async function runImport() {
     totalInSharePoint: items.length,
     imported,
     skipped,
+    backfilled,
     unmatchedAssignees: [...unmatchedAssignees],
     unmappedStatuses: [...unmappedStatuses],
     unmappedPriorities: [...unmappedPriorities],

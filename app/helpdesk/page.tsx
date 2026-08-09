@@ -52,7 +52,7 @@ export default async function HelpdeskPage({
     const { data } = await supabase
       .from("helpdesk_request_legs")
       .select(
-        "id, department, status, priority, category, created_at, closed_at, request_id, assigned_to_employee_id, handed_off_from_leg_id"
+        "id, department, status, priority, category, created_at, closed_at, request_id, assigned_to_employee_id, assigned_to_raw_name, handed_off_from_leg_id"
       )
       .eq("department", activeDept)
       .order("created_at", { ascending: false })
@@ -184,7 +184,11 @@ export default async function HelpdeskPage({
                           </div>
                           <div className="text-xs text-[var(--color-text-dim)]">
                             {req?.submitted_by} ·{" "}
-                            {assignee ? `${assignee.first_name} ${assignee.last_name}` : "Unassigned"}
+                            {assignee
+                              ? `${assignee.first_name} ${assignee.last_name}`
+                              : leg.assigned_to_raw_name
+                                ? `${leg.assigned_to_raw_name} (legacy)`
+                                : "Unassigned"}
                           </div>
                         </div>
                         <span className="text-xs whitespace-nowrap px-2 py-1 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">

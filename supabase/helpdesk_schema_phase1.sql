@@ -43,6 +43,12 @@ create table helpdesk_request_legs (
   priority helpdesk_priority not null default 'normal',
   category text,
   assigned_to_employee_id uuid references employees(id),
+  -- The technician name as it appeared in the source system, kept
+  -- even when it couldn't be matched to an employees row (e.g. a
+  -- SharePoint-import technician who hasn't logged into this portal
+  -- yet). Used as a display fallback so historical assignment isn't
+  -- silently lost as "Unassigned" -- see the SharePoint import route.
+  assigned_to_raw_name text,
   handed_off_from_leg_id uuid references helpdesk_request_legs(id),
   created_at timestamptz not null default now(),
   closed_at timestamptz

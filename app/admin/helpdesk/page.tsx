@@ -36,7 +36,7 @@ export default async function AdminHelpdeskPage({
   const { data: legs } = await supabase
     .from("helpdesk_request_legs")
     .select(
-      "id, status, priority, category, created_at, request_id, assigned_to_employee_id"
+      "id, status, priority, category, created_at, request_id, assigned_to_employee_id, assigned_to_raw_name"
     )
     .eq("department", activeDept)
     .in("status", ["open", "in_progress", "on_hold"])
@@ -50,15 +50,26 @@ export default async function AdminHelpdeskPage({
   const requestMap = new Map((requests ?? []).map((r) => [r.id, r]));
 
   const staff = await getDepartmentStaff(supabase, activeDept);
+  const staffNameById = new Map(staff.map((s) => [s.id, `${s.first_name} ${s.last_name}`]));
 
-  // Group active legs by assignee, including an "Unassigned" bucket.
+  // Group by whichever identity we have: a real employees.id when
+  // matched, otherwise the raw name preserved from import (e.g. a
+  // technician who hasn't logged into the portal yet), otherwise
+  // "unassigned". Prefixed so an employee id and a raw name can never
+  // collide as map keys.
+  function groupKeyFor(leg: { assigned_to_employee_id: string | null; assigned_to_raw_name: string | null }) {
+    if (leg.assigned_to_employee_id) return `emp:${leg.assigned_to_employee_id}`;
+    if (leg.assigned_to_raw_name) return `raw:${leg.assigned_to_raw_name}`;
+    return "unassigned";
+  }
+
   const byAssignee = new Map<string, typeof legs>();
-  for (const s of staff) byAssignee.set(s.id, []);
+  for (const s of staff) byAssignee.set(`emp:${s.id}`, []);
   byAssignee.set("unassigned", []);
 
   for (const leg of legs ?? []) {
-    const key = leg.assigned_to_employee_id ?? "unassigned";
-    if (!byAssignee.has(key)) byAssignee.set(key, []); // staff member without dept access anymore, still assigned historically
+    const key = groupKeyFor(leg);
+    if (!byAssignee.has(key)) byAssignee.set(key, []);
     byAssignee.get(key)!.push(leg);
   }
 
@@ -70,10 +81,13 @@ export default async function AdminHelpdeskPage({
     return b[1]!.length - a[1]!.length;
   });
 
-  const nameFor = (employeeId: string) => {
-    if (employeeId === "unassigned") return "Unassigned";
-    const s = staff.find((s) => s.id === employeeId);
-    return s ? `${s.first_name} ${s.last_name}` : "Former staff";
+  const nameFor = (key: string) => {
+    if (key === "unassigned") return "Unassigned";
+    if (key.startsWith("emp:")) {
+      const id = key.slice(4);
+      return staffNameById.get(id) ?? "Former staff";
+    }
+    return `${key.slice(4)} (legacy)`; // raw:NAME — not yet a portal account
   };
 
   return (
@@ -120,13 +134,13 @@ export default async function AdminHelpdeskPage({
         </form>
 
         <div className="space-y-6">
-          {sortedEntries.map(([employeeId, legsForPerson]) => (
+          {sortedEntries.map(([groupKey, legsForPerson]) => (
             <div
-              key={employeeId}
+              key={groupKey}
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden"
             >
               <div className="flex items-center justify-between px-5 py-3 bg-black/[0.03] border-b border-[var(--color-border)]">
-                <span className="text-sm font-semibold">{nameFor(employeeId)}</span>
+                <span className="text-sm font-semibold">{nameFor(groupKey)}</span>
                 <span className="text-xs text-[var(--color-text-dim)]">
                   {legsForPerson!.length} {legsForPerson!.length === 1 ? "ticket" : "tickets"}
                 </span>

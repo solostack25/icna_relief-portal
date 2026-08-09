@@ -156,7 +156,11 @@ export default async function HelpdeskRequestPage({
                 </div>
                 <div className="text-xs text-[var(--color-text-dim)]">
                   {leg.category ?? "No category"} · Priority: {leg.priority} ·{" "}
-                  {assignee ? `${assignee.first_name} ${assignee.last_name}` : "Unassigned"}
+                  {assignee
+                    ? `${assignee.first_name} ${assignee.last_name}`
+                    : leg.assigned_to_raw_name
+                      ? `${leg.assigned_to_raw_name} (legacy)`
+                      : "Unassigned"}
                 </div>
                 {itDetail?.solution && (
                   <div className="mt-2 text-sm">

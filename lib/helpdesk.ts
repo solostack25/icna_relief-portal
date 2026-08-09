@@ -97,6 +97,7 @@ export type HelpdeskLeg = {
   priority: Priority;
   category: string | null;
   assigned_to_employee_id: string | null;
+  assigned_to_raw_name: string | null;
   handed_off_from_leg_id: string | null;
   created_at: string;
   closed_at: string | null;
