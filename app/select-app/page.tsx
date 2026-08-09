@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import DayAtAGlance from "./DayAtAGlance";
+import ItTicketCountCard, { ItTicketCountSkeleton } from "./ItTicketCountCard";
 import LogoutButton from "./LogoutButton";
 
 export default async function SelectAppPage() {
@@ -98,19 +99,6 @@ export default async function SelectAppPage() {
     glanceCards.push({ label: "D.R.S. Activity Logged (This Month)", value: count ?? 0, connected: true });
   }
 
-  // IT HelpDesk ticket count — SharePoint list, not this app's
-  // Supabase project. Scoped to this employee's own assigned
-  // tickets (matched by display name against AssignedTechnician).
-  // Failing shouldn't break the whole dashboard, so this falls back
-  // to the "not connected" state on any error.
-  try {
-    const fullName = `${employee.first_name} ${employee.last_name}`;
-    const openTickets = await getOpenItTicketCountForTechnician(fullName);
-    glanceCards.push({ label: "My Open Help Desk Tickets", value: openTickets, connected: true });
-  } catch {
-    glanceCards.push({ label: "My Open Help Desk Tickets", value: "—", connected: false });
-  }
-
   glanceCards.push({ label: "Pending Approvals", value: "—", connected: false });
 
   return (
@@ -127,7 +115,14 @@ export default async function SelectAppPage() {
           Choose an app to continue
         </p>
 
-        <DayAtAGlance cards={glanceCards} />
+        <DayAtAGlance
+          cards={glanceCards}
+          extra={
+            <Suspense fallback={<ItTicketCountSkeleton />}>
+              <ItTicketCountCard fullName={`${employee.first_name} ${employee.last_name}`} />
+            </Suspense>
+          }
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {(visibleApps.length > 0 || employee.role === "admin") && (

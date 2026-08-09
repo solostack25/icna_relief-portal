@@ -4,7 +4,7 @@ type StatCard = {
   connected: boolean;
 };
 
-function Card({ label, value, connected }: StatCard) {
+export function Card({ label, value, connected }: StatCard) {
   return (
     <div
       className={`rounded-xl border p-4 ${
@@ -30,7 +30,13 @@ function Card({ label, value, connected }: StatCard) {
   );
 }
 
-export default function DayAtAGlance({ cards }: { cards: StatCard[] }) {
+export default function DayAtAGlance({
+  cards,
+  extra,
+}: {
+  cards: StatCard[];
+  extra?: React.ReactNode;
+}) {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -45,6 +51,7 @@ export default function DayAtAGlance({ cards }: { cards: StatCard[] }) {
         {cards.map((c) => (
           <Card key={c.label} {...c} />
         ))}
+        {extra}
       </div>
     </div>
   );
