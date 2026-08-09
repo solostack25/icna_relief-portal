@@ -4,20 +4,35 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { createRequestWithFirstLeg, type Priority } from "@/lib/helpdesk";
+import {
+  createRequestWithFirstLeg,
+  DEPARTMENT_LABELS,
+  type Department,
+  type Priority,
+} from "@/lib/helpdesk";
 
-const CATEGORIES = [
-  "General Support",
-  "3CX Support",
-  "Salesforce",
-  "Hardware Request",
-  "Software Request",
-  "Website Support",
-  "New Employee",
-  "App Issues",
-];
+// Inferred from the original SharePoint lists' Request Category /
+// Category columns for each department. Free text isn't used here on
+// purpose — consistent category values are what make department
+// queues and future reporting useful; easy to extend as real usage
+// surfaces gaps.
+const CATEGORIES: Record<Department, string[]> = {
+  it: [
+    "General Support",
+    "3CX Support",
+    "Salesforce",
+    "Hardware Request",
+    "Software Request",
+    "Website Support",
+    "New Employee",
+    "App Issues",
+  ],
+  hr: ["Hiring Request", "Position Change", "Offboarding", "Title Change", "Other"],
+  marketing: ["Event Materials", "Email Campaign", "Graphic Design", "Website Content", "Other"],
+  finance: ["Reimbursement", "Check Request", "PEX Card", "Vendor Payment", "Other"],
+};
 
-export default function NewItTicketPage() {
+export default function NewRequestPage() {
   const supabase = createClient();
   const router = useRouter();
 
@@ -27,15 +42,13 @@ export default function NewItTicketPage() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    category: CATEGORIES[0],
+    department: "it" as Department,
+    category: CATEGORIES.it[0],
     priority: "normal" as Priority,
     submitted_by: "",
     submitted_by_email: "",
   });
 
-  // Prefill submitter with the signed-in employee — IT staff will
-  // often be filing this on someone else's behalf (e.g. a phone call),
-  // so it's editable rather than locked to the session user.
   useEffect(() => {
     (async () => {
       const {
@@ -57,6 +70,10 @@ export default function NewItTicketPage() {
     })();
   }, [supabase]);
 
+  function handleDepartmentChange(dept: Department) {
+    setForm((f) => ({ ...f, department: dept, category: CATEGORIES[dept][0] }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) {
@@ -71,7 +88,7 @@ export default function NewItTicketPage() {
         description: form.description.trim() || null,
         submitted_by: form.submitted_by.trim(),
         submitted_by_email: form.submitted_by_email.trim(),
-        department: "it",
+        department: form.department,
         category: form.category,
         priority: form.priority,
       });
@@ -86,7 +103,7 @@ export default function NewItTicketPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-xl font-semibold">New IT Ticket</h1>
+          <h1 className="text-xl font-semibold">Submit a Request</h1>
           <Link
             href="/helpdesk"
             className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
@@ -97,13 +114,33 @@ export default function NewItTicketPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium mb-1.5">Issue Title *</label>
+            <label className="block text-sm font-medium mb-1.5">Department</label>
+            <div className="grid grid-cols-4 gap-2">
+              {(Object.keys(DEPARTMENT_LABELS) as Department[]).map((d) => (
+                <button
+                  type="button"
+                  key={d}
+                  onClick={() => handleDepartmentChange(d)}
+                  className={`text-sm py-2 rounded-lg border ${
+                    form.department === d
+                      ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                      : "border-[var(--color-border)] text-[var(--color-text-dim)]"
+                  }`}
+                >
+                  {DEPARTMENT_LABELS[d]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Title *</label>
             <input
               type="text"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
-              placeholder="e.g. New laptop request"
+              placeholder="What do you need?"
             />
           </div>
 
@@ -125,7 +162,7 @@ export default function NewItTicketPage() {
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
               >
-                {CATEGORIES.map((c) => (
+                {CATEGORIES[form.department].map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -175,7 +212,7 @@ export default function NewItTicketPage() {
             disabled={saving}
             className="w-full rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 disabled:opacity-50"
           >
-            {saving ? "Creating…" : "Create Ticket"}
+            {saving ? "Submitting…" : "Submit Request"}
           </button>
         </form>
       </div>

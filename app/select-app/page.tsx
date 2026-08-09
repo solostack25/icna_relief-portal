@@ -47,8 +47,10 @@ export default async function SelectAppPage() {
     .eq("is_active", true)
     .order("sort_order");
 
-  const visibleApps = (apps ?? []).filter((a) =>
-    employee.role === "admin" ? true : allowedSlugs.includes(a.slug)
+  const visibleApps = (apps ?? []).filter(
+    (a) =>
+      !a.slug.startsWith("helpdesk-") && // department manage-access flags, not real apps
+      (employee.role === "admin" ? true : allowedSlugs.includes(a.slug))
   );
 
   // 4. Day at a Glance stats — this employee's activity this month,

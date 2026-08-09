@@ -10,6 +10,35 @@ export type Department = "it" | "hr" | "marketing" | "finance";
 export type LegStatus = "open" | "in_progress" | "on_hold" | "handed_off" | "closed";
 export type Priority = "low" | "normal" | "high" | "urgent";
 
+export const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
+
+// The employee_program_access slug that grants management access to
+// a department's queue -- see helpdesk_department_access_migration.sql.
+export function departmentSlug(dept: Department): string {
+  return `helpdesk-${dept}`;
+}
+
+// Which departments' queues this employee can manage (see tickets,
+// change status, hand off, etc — not just submit and track their
+// own). Admins manage everything, same bypass pattern used
+// everywhere else in this app (see select-app's visibleApps filter).
+export async function getManagedDepartments(
+  supabase: SupabaseClient,
+  employeeId: string,
+  role: string
+): Promise<Department[]> {
+  if (role === "admin") return ALL_DEPARTMENTS;
+
+  const { data } = await supabase
+    .from("employee_program_access")
+    .select("program_slug")
+    .eq("employee_id", employeeId);
+
+  const slugs = new Set((data ?? []).map((r) => r.program_slug));
+  return ALL_DEPARTMENTS.filter((d) => slugs.has(departmentSlug(d)));
+}
+
+
 export const DEPARTMENT_LABELS: Record<Department, string> = {
   it: "IT",
   hr: "HR",

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DEPARTMENT_LABELS, LEG_STATUS_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
+import {
+  DEPARTMENT_LABELS,
+  LEG_STATUS_LABELS,
+  getManagedDepartments,
+  type Department,
+  type LegStatus,
+} from "@/lib/helpdesk";
 import LegActions from "./LegActions";
 
 export default async function HelpdeskRequestPage({
@@ -19,7 +25,7 @@ export default async function HelpdeskRequestPage({
 
   const { data: me } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, role")
+    .select("id, first_name, last_name, role, email")
     .eq("auth_user_id", user.id)
     .single();
   if (!me) redirect("/select-app");
@@ -36,6 +42,19 @@ export default async function HelpdeskRequestPage({
     .select("*")
     .eq("request_id", id)
     .order("created_at", { ascending: true });
+
+  const managedDepartments = await getManagedDepartments(supabase, me.id, me.role);
+  const isSubmitter = request.submitted_by_email === me.email;
+  const managesAnyLegDepartment = (legs ?? []).some((l) =>
+    managedDepartments.includes(l.department as Department)
+  );
+
+  // View access: the person who submitted this request, or anyone
+  // who manages a department this request has touched (current or
+  // past leg — a Marketing manager should still see a request they
+  // already handed off to IT). Admins already see everything via
+  // getManagedDepartments returning all four.
+  if (!isSubmitter && !managesAnyLegDepartment) redirect("/helpdesk");
 
   const legIds = (legs ?? []).map((l) => l.id);
 
@@ -141,7 +160,7 @@ export default async function HelpdeskRequestPage({
                   <div className="mt-2 text-sm whitespace-pre-wrap">{itDetail.additional_notes}</div>
                 )}
 
-                {isCurrent && (
+                {isCurrent && managedDepartments.includes(leg.department as Department) && (
                   <LegActions
                     legId={leg.id}
                     requestId={request.id}
