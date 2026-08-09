@@ -67,12 +67,13 @@ export default async function HelpdeskPage({
       : managedDepartments[0] ?? null;
 
   let legs: any[] = [];
+  let legsError: string | null = null;
   const statusFilter: "open" | "closed" = status === "closed" ? "closed" : "open";
   const statusesForFilter =
     statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold", "quality_assurance"];
 
   if (activeDept) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("helpdesk_request_legs")
       .select(
         "id, department, status, priority, category, created_at, closed_at, request_id, assigned_to_employee_id, assigned_to_raw_name, handed_off_from_leg_id"
@@ -82,6 +83,10 @@ export default async function HelpdeskPage({
       .order("created_at", { ascending: false })
       .limit(100);
     legs = data ?? [];
+    // Surface a real query failure (e.g. an enum value referenced
+    // before its migration has run) instead of silently rendering an
+    // empty queue that looks identical to "nothing's open right now."
+    legsError = error?.message ?? null;
   }
 
   // Overdue (open >48h) tickets bubble to the top regardless of
@@ -364,7 +369,13 @@ export default async function HelpdeskPage({
           </div>
 
           {legs.length === 0 && (
-            <p style={{ fontSize: 12, color: "#9C8FD9" }}>Nothing here right now. 🎉</p>
+            <p style={{ fontSize: 12, color: "#9C8FD9" }}>
+              {legsError ? (
+                <span style={{ color: "#FF6B6B" }}>⚠ Couldn't load tickets: {legsError}</span>
+              ) : (
+                "Nothing here right now. 🎉"
+              )}
+            </p>
           )}
 
           <div
@@ -565,7 +576,11 @@ export default async function HelpdeskPage({
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
               {legs.length === 0 ? (
                 <p className="p-6 text-sm text-[var(--color-text-dim)]">
-                  No {statusFilter} tickets in this queue.
+                  {legsError ? (
+                    <span className="text-red-600">⚠ Couldn't load tickets: {legsError}</span>
+                  ) : (
+                    `No ${statusFilter} tickets in this queue.`
+                  )}
                 </p>
               ) : (
                 legs.map((leg) => {
