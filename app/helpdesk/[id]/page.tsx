@@ -14,6 +14,7 @@ import {
 } from "@/lib/helpdesk";
 import LegActions from "./LegActions";
 import EmailAction from "./EmailAction";
+import MoveToWorkboardAction from "./MoveToWorkboardAction";
 
 export default async function HelpdeskRequestPage({
   params,
@@ -261,12 +262,13 @@ export default async function HelpdeskRequestPage({
                   )}
 
                   {leg.department === "it" && leg.status !== "closed" && leg.status !== "handed_off" && (
-                    <div style={{ marginTop: 10 }}>
+                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
                       <EmailAction
                         legId={leg.id}
                         defaultSubject={`Update on your ticket: ${request.title}`}
                         submittedBy={request.submitted_by}
                       />
+                      <MoveToWorkboardAction legId={leg.id} ticketTitle={request.title} currentUserId={me.id} />
                     </div>
                   )}
 
