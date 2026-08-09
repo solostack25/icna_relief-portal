@@ -124,7 +124,7 @@ export default async function AdminHelpdeskPage({
         <form action="/api/admin/import-it-tickets" method="POST" className="mb-8">
           <button
             formTarget="_blank"
-            className="text-sm px-4 py-2.5 rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:border-[var(--color-accent)]"
+            className="text-sm px-4 py-2.5 rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:border-[var(--color-accent)] cursor-pointer"
           >
             Import / Sync IT Tickets from SharePoint
           </button>

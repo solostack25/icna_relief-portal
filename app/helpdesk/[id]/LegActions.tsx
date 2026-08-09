@@ -121,12 +121,12 @@ export default function LegActions({
 
   const isQuest = theme === "quest";
   const selectCls = isQuest
-    ? "text-xs rounded-lg px-2 py-1.5 bg-[#1A1035] border border-[#4A3B7A] text-[#EDE6FF]"
-    : "text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5";
+    ? "text-xs rounded-lg px-2 py-1.5 bg-[#1A1035] border border-[#4A3B7A] text-[#EDE6FF] cursor-pointer"
+    : "text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 cursor-pointer";
   const btnCls = isQuest
-    ? "text-xs px-3 py-1.5 rounded-lg border border-[#4A3B7A] text-[#B5A8E8] hover:border-[#FF3EA5] disabled:opacity-50"
-    : "text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50";
-  const primaryBtnCls = "text-xs px-3 py-1.5 rounded-lg text-white disabled:opacity-50";
+    ? "text-xs px-3 py-1.5 rounded-lg border border-[#4A3B7A] text-[#B5A8E8] hover:border-[#FF3EA5] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+    : "text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed";
+  const primaryBtnCls = "text-xs px-3 py-1.5 rounded-lg text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed";
   const primaryBtnStyle = isQuest
     ? { background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)" }
     : { background: "var(--color-accent)" };

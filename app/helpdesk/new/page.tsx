@@ -121,7 +121,7 @@ export default function NewRequestPage() {
                   type="button"
                   key={d}
                   onClick={() => handleDepartmentChange(d)}
-                  className={`text-sm py-2 rounded-lg border ${
+                  className={`text-sm py-2 rounded-lg border cursor-pointer ${
                     form.department === d
                       ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
                       : "border-[var(--color-border)] text-[var(--color-text-dim)]"
@@ -210,7 +210,7 @@ export default function NewRequestPage() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 disabled:opacity-50"
+            className="w-full rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
             {saving ? "Submitting…" : "Submit Request"}
           </button>
