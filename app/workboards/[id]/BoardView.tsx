@@ -23,7 +23,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import { addManualCard, addColumn, moveCard } from "@/lib/workboard";
+import { addManualCard, addColumn, renameColumn, moveCard } from "@/lib/workboard";
 import { formatTicketAge } from "@/lib/helpdesk";
 
 type Column = { id: string; board_id: string; name: string; sort_order: number };
@@ -43,12 +43,14 @@ export default function BoardView({
   cards: initialCards,
   legToRequest,
   currentUserId,
+  canEditColumns,
 }: {
   boardId: string;
   columns: Column[];
   cards: Card[];
   legToRequest: Record<string, string>;
   currentUserId: string;
+  canEditColumns: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -60,6 +62,8 @@ export default function BoardView({
   const [newCardTitle, setNewCardTitle] = useState("");
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingColumnName, setEditingColumnName] = useState("");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -156,6 +160,27 @@ export default function BoardView({
     }
   }
 
+  function startRenameColumn(col: Column) {
+    setEditingColumnId(col.id);
+    setEditingColumnName(col.name);
+  }
+
+  async function submitRenameColumn() {
+    if (!editingColumnId || !editingColumnName.trim()) {
+      setEditingColumnId(null);
+      return;
+    }
+    const columnId = editingColumnId;
+    const name = editingColumnName.trim();
+    setColumns((prev) => prev.map((c) => (c.id === columnId ? { ...c, name } : c)));
+    setEditingColumnId(null);
+    try {
+      await renameColumn(supabase, { columnId, name });
+    } catch {
+      router.refresh(); // resync if it failed to persist
+    }
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -180,9 +205,42 @@ export default function BoardView({
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 4px 10px" }}>
-              <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", color: "#B5A8E8" }}>
-                {col.name}
-              </span>
+              {canEditColumns && editingColumnId === col.id ? (
+                <input
+                  value={editingColumnName}
+                  onChange={(e) => setEditingColumnName(e.target.value)}
+                  onBlur={submitRenameColumn}
+                  onKeyDown={(e) => e.key === "Enter" && submitRenameColumn()}
+                  autoFocus
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    background: "#1A1035",
+                    border: "1px solid #4A3B7A",
+                    borderRadius: 6,
+                    color: "#EDE6FF",
+                    padding: "2px 6px",
+                    width: "70%",
+                  }}
+                />
+              ) : (
+                <span
+                  onClick={() => canEditColumns && startRenameColumn(col)}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    color: "#B5A8E8",
+                    cursor: canEditColumns ? "text" : "default",
+                  }}
+                  title={canEditColumns ? "Click to rename" : undefined}
+                >
+                  {col.name}
+                </span>
+              )}
               <span style={{ fontSize: 10, color: "#7A6FAE", background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 20 }}>
                 {cardsByColumn(col.id).length}
               </span>
@@ -245,33 +303,35 @@ export default function BoardView({
         ))}
 
         <div style={{ minWidth: 200, flexShrink: 0 }}>
-          {addingColumn ? (
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid #3A2C68", borderRadius: 14, padding: 10 }}>
-              <input
-                value={newColumnName}
-                onChange={(e) => setNewColumnName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && submitNewColumn()}
-                autoFocus
-                placeholder="Column name"
-                style={{ width: "100%", padding: "7px 9px", borderRadius: 8, background: "#1A1035", border: "1px solid #4A3B7A", color: "#EDE6FF", fontSize: 12.5, marginBottom: 6 }}
-              />
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={submitNewColumn} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 7, border: "none", background: "#00E5FF", color: "#150B2E", cursor: "pointer" }}>
-                  Add
-                </button>
-                <button onClick={() => setAddingColumn(false)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, border: "1px solid #4A3B7A", background: "transparent", color: "#B5A8E8", cursor: "pointer" }}>
-                  Cancel
-                </button>
+          {canEditColumns ? (
+            addingColumn ? (
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid #3A2C68", borderRadius: 14, padding: 10 }}>
+                <input
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitNewColumn()}
+                  autoFocus
+                  placeholder="Column name"
+                  style={{ width: "100%", padding: "7px 9px", borderRadius: 8, background: "#1A1035", border: "1px solid #4A3B7A", color: "#EDE6FF", fontSize: 12.5, marginBottom: 6 }}
+                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={submitNewColumn} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 7, border: "none", background: "#00E5FF", color: "#150B2E", cursor: "pointer" }}>
+                    Add
+                  </button>
+                  <button onClick={() => setAddingColumn(false)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, border: "1px solid #4A3B7A", background: "transparent", color: "#B5A8E8", cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setAddingColumn(true)}
-              style={{ width: "100%", padding: 12, borderRadius: 14, border: "1px dashed #4A3B7A", background: "transparent", color: "#B5A8E8", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-            >
-              + Add Column
-            </button>
-          )}
+            ) : (
+              <button
+                onClick={() => setAddingColumn(true)}
+                style={{ width: "100%", padding: 12, borderRadius: 14, border: "1px dashed #4A3B7A", background: "transparent", color: "#B5A8E8", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+              >
+                + Add Column
+              </button>
+            )
+          ) : null}
         </div>
       </div>
 

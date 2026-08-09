@@ -169,3 +169,14 @@ export async function addColumn(
     .insert({ board_id: params.boardId, name: params.name, sort_order: count ?? 0 });
   if (error) throw new Error(error.message);
 }
+
+export async function renameColumn(
+  supabase: SupabaseClient,
+  params: { columnId: string; name: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from("workboard_columns")
+    .update({ name: params.name })
+    .eq("id", params.columnId);
+  if (error) throw new Error(error.message);
+}

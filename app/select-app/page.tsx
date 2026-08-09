@@ -137,17 +137,15 @@ export default async function SelectAppPage() {
             </Link>
           )}
 
-          {employee.role === "admin" && (
-            <Link
-              href="/workboards"
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
-            >
-              <div className="text-lg font-medium">📋 Workboards</div>
-              <div className="text-xs text-[var(--color-text-dim)] mt-1">
-                Your private task board, or the IT team board
-              </div>
-            </Link>
-          )}
+          <Link
+            href="/workboards"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
+          >
+            <div className="text-lg font-medium">📋 Workboards</div>
+            <div className="text-xs text-[var(--color-text-dim)] mt-1">
+              Your private task board, or the IT team board
+            </div>
+          </Link>
 
           {visibleApps.map((app) => (
             <Link

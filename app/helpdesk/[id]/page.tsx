@@ -268,9 +268,7 @@ export default async function HelpdeskRequestPage({
                         defaultSubject={`Update on your ticket: ${request.title}`}
                         submittedBy={request.submitted_by}
                       />
-                      {me.role === "admin" && (
-                        <MoveToWorkboardAction legId={leg.id} ticketTitle={request.title} currentUserId={me.id} />
-                      )}
+                      <MoveToWorkboardAction legId={leg.id} ticketTitle={request.title} currentUserId={me.id} />
                     </div>
                   )}
 

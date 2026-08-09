@@ -20,12 +20,6 @@ export default async function WorkboardsPage() {
     .single();
   if (!me) redirect("/select-app");
 
-  // Restricted to admins for now while this is still being shaped --
-  // easy to open back up to all employees later by removing this
-  // check (RLS itself already scopes private/team board access
-  // correctly either way, this is just a visibility gate on top).
-  if (me.role !== "admin") redirect("/select-app");
-
   const managedDepartments = await getManagedDepartments(supabase, me.id, me.role);
   const managesIt = managedDepartments.includes("it");
 

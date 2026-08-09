@@ -19,10 +19,6 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
     .single();
   if (!me) redirect("/select-app");
 
-  // Same admin-only gate as /workboards while this is still being
-  // shaped -- see comment there.
-  if (me.role !== "admin") redirect("/select-app");
-
   // RLS filters this to null if the board exists but isn't accessible
   // to this employee (private board they don't own, or a team board
   // for a department they don't manage) -- same "not found" either
@@ -93,6 +89,7 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
           cards={cards ?? []}
           legToRequest={Object.fromEntries(legToRequest)}
           currentUserId={me.id}
+          canEditColumns={me.role === "admin"}
         />
       </div>
     </main>
