@@ -48,30 +48,6 @@ async function runImport() {
     ])
   );
 
-  // Backfill pass first: any previously-imported leg that's still
-  // unmatched might now resolve, since more employees log into the
-  // portal (and get an employees row) over time. This is what makes
-  // "safe to run again" actually useful, not just a no-op for old
-  // tickets.
-  let backfilled = 0;
-  const { data: unresolvedLegs } = await admin
-    .from("helpdesk_request_legs")
-    .select("id, assigned_to_raw_name")
-    .eq("department", "it")
-    .is("assigned_to_employee_id", null)
-    .not("assigned_to_raw_name", "is", null);
-
-  for (const leg of unresolvedLegs ?? []) {
-    const match = employeeByName.get((leg.assigned_to_raw_name ?? "").toLowerCase());
-    if (match) {
-      await admin
-        .from("helpdesk_request_legs")
-        .update({ assigned_to_employee_id: match })
-        .eq("id", leg.id);
-      backfilled++;
-    }
-  }
-
   const items = await graphGetAll(
     `/v1.0/sites/${IT_TICKETS_SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items` +
       `?$expand=fields($select=Title,AdditionalNotes,RequestCategory,Status,Priority,` +
@@ -82,6 +58,7 @@ async function runImport() {
 
   let imported = 0;
   let skipped = 0;
+  let backfilled = 0;
   const unmatchedAssignees = new Set<string>();
   const unmappedStatuses = new Set<string>();
   const unmappedPriorities = new Set<string>();
@@ -91,13 +68,46 @@ async function runImport() {
     const sourceId: string = item.id;
     const f = item.fields ?? {};
 
-    const { data: existing } = await admin
+    const { data: existingRequest } = await admin
       .from("helpdesk_requests")
       .select("id")
       .eq("source_sharepoint_id", sourceId)
       .single();
-    if (existing) {
-      skipped++;
+
+    if (existingRequest) {
+      // Already imported — but on a re-run, backfill the leg from the
+      // current SharePoint data rather than doing nothing. This
+      // covers two cases: tickets imported before assigned_to_raw_name
+      // existed (so it's null and needs setting from f.AssignedTechnician
+      // now), and tickets whose assignee has since logged into the
+      // portal and can now resolve to a real employees.id.
+      const { data: existingLeg } = await admin
+        .from("helpdesk_request_legs")
+        .select("id, assigned_to_employee_id, assigned_to_raw_name")
+        .eq("request_id", existingRequest.id)
+        .eq("department", "it")
+        .single();
+
+      if (existingLeg && f.AssignedTechnician) {
+        const match = employeeByName.get(String(f.AssignedTechnician).toLowerCase());
+        const needsRawName = !existingLeg.assigned_to_raw_name;
+        const needsEmployeeMatch = !existingLeg.assigned_to_employee_id && match;
+
+        if (needsRawName || needsEmployeeMatch) {
+          await admin
+            .from("helpdesk_request_legs")
+            .update({
+              assigned_to_raw_name: existingLeg.assigned_to_raw_name || f.AssignedTechnician,
+              ...(needsEmployeeMatch ? { assigned_to_employee_id: match } : {}),
+            })
+            .eq("id", existingLeg.id);
+          backfilled++;
+        } else {
+          skipped++;
+        }
+      } else {
+        skipped++;
+      }
       continue;
     }
 
