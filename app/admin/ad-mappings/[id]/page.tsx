@@ -8,6 +8,16 @@ import { createClient } from "@/lib/supabase/client";
 type Office = { id: string; region: string; field_office: string };
 type App = { slug: string; display_name: string };
 
+// Determines which mapping wins during provisioning when someone
+// belongs to multiple mapped AD groups (e.g. staff + admin). Higher
+// wins. Keep in sync with app/admin/ad-mappings/new/page.tsx.
+const ROLE_PRIORITY: Record<string, number> = {
+  admin: 100,
+  program_director: 75,
+  regional_director: 50,
+  staff: 0,
+};
+
 export default function EditAdMappingPage() {
   const params = useParams();
   const id = params.id as string;
@@ -93,6 +103,7 @@ export default function EditAdMappingPage() {
         assigned_office_id: form.portal_role === "staff" ? form.assigned_office_id || null : null,
         assigned_region: form.portal_role === "regional_director" ? form.assigned_region || null : null,
         program_slugs: Array.from(selectedApps),
+        priority: ROLE_PRIORITY[form.portal_role] ?? 0,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);

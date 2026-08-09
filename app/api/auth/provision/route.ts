@@ -8,6 +8,10 @@ import { graphGetAll } from "@/lib/msgraph";
 // account if a mapped group actually applies. No mapped group means
 // no automatic account, even though they authenticated successfully;
 // an admin has to grant access deliberately in that case.
+//
+// Mappings are checked highest-priority first (see `priority` column)
+// so someone in multiple AD groups gets provisioned with their most
+// privileged matching role, not an arbitrary one.
 export async function POST() {
   const supabase = await createClient();
 
@@ -32,7 +36,15 @@ export async function POST() {
   const admin = createAdminClient();
   const email = user.email.toLowerCase();
 
-  const { data: mappings } = await admin.from("ad_role_mappings").select("*");
+  // Highest priority first, so a more-privileged group (e.g. Admin)
+  // wins over a lower-privileged one (e.g. InKind Staff) when someone
+  // belongs to multiple mapped AD groups. Previously this had no
+  // ordering and effectively picked whichever mapping row Postgres
+  // happened to return first.
+  const { data: mappings } = await admin
+    .from("ad_role_mappings")
+    .select("*")
+    .order("priority", { ascending: false });
 
   let matched: any = null;
 
