@@ -336,6 +336,67 @@ async function awardClosePoints(
 // Closes a leg, and closes the parent request too if this was the
 // last active leg -- so overall_status stays accurate without a DB
 // trigger (see schema comment on helpdesk_requests.overall_status).
+// Reverse direction of syncLegStatusFromWorkboardColumn: when a
+// ticket's status changes from the ticketing side (the Close button,
+// Send to QA, a manual status change, etc -- not the board itself),
+// move any workboard card(s) linked to it into whichever column on
+// their board maps to the new status, if one exists. A ticket can be
+// linked from more than one board (e.g. a private board AND the team
+// board), so this checks every linked card independently. No-ops for
+// a card already sitting in the right column (covers the case where
+// this is called as a result of a board-driven move in the first
+// place -- see syncLegStatusFromWorkboardColumn, which also calls
+// this so a ticket linked on a second board stays in sync too).
+export async function syncWorkboardCardsToLegStatus(
+  supabase: SupabaseClient,
+  legId: string,
+  newStatus: LegStatus
+): Promise<void> {
+  const { data: cards } = await supabase
+    .from("workboard_cards")
+    .select("id, board_id, column_id")
+    .eq("linked_leg_id", legId);
+  if (!cards || cards.length === 0) return;
+
+  for (const card of cards) {
+    const { data: targetColumn } = await supabase
+      .from("workboard_columns")
+      .select("id")
+      .eq("board_id", card.board_id)
+      .eq("maps_to_status", newStatus)
+      .maybeSingle();
+
+    if (!targetColumn || targetColumn.id === card.column_id) continue;
+
+    const { count } = await supabase
+      .from("workboard_cards")
+      .select("id", { count: "exact", head: true })
+      .eq("column_id", targetColumn.id);
+
+    await supabase
+      .from("workboard_cards")
+      .update({ column_id: targetColumn.id, sort_order: count ?? 0 })
+      .eq("id", card.id);
+  }
+}
+
+// Status changes that aren't a close (Send to QA, a manual set to
+// on_hold/in_progress) go through this instead of a raw update, so
+// they also trigger the workboard card sync above -- closeLeg already
+// does this itself for the close transition specifically.
+export async function setLegStatus(
+  supabase: SupabaseClient,
+  params: { legId: string; newStatus: LegStatus }
+): Promise<void> {
+  const { error } = await supabase
+    .from("helpdesk_request_legs")
+    .update({ status: params.newStatus })
+    .eq("id", params.legId);
+  if (error) throw new Error(error.message);
+
+  await syncWorkboardCardsToLegStatus(supabase, params.legId, params.newStatus);
+}
+
 export async function closeLeg(
   supabase: SupabaseClient,
   params: {
@@ -391,6 +452,8 @@ export async function closeLeg(
       );
     }
   }
+
+  await syncWorkboardCardsToLegStatus(supabase, params.legId, "closed");
 }
 
 // Keeps a linked ticket's status in sync with whichever workboard
@@ -447,6 +510,12 @@ export async function syncLegStatusFromWorkboardColumn(
       console.error(`Failed to reopen parent request ${leg.request_id}:`, reopenError.message);
     }
   }
+
+  // Covers a ticket linked on more than one board -- the card that
+  // triggered this call is already where it needs to be, but a card
+  // for the same ticket on a different board isn't, and won't be
+  // touched by anything else.
+  await syncWorkboardCardsToLegStatus(supabase, leg.id, params.targetStatus);
 }
 
 // This week's (Mon-Sun, America/Chicago) live IT leaderboard, summed

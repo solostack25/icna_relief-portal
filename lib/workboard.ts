@@ -34,6 +34,7 @@ export type WorkboardCard = {
   linked_leg_id: string | null;
   sort_order: number;
   created_by_employee_id: string | null;
+  assigned_to_employee_id: string | null;
   created_at: string;
 };
 
@@ -127,6 +128,7 @@ export async function addCardFromTicket(
     legId: string;
     title: string;
     createdByEmployeeId: string;
+    assignedToEmployeeId?: string | null;
   }
 ): Promise<void> {
   const { count } = await supabase
@@ -140,6 +142,7 @@ export async function addCardFromTicket(
     title: params.title,
     linked_leg_id: params.legId,
     created_by_employee_id: params.createdByEmployeeId,
+    assigned_to_employee_id: params.assignedToEmployeeId ?? null,
     sort_order: count ?? 0,
   });
   if (error) throw new Error(error.message);
@@ -212,5 +215,45 @@ export async function setColumnStatusMapping(
     .from("workboard_columns")
     .update({ maps_to_status: params.mapsToStatus })
     .eq("id", params.columnId);
+  if (error) throw new Error(error.message);
+}
+
+export async function assignCard(
+  supabase: SupabaseClient,
+  params: { cardId: string; employeeId: string | null }
+): Promise<void> {
+  const { error } = await supabase
+    .from("workboard_cards")
+    .update({ assigned_to_employee_id: params.employeeId })
+    .eq("id", params.cardId);
+  if (error) throw new Error(error.message);
+}
+
+export type WorkboardCardNote = {
+  id: string;
+  card_id: string;
+  author_employee_id: string | null;
+  body: string;
+  created_at: string;
+};
+
+export async function getCardNotes(supabase: SupabaseClient, cardId: string): Promise<WorkboardCardNote[]> {
+  const { data } = await supabase
+    .from("workboard_card_notes")
+    .select("*")
+    .eq("card_id", cardId)
+    .order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+export async function addCardNote(
+  supabase: SupabaseClient,
+  params: { cardId: string; authorEmployeeId: string; body: string }
+): Promise<void> {
+  const { error } = await supabase.from("workboard_card_notes").insert({
+    card_id: params.cardId,
+    author_employee_id: params.authorEmployeeId,
+    body: params.body,
+  });
   if (error) throw new Error(error.message);
 }

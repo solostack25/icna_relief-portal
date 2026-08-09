@@ -128,7 +128,12 @@ export default function LiveLegCard({
       {department === "it" && isActive && (
         <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
           <EmailAction legId={legId} defaultSubject={`Update on your ticket: ${requestTitle}`} submittedBy={submittedBy} />
-          <MoveToWorkboardAction legId={legId} ticketTitle={requestTitle} currentUserId={currentUserId} />
+          <MoveToWorkboardAction
+            legId={legId}
+            ticketTitle={requestTitle}
+            currentUserId={currentUserId}
+            currentAssigneeId={assignedToEmployeeId}
+          />
         </div>
       )}
 

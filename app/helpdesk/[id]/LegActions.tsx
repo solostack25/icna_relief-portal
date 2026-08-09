@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { handoffLeg, closeLeg, DEPARTMENT_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
+import { handoffLeg, closeLeg, setLegStatus, DEPARTMENT_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
 import { startTimer, pauseTimer, formatDuration } from "@/lib/workTimer";
 
 const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
@@ -132,11 +132,7 @@ export default function LegActions({
           legCreatedAt: legCreatedAt ?? new Date().toISOString(),
         });
       } else {
-        const { error: err } = await supabase
-          .from("helpdesk_request_legs")
-          .update({ status: newStatus })
-          .eq("id", legId);
-        if (err) throw new Error(err.message);
+        await setLegStatus(supabase, { legId, newStatus });
       }
       router.refresh();
     } catch (e: any) {

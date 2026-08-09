@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
 import { addManualCard, addColumn, renameColumn, setColumnStatusMapping, moveCard } from "@/lib/workboard";
 import { formatTicketAge, syncLegStatusFromWorkboardColumn, LEG_STATUS_LABELS, type LegStatus } from "@/lib/helpdesk";
+import CardDetailModal from "./CardDetailModal";
 
 type Column = { id: string; board_id: string; name: string; sort_order: number; maps_to_status: string | null };
 type Card = {
@@ -35,6 +36,7 @@ type Card = {
   linked_leg_id: string | null;
   sort_order: number;
   created_at: string;
+  assigned_to_employee_id: string | null;
 };
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -62,6 +64,9 @@ export default function BoardView({
   legToRequest,
   currentUserId,
   canEditColumns,
+  assignableStaff,
+  assigneeNameMap: initialAssigneeNameMap,
+  noteCountByCard: initialNoteCountByCard,
 }: {
   boardId: string;
   columns: Column[];
@@ -69,9 +74,16 @@ export default function BoardView({
   legToRequest: Record<string, string>;
   currentUserId: string;
   canEditColumns: boolean;
+  assignableStaff: { id: string; first_name: string; last_name: string }[];
+  assigneeNameMap: Record<string, string>;
+  noteCountByCard: Record<string, number>;
 }) {
   const supabase = createClient();
   const router = useRouter();
+
+  const [assigneeNameMap, setAssigneeNameMap] = useState(initialAssigneeNameMap);
+  const [noteCountByCard, setNoteCountByCard] = useState(initialNoteCountByCard);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   const [columns, setColumns] = useState(initialColumns);
   const [cards, setCards] = useState(initialCards);
@@ -337,7 +349,14 @@ export default function BoardView({
             <SortableContext items={cardsByColumn(col.id).map((c) => c.id)} strategy={verticalListSortingStrategy} id={col.id}>
               <ColumnDropZone columnId={col.id}>
                 {cardsByColumn(col.id).map((card) => (
-                  <SortableCard key={card.id} card={card} requestId={card.linked_leg_id ? legToRequest[card.linked_leg_id] : undefined} />
+                  <SortableCard
+                    key={card.id}
+                    card={card}
+                    requestId={card.linked_leg_id ? legToRequest[card.linked_leg_id] : undefined}
+                    assigneeName={card.assigned_to_employee_id ? assigneeNameMap[card.assigned_to_employee_id] : undefined}
+                    noteCount={noteCountByCard[card.id] ?? 0}
+                    onExpand={() => setExpandedCardId(card.id)}
+                  />
                 ))}
               </ColumnDropZone>
             </SortableContext>
@@ -437,6 +456,33 @@ export default function BoardView({
       <DragOverlay>
         {activeCard ? <CardTile card={activeCard} requestId={activeCard.linked_leg_id ? legToRequest[activeCard.linked_leg_id] : undefined} dragging /> : null}
       </DragOverlay>
+
+      {expandedCardId &&
+        (() => {
+          const card = cards.find((c) => c.id === expandedCardId);
+          if (!card) return null;
+          return (
+            <CardDetailModal
+              card={card}
+              requestId={card.linked_leg_id ? legToRequest[card.linked_leg_id] : undefined}
+              assignableStaff={assignableStaff}
+              currentAssigneeName={card.assigned_to_employee_id ? assigneeNameMap[card.assigned_to_employee_id] ?? null : null}
+              currentUserId={currentUserId}
+              onClose={() => setExpandedCardId(null)}
+              onAssigneeChange={(cardId, employeeId, name) => {
+                setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, assigned_to_employee_id: employeeId } : c)));
+                setAssigneeNameMap((prev) => {
+                  const next = { ...prev };
+                  if (employeeId && name) next[employeeId] = name;
+                  return next;
+                });
+              }}
+              onNoteAdded={(cardId) => {
+                setNoteCountByCard((prev) => ({ ...prev, [cardId]: (prev[cardId] ?? 0) + 1 }));
+              }}
+            />
+          );
+        })()}
     </DndContext>
   );
 }
@@ -454,7 +500,19 @@ function ColumnDropZone({ columnId, children }: { columnId: string; children: Re
   );
 }
 
-function SortableCard({ card, requestId }: { card: Card; requestId?: string }) {
+function SortableCard({
+  card,
+  requestId,
+  assigneeName,
+  noteCount,
+  onExpand,
+}: {
+  card: Card;
+  requestId?: string;
+  assigneeName?: string;
+  noteCount: number;
+  onExpand: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -463,12 +521,26 @@ function SortableCard({ card, requestId }: { card: Card; requestId?: string }) {
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CardTile card={card} requestId={requestId} />
+      <CardTile card={card} requestId={requestId} assigneeName={assigneeName} noteCount={noteCount} onExpand={onExpand} />
     </div>
   );
 }
 
-function CardTile({ card, requestId, dragging = false }: { card: Card; requestId?: string; dragging?: boolean }) {
+function CardTile({
+  card,
+  requestId,
+  dragging = false,
+  assigneeName,
+  noteCount = 0,
+  onExpand,
+}: {
+  card: Card;
+  requestId?: string;
+  dragging?: boolean;
+  assigneeName?: string;
+  noteCount?: number;
+  onExpand?: () => void;
+}) {
   return (
     <div
       style={{
@@ -478,10 +550,42 @@ function CardTile({ card, requestId, dragging = false }: { card: Card; requestId
         padding: 10,
         cursor: dragging ? "grabbing" : "grab",
         boxShadow: dragging ? "0 8px 20px rgba(0,0,0,0.4)" : "none",
+        position: "relative",
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>{card.title}</div>
-      <div style={{ fontSize: 10, color: "#7A6FAE" }}>⏱ {formatTicketAge(card.created_at)}</div>
+      {onExpand && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand();
+          }}
+          title="Expand card"
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "none",
+            borderRadius: 6,
+            width: 20,
+            height: 20,
+            fontSize: 11,
+            color: "#9C8FD9",
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+        >
+          ⤢
+        </button>
+      )}
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, paddingRight: 20 }}>{card.title}</div>
+      <div style={{ fontSize: 10, color: "#B5A8E8", marginBottom: 2 }}>
+        👤 {assigneeName ?? "Unassigned"}
+      </div>
+      <div style={{ fontSize: 10, color: "#7A6FAE", display: "flex", alignItems: "center", gap: 8 }}>
+        <span>⏱ {formatTicketAge(card.created_at)}</span>
+        {noteCount > 0 && <span>💬 {noteCount}</span>}
+      </div>
       {requestId && (
         <Link
           href={`/helpdesk/${requestId}`}

@@ -11,10 +11,12 @@ export default function MoveToWorkboardAction({
   legId,
   ticketTitle,
   currentUserId,
+  currentAssigneeId,
 }: {
   legId: string;
   ticketTitle: string;
   currentUserId: string;
+  currentAssigneeId?: string | null;
 }) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -58,6 +60,7 @@ export default function MoveToWorkboardAction({
         legId,
         title: ticketTitle,
         createdByEmployeeId: currentUserId,
+        assignedToEmployeeId: currentAssigneeId ?? null,
       });
       setMoved(selectedBoard);
     } catch (e: any) {
