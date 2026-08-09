@@ -69,7 +69,7 @@ export default async function HelpdeskPage({
   let legs: any[] = [];
   const statusFilter: "open" | "closed" = status === "closed" ? "closed" : "open";
   const statusesForFilter =
-    statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold"];
+    statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold", "quality_assurance"];
 
   if (activeDept) {
     const { data } = await supabase

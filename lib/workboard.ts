@@ -22,6 +22,7 @@ export type WorkboardColumn = {
   board_id: string;
   name: string;
   sort_order: number;
+  maps_to_status: string | null;
 };
 
 export type WorkboardCard = {
@@ -38,10 +39,24 @@ export type WorkboardCard = {
 
 // Default columns for a new board -- editable after creation (add,
 // rename, delete), this is just a sensible starting flow rather than
-// something fixed.
-const DEFAULT_COLUMNS: Record<WorkboardType, string[]> = {
-  private: ["To Do", "In Progress", "Done"],
-  team: ["To Do", "In Progress", "Blocked", "Done"],
+// something fixed. Each maps to a ticket status: dragging a card
+// linked to a real helpdesk ticket into one of these columns updates
+// that ticket's actual status to match (see
+// syncLegStatusFromWorkboardColumn in lib/helpdesk.ts). A column with
+// no mapping just doesn't drive ticket status -- e.g. an extra column
+// an admin adds beyond these defaults.
+const DEFAULT_COLUMNS: Record<WorkboardType, { name: string; maps_to_status: string | null }[]> = {
+  private: [
+    { name: "To Do", maps_to_status: "open" },
+    { name: "In Progress", maps_to_status: "in_progress" },
+    { name: "Done", maps_to_status: "closed" },
+  ],
+  team: [
+    { name: "To Do", maps_to_status: "open" },
+    { name: "In Progress", maps_to_status: "in_progress" },
+    { name: "Quality Assurance", maps_to_status: "quality_assurance" },
+    { name: "Done", maps_to_status: "closed" },
+  ],
 };
 
 export async function createPrivateBoard(
@@ -89,10 +104,15 @@ export async function getOrCreateTeamBoard(
 }
 
 async function seedDefaultColumns(supabase: SupabaseClient, boardId: string, type: WorkboardType) {
-  const names = DEFAULT_COLUMNS[type];
-  await supabase
-    .from("workboard_columns")
-    .insert(names.map((name, i) => ({ board_id: boardId, name, sort_order: i })));
+  const defs = DEFAULT_COLUMNS[type];
+  await supabase.from("workboard_columns").insert(
+    defs.map((d, i) => ({
+      board_id: boardId,
+      name: d.name,
+      sort_order: i,
+      maps_to_status: d.maps_to_status,
+    }))
+  );
 }
 
 // Creates a card from a helpdesk ticket -- this is what "Move to
@@ -157,16 +177,19 @@ export async function moveCard(
 
 export async function addColumn(
   supabase: SupabaseClient,
-  params: { boardId: string; name: string }
+  params: { boardId: string; name: string; mapsToStatus?: string | null }
 ): Promise<void> {
   const { count } = await supabase
     .from("workboard_columns")
     .select("id", { count: "exact", head: true })
     .eq("board_id", params.boardId);
 
-  const { error } = await supabase
-    .from("workboard_columns")
-    .insert({ board_id: params.boardId, name: params.name, sort_order: count ?? 0 });
+  const { error } = await supabase.from("workboard_columns").insert({
+    board_id: params.boardId,
+    name: params.name,
+    sort_order: count ?? 0,
+    maps_to_status: params.mapsToStatus ?? null,
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -177,6 +200,17 @@ export async function renameColumn(
   const { error } = await supabase
     .from("workboard_columns")
     .update({ name: params.name })
+    .eq("id", params.columnId);
+  if (error) throw new Error(error.message);
+}
+
+export async function setColumnStatusMapping(
+  supabase: SupabaseClient,
+  params: { columnId: string; mapsToStatus: string | null }
+): Promise<void> {
+  const { error } = await supabase
+    .from("workboard_columns")
+    .update({ maps_to_status: params.mapsToStatus })
     .eq("id", params.columnId);
   if (error) throw new Error(error.message);
 }

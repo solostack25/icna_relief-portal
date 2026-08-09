@@ -39,7 +39,7 @@ export default async function AdminHelpdeskPage({
       "id, status, priority, category, created_at, request_id, assigned_to_employee_id, assigned_to_raw_name"
     )
     .eq("department", activeDept)
-    .in("status", ["open", "in_progress", "on_hold"])
+    .in("status", ["open", "in_progress", "on_hold", "quality_assurance"])
     .order("created_at", { ascending: true });
 
   const requestIds = [...new Set((legs ?? []).map((l) => l.request_id))];

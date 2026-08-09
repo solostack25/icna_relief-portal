@@ -7,7 +7,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export type Department = "it" | "hr" | "marketing" | "finance";
-export type LegStatus = "open" | "in_progress" | "on_hold" | "handed_off" | "closed";
+export type LegStatus = "open" | "in_progress" | "on_hold" | "quality_assurance" | "handed_off" | "closed";
 export type Priority = "low" | "normal" | "high" | "urgent";
 
 export const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
@@ -123,6 +123,7 @@ export const LEG_STATUS_LABELS: Record<LegStatus, string> = {
   open: "Open",
   in_progress: "In Progress",
   on_hold: "On Hold",
+  quality_assurance: "Quality Assurance",
   handed_off: "Handed Off",
   closed: "Closed",
 };
@@ -167,7 +168,7 @@ export type ItLegDetails = {
 // A leg is "active" (counts toward open-ticket dashboards, shows in
 // default queue views) unless it's closed or was handed off to a
 // different leg.
-const ACTIVE_LEG_STATUSES: LegStatus[] = ["open", "in_progress", "on_hold"];
+const ACTIVE_LEG_STATUSES: LegStatus[] = ["open", "in_progress", "on_hold", "quality_assurance"];
 
 export function isActiveLegStatus(status: LegStatus): boolean {
   return ACTIVE_LEG_STATUSES.includes(status);
@@ -377,6 +378,56 @@ export async function closeLeg(
       .from("helpdesk_requests")
       .update({ overall_status: "closed" })
       .eq("id", params.requestId);
+  }
+}
+
+// Keeps a linked ticket's status in sync with whichever workboard
+// column its card is dragged into -- see workboard_columns.maps_to_status
+// and BoardView's drag handler, which calls this after a card move.
+//
+// The "-> closed" transition reuses closeLeg() rather than duplicating
+// it, so dragging a card to a Done-mapped column awards the exact same
+// points a manual Close does -- no separate, inconsistent code path.
+// No-ops if the leg is already at the target status (prevents
+// re-awarding close points if a card gets dragged out of Done and
+// back into it) or if the leg is handed_off (no longer this board's
+// ticket to drive -- it's someone else's department now).
+export async function syncLegStatusFromWorkboardColumn(
+  supabase: SupabaseClient,
+  params: { legId: string; targetStatus: LegStatus; actingEmployeeId: string }
+): Promise<void> {
+  const { data: leg } = await supabase
+    .from("helpdesk_request_legs")
+    .select("id, request_id, department, status, assigned_to_employee_id, created_at")
+    .eq("id", params.legId)
+    .single();
+  if (!leg) return;
+  if (leg.status === params.targetStatus) return;
+  if (leg.status === "handed_off") return;
+
+  if (params.targetStatus === "closed") {
+    await closeLeg(supabase, {
+      legId: leg.id,
+      requestId: leg.request_id,
+      department: leg.department as Department,
+      closedByEmployeeId: params.actingEmployeeId,
+      assignedToEmployeeId: leg.assigned_to_employee_id,
+      legCreatedAt: leg.created_at,
+    });
+    return;
+  }
+
+  // Moving OUT of closed back into an active status -- reopen the
+  // parent request too, the reverse of closeLeg's own bookkeeping.
+  const wasClosed = leg.status === "closed";
+
+  await supabase
+    .from("helpdesk_request_legs")
+    .update({ status: params.targetStatus, closed_at: null, closed_by_employee_id: null })
+    .eq("id", leg.id);
+
+  if (wasClosed) {
+    await supabase.from("helpdesk_requests").update({ overall_status: "open" }).eq("id", leg.request_id);
   }
 }
 

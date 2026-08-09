@@ -23,10 +23,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import { addManualCard, addColumn, renameColumn, moveCard } from "@/lib/workboard";
-import { formatTicketAge } from "@/lib/helpdesk";
+import { addManualCard, addColumn, renameColumn, setColumnStatusMapping, moveCard } from "@/lib/workboard";
+import { formatTicketAge, syncLegStatusFromWorkboardColumn, LEG_STATUS_LABELS, type LegStatus } from "@/lib/helpdesk";
 
-type Column = { id: string; board_id: string; name: string; sort_order: number };
+type Column = { id: string; board_id: string; name: string; sort_order: number; maps_to_status: string | null };
 type Card = {
   id: string;
   board_id: string;
@@ -35,6 +35,24 @@ type Card = {
   linked_leg_id: string | null;
   sort_order: number;
   created_at: string;
+};
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No status sync" },
+  { value: "open", label: LEG_STATUS_LABELS.open },
+  { value: "in_progress", label: LEG_STATUS_LABELS.in_progress },
+  { value: "on_hold", label: LEG_STATUS_LABELS.on_hold },
+  { value: "quality_assurance", label: LEG_STATUS_LABELS.quality_assurance },
+  { value: "closed", label: LEG_STATUS_LABELS.closed },
+];
+
+const selectSmallStyle: React.CSSProperties = {
+  fontSize: 10,
+  padding: "2px 4px",
+  borderRadius: 6,
+  background: "#1A1035",
+  border: "1px solid #4A3B7A",
+  color: "#B5A8E8",
 };
 
 export default function BoardView({
@@ -62,6 +80,7 @@ export default function BoardView({
   const [newCardTitle, setNewCardTitle] = useState("");
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
+  const [newColumnStatus, setNewColumnStatus] = useState("");
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editingColumnName, setEditingColumnName] = useState("");
 
@@ -129,6 +148,29 @@ export default function BoardView({
     } catch {
       router.refresh(); // out of sync with the server -- resync
     }
+
+    // Keep the linked ticket's real status in sync with whichever
+    // column its card landed in -- only if the column actually
+    // changed (dragging within the same column is just reordering)
+    // and that column has a status mapping set.
+    const columnChanged = activeCardData.column_id !== targetColumnId;
+    const targetColumn = columns.find((c) => c.id === targetColumnId);
+    if (columnChanged && activeCardData.linked_leg_id && targetColumn?.maps_to_status) {
+      try {
+        await syncLegStatusFromWorkboardColumn(supabase, {
+          legId: activeCardData.linked_leg_id,
+          targetStatus: targetColumn.maps_to_status as LegStatus,
+          actingEmployeeId: currentUserId,
+        });
+      } catch {
+        // Card move already succeeded and is visible -- a failed
+        // status sync shouldn't be silently invisible, but it also
+        // shouldn't block the drag itself. Surfacing this quietly via
+        // console for now; worth a toast/notification if this comes
+        // up in practice.
+        console.error("Failed to sync ticket status from workboard column move");
+      }
+    }
   }
 
   async function submitNewCard(columnId: string) {
@@ -151,12 +193,27 @@ export default function BoardView({
   async function submitNewColumn() {
     if (!newColumnName.trim()) return;
     try {
-      await addColumn(supabase, { boardId, name: newColumnName.trim() });
+      await addColumn(supabase, {
+        boardId,
+        name: newColumnName.trim(),
+        mapsToStatus: newColumnStatus || null,
+      });
       setNewColumnName("");
+      setNewColumnStatus("");
       setAddingColumn(false);
       router.refresh();
     } catch {
       // leave open to retry
+    }
+  }
+
+  async function updateColumnStatusMapping(columnId: string, value: string) {
+    const mapsToStatus = value || null;
+    setColumns((prev) => prev.map((c) => (c.id === columnId ? { ...c, maps_to_status: mapsToStatus } : c)));
+    try {
+      await setColumnStatusMapping(supabase, { columnId, mapsToStatus });
+    } catch {
+      router.refresh();
     }
   }
 
@@ -246,6 +303,26 @@ export default function BoardView({
               </span>
             </div>
 
+            {canEditColumns ? (
+              <select
+                value={col.maps_to_status ?? ""}
+                onChange={(e) => updateColumnStatusMapping(col.id, e.target.value)}
+                style={{ ...selectSmallStyle, width: "100%", marginBottom: 8 }}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              col.maps_to_status && (
+                <div style={{ fontSize: 9.5, color: "#7A6FAE", marginBottom: 8 }}>
+                  → sets ticket to "{LEG_STATUS_LABELS[col.maps_to_status as LegStatus]}"
+                </div>
+              )
+            )}
+
             <SortableContext items={cardsByColumn(col.id).map((c) => c.id)} strategy={verticalListSortingStrategy} id={col.id}>
               <ColumnDropZone columnId={col.id}>
                 {cardsByColumn(col.id).map((card) => (
@@ -314,6 +391,17 @@ export default function BoardView({
                   placeholder="Column name"
                   style={{ width: "100%", padding: "7px 9px", borderRadius: 8, background: "#1A1035", border: "1px solid #4A3B7A", color: "#EDE6FF", fontSize: 12.5, marginBottom: 6 }}
                 />
+                <select
+                  value={newColumnStatus}
+                  onChange={(e) => setNewColumnStatus(e.target.value)}
+                  style={{ ...selectSmallStyle, width: "100%", marginBottom: 6 }}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={submitNewColumn} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 7, border: "none", background: "#00E5FF", color: "#150B2E", cursor: "pointer" }}>
                     Add

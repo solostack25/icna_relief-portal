@@ -190,6 +190,11 @@ export default function LegActions({
             {isQuest ? "⏸ Pause" : "Put On Hold"}
           </button>
         )}
+        {department === "it" && status !== "quality_assurance" && (
+          <button onClick={() => updateStatus("quality_assurance")} disabled={busy} className={btnCls}>
+            {isQuest ? "🔍 Send to QA" : "Move to Quality Assurance"}
+          </button>
+        )}
         <button onClick={() => updateStatus("closed")} disabled={busy} className={primaryBtnCls} style={primaryBtnStyle}>
           {isQuest ? "✓ Complete Quest" : "Close"}
         </button>
