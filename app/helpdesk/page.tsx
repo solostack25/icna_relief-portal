@@ -11,9 +11,9 @@ import {
 export default async function HelpdeskPage({
   searchParams,
 }: {
-  searchParams: Promise<{ dept?: string }>;
+  searchParams: Promise<{ dept?: string; status?: string }>;
 }) {
-  const { dept } = await searchParams;
+  const { dept, status } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -48,6 +48,10 @@ export default async function HelpdeskPage({
       : managedDepartments[0] ?? null;
 
   let legs: any[] = [];
+  const statusFilter: "open" | "closed" = status === "closed" ? "closed" : "open";
+  const statusesForFilter =
+    statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold"];
+
   if (activeDept) {
     const { data } = await supabase
       .from("helpdesk_request_legs")
@@ -55,6 +59,7 @@ export default async function HelpdeskPage({
         "id, department, status, priority, category, created_at, closed_at, request_id, assigned_to_employee_id, assigned_to_raw_name, handed_off_from_leg_id"
       )
       .eq("department", activeDept)
+      .in("status", statusesForFilter)
       .order("created_at", { ascending: false })
       .limit(100);
     legs = data ?? [];
@@ -136,11 +141,11 @@ export default async function HelpdeskPage({
             <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
               Department Queue
             </h2>
-            <div className="flex gap-2 mb-6 flex-wrap">
+            <div className="flex gap-2 mb-4 flex-wrap">
               {managedDepartments.map((d) => (
                 <Link
                   key={d}
-                  href={`/helpdesk?dept=${d}`}
+                  href={`/helpdesk?dept=${d}&status=${statusFilter}`}
                   className={`px-3 py-1.5 rounded-lg text-sm border ${
                     activeDept === d
                       ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
@@ -152,9 +157,27 @@ export default async function HelpdeskPage({
               ))}
             </div>
 
+            <div className="flex gap-2 mb-6">
+              {(["open", "closed"] as const).map((s) => (
+                <Link
+                  key={s}
+                  href={`/helpdesk?dept=${activeDept}&status=${s}`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                    statusFilter === s
+                      ? "bg-[var(--color-text)] text-[var(--color-surface)] border-[var(--color-text)]"
+                      : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-text)]"
+                  }`}
+                >
+                  {s === "open" ? "Open" : "Closed"}
+                </Link>
+              ))}
+            </div>
+
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
               {legs.length === 0 ? (
-                <p className="p-6 text-sm text-[var(--color-text-dim)]">No tickets in this queue.</p>
+                <p className="p-6 text-sm text-[var(--color-text-dim)]">
+                  No {statusFilter} tickets in this queue.
+                </p>
               ) : (
                 legs.map((leg) => {
                   const req = requestMap.get(leg.request_id);
