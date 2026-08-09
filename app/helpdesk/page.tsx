@@ -148,9 +148,11 @@ export default async function HelpdeskPage({
             <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
               ← Back
             </Link>
-            <Link href="/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
-              📋 Workboards
-            </Link>
+            {me.role === "admin" && (
+              <Link href="/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
+                📋 Workboards
+              </Link>
+            )}
           </div>
           {activeDept === "it" && (
             <p style={{ fontSize: 11, color: "#9C8FD9", textAlign: "right", marginBottom: 8 }}>

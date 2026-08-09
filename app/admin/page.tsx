@@ -47,6 +47,12 @@ export default async function AdminPage() {
               AD Mappings
             </Link>
             <Link
+              href="/workboards"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              Workboards
+            </Link>
+            <Link
               href="/admin/helpdesk"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >

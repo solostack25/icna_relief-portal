@@ -14,10 +14,14 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
 
   const { data: me } = await supabase
     .from("employees")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, role")
     .eq("auth_user_id", user.id)
     .single();
   if (!me) redirect("/select-app");
+
+  // Same admin-only gate as /workboards while this is still being
+  // shaped -- see comment there.
+  if (me.role !== "admin") redirect("/select-app");
 
   // RLS filters this to null if the board exists but isn't accessible
   // to this employee (private board they don't own, or a team board
