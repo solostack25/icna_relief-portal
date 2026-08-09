@@ -374,10 +374,22 @@ export async function closeLeg(
   const stillActive = (remainingLegs ?? []).some((l) => isActiveLegStatus(l.status as LegStatus));
 
   if (!stillActive) {
-    await supabase
+    const { error: overallStatusError } = await supabase
       .from("helpdesk_requests")
       .update({ overall_status: "closed" })
       .eq("id", params.requestId);
+    // This error was previously swallowed entirely -- a failure here
+    // left the leg genuinely closed while the parent request quietly
+    // stayed "open" forever, with nothing surfacing the mismatch.
+    // Logging rather than throwing: the leg itself did close
+    // successfully by this point, so the close action as a whole
+    // shouldn't appear to fail to the person who just clicked it.
+    if (overallStatusError) {
+      console.error(
+        `Failed to close parent request ${params.requestId} after closing leg ${params.legId}:`,
+        overallStatusError.message
+      );
+    }
   }
 }
 
@@ -427,7 +439,13 @@ export async function syncLegStatusFromWorkboardColumn(
     .eq("id", leg.id);
 
   if (wasClosed) {
-    await supabase.from("helpdesk_requests").update({ overall_status: "open" }).eq("id", leg.request_id);
+    const { error: reopenError } = await supabase
+      .from("helpdesk_requests")
+      .update({ overall_status: "open" })
+      .eq("id", leg.request_id);
+    if (reopenError) {
+      console.error(`Failed to reopen parent request ${leg.request_id}:`, reopenError.message);
+    }
   }
 }
 

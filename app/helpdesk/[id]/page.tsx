@@ -141,8 +141,9 @@ export default async function HelpdeskRequestPage({
                 background: request.overall_status === "closed" ? "rgba(255,255,255,0.08)" : "rgba(0,229,255,0.15)",
                 color: request.overall_status === "closed" ? "#9C8FD9" : "#00E5FF",
               }}
+              title="Overall request status -- closed once every department leg in the chain is closed or handed off"
             >
-              {request.overall_status === "closed" ? "✓ Complete" : "In Progress"}
+              {request.overall_status === "closed" ? "✓ Complete" : "Open"}
             </span>
           </div>
 
