@@ -17,6 +17,7 @@ export default function LegActions({
   departmentStaff = [],
   assignedToEmployeeId = null,
   theme = "plain",
+  legCreatedAt,
 }: {
   legId: string;
   requestId: string;
@@ -27,6 +28,7 @@ export default function LegActions({
   departmentStaff?: { id: string; first_name: string; last_name: string }[];
   assignedToEmployeeId?: string | null;
   theme?: "plain" | "quest";
+  legCreatedAt?: string;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -65,6 +67,7 @@ export default function LegActions({
           department,
           closedByEmployeeId: currentUserId,
           assignedToEmployeeId: assignee || null,
+          legCreatedAt: legCreatedAt ?? new Date().toISOString(),
         });
       } else {
         const { error: err } = await supabase

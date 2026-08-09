@@ -12,6 +12,45 @@ export type Priority = "low" | "normal" | "high" | "urgent";
 
 export const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
 
+// Shared IT mailbox emails send "from" (visible as "IT Support" in
+// the SharePoint history this app imported from). Requires the
+// Mail.Send Application permission on the Portal app registration --
+// see lib/msgraph.ts sendMailAs.
+export const IT_SUPPORT_MAILBOX = "it@icnarelief.org";
+
+// Ticket age, formatted per how this was specced: hourly for the
+// first 24 hours, then "N days and N hours" after that.
+export function formatTicketAge(createdAt: string, now: Date = new Date()): string {
+  const created = new Date(createdAt);
+  const diffMs = Math.max(0, now.getTime() - created.getTime());
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffHours < 1) return "opened just now";
+  if (diffHours < 24) return `open ${diffHours} hour${diffHours === 1 ? "" : "s"}`;
+
+  const days = Math.floor(diffHours / 24);
+  const hours = diffHours % 24;
+  const dayPart = `${days} day${days === 1 ? "" : "s"}`;
+  const hourPart = hours > 0 ? ` and ${hours} hour${hours === 1 ? "" : "s"}` : "";
+  return `open ${dayPart}${hourPart}`;
+}
+
+// Hours remaining until a bonus window (5h email bonus, 24h close
+// bonus) closes, for the countdown banners. Null once expired.
+export function hoursRemainingInWindow(
+  createdAt: string,
+  windowHours: number,
+  now: Date = new Date()
+): { hours: number; minutes: number } | null {
+  const created = new Date(createdAt);
+  const deadline = created.getTime() + windowHours * 60 * 60 * 1000;
+  const remainingMs = deadline - now.getTime();
+  if (remainingMs <= 0) return null;
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  return { hours, minutes };
+}
+
 // The employee_program_access slug that grants management access to
 // a department's queue -- see helpdesk_department_access_migration.sql.
 export function departmentSlug(dept: Department): string {
@@ -237,7 +276,12 @@ function isAfterHours(date: Date): boolean {
 // are always re-derivable and auditable.
 async function awardClosePoints(
   supabase: SupabaseClient,
-  params: { legId: string; closedByEmployeeId: string; assignedToEmployeeId: string | null }
+  params: {
+    legId: string;
+    closedByEmployeeId: string;
+    assignedToEmployeeId: string | null;
+    legCreatedAt: string;
+  }
 ): Promise<void> {
   const now = new Date();
 
@@ -260,6 +304,22 @@ async function awardClosePoints(
     });
   }
 
+  // Fast-close bonus: closed within 24h of when this specific ticket
+  // (leg) opened, not the original request -- a leg received via
+  // handoff gets its own fresh 24h clock starting when IT actually
+  // received it, since IT isn't responsible for time that elapsed in
+  // another department first.
+  const hoursOpen = (now.getTime() - new Date(params.legCreatedAt).getTime()) / (1000 * 60 * 60);
+  if (hoursOpen <= 24) {
+    entries.push({
+      leg_id: params.legId,
+      employee_id: params.closedByEmployeeId,
+      points: 5,
+      reason: "fast_close_bonus",
+      awarded_at: now.toISOString(),
+    });
+  }
+
   await supabase.from("helpdesk_points_ledger").insert(entries);
 }
 
@@ -274,6 +334,7 @@ export async function closeLeg(
     department: Department;
     closedByEmployeeId: string;
     assignedToEmployeeId: string | null;
+    legCreatedAt: string;
   }
 ): Promise<void> {
   const { error } = await supabase
@@ -291,6 +352,7 @@ export async function closeLeg(
       legId: params.legId,
       closedByEmployeeId: params.closedByEmployeeId,
       assignedToEmployeeId: params.assignedToEmployeeId,
+      legCreatedAt: params.legCreatedAt,
     });
   }
 

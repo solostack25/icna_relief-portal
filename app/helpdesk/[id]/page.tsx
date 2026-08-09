@@ -6,10 +6,13 @@ import {
   LEG_STATUS_LABELS,
   getManagedDepartments,
   getDepartmentStaff,
+  formatTicketAge,
+  hoursRemainingInWindow,
   type Department,
   type LegStatus,
 } from "@/lib/helpdesk";
 import LegActions from "./LegActions";
+import EmailAction from "./EmailAction";
 
 export default async function HelpdeskRequestPage({
   params,
@@ -90,6 +93,24 @@ export default async function HelpdeskRequestPage({
 
   const currentLeg = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off") ?? null;
 
+  // Email-bonus eligibility for the current leg, if it's IT and still
+  // active: has an email already been sent (bonus can only be earned
+  // once), and is the 5h window still open.
+  let alreadyEmailed = false;
+  if (currentLeg?.department === "it") {
+    const { data: emailLog } = await supabase
+      .from("helpdesk_email_log")
+      .select("id")
+      .eq("leg_id", currentLeg.id)
+      .limit(1);
+    alreadyEmailed = (emailLog ?? []).length > 0;
+  }
+  const emailBonusWindow =
+    currentLeg && !alreadyEmailed ? hoursRemainingInWindow(currentLeg.created_at, 5) : null;
+  const closeBonusWindow = currentLeg ? hoursRemainingInWindow(currentLeg.created_at, 24) : null;
+  const currentLegIsActiveIt =
+    currentLeg?.department === "it" && currentLeg.status !== "closed" && currentLeg.status !== "handed_off";
+
   // ============================================================
   // QUEST THEME
   // ============================================================
@@ -140,11 +161,53 @@ export default async function HelpdeskRequestPage({
                 borderRadius: 12,
                 padding: 14,
                 fontSize: 13,
-                marginBottom: 24,
+                marginBottom: 16,
                 whiteSpace: "pre-wrap",
               }}
             >
               {request.description}
+            </div>
+          )}
+
+          {currentLeg && (
+            <p style={{ fontSize: 11, color: "#9C8FD9", marginBottom: 16 }}>
+              ⏱ {formatTicketAge(currentLeg.created_at)}
+            </p>
+          )}
+
+          {currentLegIsActiveIt && emailBonusWindow && (
+            <div
+              style={{
+                background: "rgba(255,215,0,0.1)",
+                border: "1px solid #FFD700",
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 12,
+                fontSize: 12,
+                color: "#FFD700",
+                fontWeight: 700,
+              }}
+            >
+              📧 Email this employee now for +2 bonus points — expires in {emailBonusWindow.hours}h{" "}
+              {emailBonusWindow.minutes}m
+            </div>
+          )}
+
+          {currentLegIsActiveIt && closeBonusWindow && (
+            <div
+              style={{
+                background: "rgba(0,229,255,0.1)",
+                border: "1px solid #00E5FF",
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 24,
+                fontSize: 12,
+                color: "#00E5FF",
+                fontWeight: 700,
+              }}
+            >
+              🏆 Close this ticket now for +5 bonus points — expires in {closeBonusWindow.hours}h{" "}
+              {closeBonusWindow.minutes}m
             </div>
           )}
 
@@ -195,6 +258,16 @@ export default async function HelpdeskRequestPage({
                     <div style={{ marginTop: 8, fontSize: 12.5, whiteSpace: "pre-wrap" }}>{itDetail.additional_notes}</div>
                   )}
 
+                  {leg.department === "it" && leg.status !== "closed" && leg.status !== "handed_off" && (
+                    <div style={{ marginTop: 10 }}>
+                      <EmailAction
+                        legId={leg.id}
+                        defaultSubject={`Update on your ticket: ${request.title}`}
+                        submittedBy={request.submitted_by}
+                      />
+                    </div>
+                  )}
+
                   {isCurrent && managedDepartments.includes(leg.department as Department) && (
                     <LegActions
                       legId={leg.id}
@@ -205,6 +278,7 @@ export default async function HelpdeskRequestPage({
                       departmentStaff={departmentStaff}
                       assignedToEmployeeId={leg.assigned_to_employee_id}
                       theme="quest"
+                      legCreatedAt={leg.created_at}
                     />
                   )}
                 </div>
@@ -335,6 +409,7 @@ export default async function HelpdeskRequestPage({
                     currentUserId={me.id}
                     departmentStaff={departmentStaff}
                     assignedToEmployeeId={leg.assigned_to_employee_id}
+                    legCreatedAt={leg.created_at}
                   />
                 )}
               </div>

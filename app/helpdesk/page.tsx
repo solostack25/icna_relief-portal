@@ -6,6 +6,7 @@ import {
   LEG_STATUS_LABELS,
   getManagedDepartments,
   getWeeklyItLeaderboard,
+  formatTicketAge,
   type Department,
 } from "@/lib/helpdesk";
 
@@ -394,6 +395,9 @@ export default async function HelpdeskPage({
                 <div style={{ fontSize: 11, color: "#9C8FD9" }}>
                   {req?.submitted_by} · {assigneeLabel}
                   {leg.handed_off_from_leg_id && <span style={{ color: "#00E5FF" }}> · ↳ handed off</span>}
+                </div>
+                <div style={{ fontSize: 10, color: "#7A6FAE", marginTop: 3 }}>
+                  ⏱ {formatTicketAge(leg.created_at)}
                 </div>
                 {leg.department === "it" && statusFilter === "open" && (
                   <span

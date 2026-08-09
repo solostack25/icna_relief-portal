@@ -70,3 +70,38 @@ export async function graphGetAll(path: string) {
 
   return results;
 }
+
+// Sends an email as a specific mailbox (app-only -- requires the
+// Mail.Send Application permission on the "Portal" app registration,
+// granted + admin-consented in Entra ID, same as Sites.Selected was
+// for the SharePoint import. NOT granted as of this writing -- calls
+// here will 403 until that's done. Depending on the tenant's Exchange
+// Online configuration, an Application Access Policy may also be
+// needed to scope which mailboxes the app is allowed to send as,
+// rather than every mailbox in the org.
+export async function sendMailAs(params: {
+  fromMailbox: string;
+  to: string;
+  subject: string;
+  body: string;
+}): Promise<void> {
+  const token = await getGraphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(params.fromMailbox)}/sendMail`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          subject: params.subject,
+          body: { contentType: "Text", content: params.body },
+          toRecipients: [{ emailAddress: { address: params.to } }],
+        },
+        saveToSentItems: true,
+      }),
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Graph sendMail failed: ${res.status} ${await res.text()}`);
+  }
+}
