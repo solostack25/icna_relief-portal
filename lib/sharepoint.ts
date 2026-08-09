@@ -3,9 +3,9 @@ import { graphGetAll } from "@/lib/msgraph";
 // "IT Tickets (HelpDesk v3)" SharePoint list on the root ICNA Relief
 // USA Programs site. Resolved via Graph Explorer on 2026-08-09 —
 // these IDs are stable (SharePoint site/list GUIDs don't change).
-const SITE_ID =
+export const IT_TICKETS_SITE_ID =
   "icnareliefusa.sharepoint.com,49643cbb-3c15-4ed8-89ad-cc3cf3e6345d,68c27998-f02d-4e52-b667-f94b47bddb2a";
-const IT_TICKETS_LIST_ID = "9e162e9c-7b8d-42dd-baa9-ef1038e7e4d0";
+export const IT_TICKETS_LIST_ID = "9e162e9c-7b8d-42dd-baa9-ef1038e7e4d0";
 
 // Every status in this list other than "Closed" counts as open (Open,
 // In Progress, On Hold). Simpler and more robust than an allowlist —
@@ -28,7 +28,7 @@ export async function getOpenItTicketCountForTechnician(
   technicianFullName: string
 ): Promise<number> {
   const items = await graphGetAll(
-    `/v1.0/sites/${SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status,AssignedTechnician)&$top=200`
+    `/v1.0/sites/${IT_TICKETS_SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status,AssignedTechnician)&$top=200`
   );
   return items.filter(
     (item) =>
@@ -41,7 +41,7 @@ export async function getOpenItTicketCountForTechnician(
 // admin-only view) — not used by the per-employee dashboard card.
 export async function getOpenItTicketCount(): Promise<number> {
   const items = await graphGetAll(
-    `/v1.0/sites/${SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status)&$top=200`
+    `/v1.0/sites/${IT_TICKETS_SITE_ID}/lists/${IT_TICKETS_LIST_ID}/items?$expand=fields($select=Status)&$top=200`
   );
   return items.filter((item) => item.fields?.Status !== CLOSED_STATUS).length;
 }

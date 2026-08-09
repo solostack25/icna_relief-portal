@@ -91,7 +91,7 @@ export default async function AdminHelpdeskPage({
           </Link>
         </div>
 
-        <div className="flex gap-2 mb-8 flex-wrap">
+        <div className="flex gap-2 mb-4 flex-wrap">
           {ALL_DEPARTMENTS.map((d) => (
             <Link
               key={d}
@@ -106,6 +106,18 @@ export default async function AdminHelpdeskPage({
             </Link>
           ))}
         </div>
+
+        <form action="/api/admin/import-it-tickets" method="POST" className="mb-8">
+          <button
+            formTarget="_blank"
+            className="text-sm px-4 py-2.5 rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:border-[var(--color-accent)]"
+          >
+            Import / Sync IT Tickets from SharePoint
+          </button>
+          <p className="text-xs text-[var(--color-text-dim)] mt-1.5">
+            Safe to run more than once — already-imported tickets are skipped.
+          </p>
+        </form>
 
         <div className="space-y-6">
           {sortedEntries.map(([employeeId, legsForPerson]) => (
