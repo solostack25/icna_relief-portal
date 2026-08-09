@@ -13,8 +13,7 @@ import {
   type LegStatus,
 } from "@/lib/helpdesk";
 import LegActions from "./LegActions";
-import EmailAction from "./EmailAction";
-import MoveToWorkboardAction from "./MoveToWorkboardAction";
+import LiveLegCard from "./LiveLegCard";
 
 export default async function HelpdeskRequestPage({
   params,
@@ -219,15 +218,50 @@ export default async function HelpdeskRequestPage({
           </div>
           <div style={{ marginBottom: 24 }}>
             {(legs ?? []).map((leg) => {
+              const isCurrent = currentLeg?.id === leg.id;
+
+              // The current leg is the one that can actually change
+              // while this page is open (someone drags its workboard
+              // card, or acts on it from another tab/session) -- it
+              // gets the live-subscribed version. Past legs in the
+              // chain are already closed or handed off; nothing about
+              // them changes anymore, so they stay plain server-
+              // rendered content.
+              if (isCurrent) {
+                const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
+                const itDetail = itDetailsMap.get(leg.id);
+                return (
+                  <LiveLegCard
+                    key={leg.id}
+                    legId={leg.id}
+                    requestId={request.id}
+                    department={leg.department as Department}
+                    category={leg.category}
+                    priority={leg.priority}
+                    initialStatus={leg.status as LegStatus}
+                    assignedToEmployeeId={leg.assigned_to_employee_id}
+                    assigneeName={assignee ? `${assignee.first_name} ${assignee.last_name}` : null}
+                    assignedToRawName={leg.assigned_to_raw_name}
+                    handedOffFromLegId={leg.handed_off_from_leg_id}
+                    legCreatedAt={leg.created_at}
+                    itDetail={itDetail}
+                    canManage={managedDepartments.includes(leg.department as Department)}
+                    departmentStaff={departmentStaff}
+                    currentUserId={me.id}
+                    requestTitle={request.title}
+                    submittedBy={request.submitted_by}
+                  />
+                );
+              }
+
               const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
               const itDetail = itDetailsMap.get(leg.id);
-              const isCurrent = currentLeg?.id === leg.id;
               return (
                 <div
                   key={leg.id}
                   style={{
                     background: "rgba(255,255,255,0.05)",
-                    border: `1px solid ${isCurrent ? "#FF3EA5" : "#3A2C68"}`,
+                    border: "1px solid #3A2C68",
                     borderRadius: 14,
                     padding: 14,
                     marginBottom: 12,
@@ -259,31 +293,6 @@ export default async function HelpdeskRequestPage({
                   )}
                   {itDetail?.additional_notes && (
                     <div style={{ marginTop: 8, fontSize: 12.5, whiteSpace: "pre-wrap" }}>{itDetail.additional_notes}</div>
-                  )}
-
-                  {leg.department === "it" && leg.status !== "closed" && leg.status !== "handed_off" && (
-                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
-                      <EmailAction
-                        legId={leg.id}
-                        defaultSubject={`Update on your ticket: ${request.title}`}
-                        submittedBy={request.submitted_by}
-                      />
-                      <MoveToWorkboardAction legId={leg.id} ticketTitle={request.title} currentUserId={me.id} />
-                    </div>
-                  )}
-
-                  {isCurrent && managedDepartments.includes(leg.department as Department) && (
-                    <LegActions
-                      legId={leg.id}
-                      requestId={request.id}
-                      department={leg.department}
-                      status={leg.status}
-                      currentUserId={me.id}
-                      departmentStaff={departmentStaff}
-                      assignedToEmployeeId={leg.assigned_to_employee_id}
-                      theme="quest"
-                      legCreatedAt={leg.created_at}
-                    />
                   )}
                 </div>
               );
