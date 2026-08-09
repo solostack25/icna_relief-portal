@@ -65,7 +65,7 @@ create table helpdesk_leg_details_it (
   coo_approved boolean not null default false,
   supervisor_name text,
   date_of_approval timestamptz,
-  office_id uuid references offices(id),
+  office_id uuid references b2s_offices(id),
   grant_name text,
   solution text
 );
