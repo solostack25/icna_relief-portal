@@ -25,7 +25,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
 import { addManualCard, addColumn, renameColumn, setColumnStatusMapping, moveCard } from "@/lib/workboard";
 import { formatTicketAge, syncLegStatusFromWorkboardColumn, LEG_STATUS_LABELS, type LegStatus } from "@/lib/helpdesk";
+import { pauseTimer } from "@/lib/workTimer";
 import CardDetailModal from "./CardDetailModal";
+import CardTimerControl from "./CardTimerControl";
 
 type Column = { id: string; board_id: string; name: string; sort_order: number; maps_to_status: string | null };
 type Card = {
@@ -67,6 +69,7 @@ export default function BoardView({
   assignableStaff,
   assigneeNameMap: initialAssigneeNameMap,
   noteCountByCard: initialNoteCountByCard,
+  timerByCard,
 }: {
   boardId: string;
   columns: Column[];
@@ -77,6 +80,7 @@ export default function BoardView({
   assignableStaff: { id: string; first_name: string; last_name: string }[];
   assigneeNameMap: Record<string, string>;
   noteCountByCard: Record<string, number>;
+  timerByCard: Record<string, { accumulated_seconds: number; running_since: string | null }>;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -182,6 +186,7 @@ export default function BoardView({
     const columnChanged =
       originalColumnIdRef.current !== null && originalColumnIdRef.current !== targetColumnId;
     const targetColumn = columns.find((c) => c.id === targetColumnId);
+
     if (columnChanged && activeCardData.linked_leg_id && targetColumn?.maps_to_status) {
       try {
         await syncLegStatusFromWorkboardColumn(supabase, {
@@ -193,6 +198,13 @@ export default function BoardView({
       } catch {
         console.error("Failed to sync ticket status from workboard column move");
       }
+    }
+
+    // A card (linked or not) landing in a Done-mapped column shouldn't
+    // keep a forgotten timer running against it -- pause it the same
+    // way finishing a ticket from the ticket page does.
+    if (columnChanged && targetColumn?.maps_to_status === "closed") {
+      pauseTimer(supabase, activeId).catch(() => {});
     }
   }
 
@@ -355,6 +367,7 @@ export default function BoardView({
                     requestId={card.linked_leg_id ? legToRequest[card.linked_leg_id] : undefined}
                     assigneeName={card.assigned_to_employee_id ? assigneeNameMap[card.assigned_to_employee_id] : undefined}
                     noteCount={noteCountByCard[card.id] ?? 0}
+                    timer={timerByCard[card.id]}
                     onExpand={() => setExpandedCardId(card.id)}
                   />
                 ))}
@@ -505,12 +518,14 @@ function SortableCard({
   requestId,
   assigneeName,
   noteCount,
+  timer,
   onExpand,
 }: {
   card: Card;
   requestId?: string;
   assigneeName?: string;
   noteCount: number;
+  timer?: { accumulated_seconds: number; running_since: string | null };
   onExpand: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
@@ -521,7 +536,7 @@ function SortableCard({
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CardTile card={card} requestId={requestId} assigneeName={assigneeName} noteCount={noteCount} onExpand={onExpand} />
+      <CardTile card={card} requestId={requestId} assigneeName={assigneeName} noteCount={noteCount} timer={timer} onExpand={onExpand} />
     </div>
   );
 }
@@ -532,6 +547,7 @@ function CardTile({
   dragging = false,
   assigneeName,
   noteCount = 0,
+  timer,
   onExpand,
 }: {
   card: Card;
@@ -539,6 +555,7 @@ function CardTile({
   dragging?: boolean;
   assigneeName?: string;
   noteCount?: number;
+  timer?: { accumulated_seconds: number; running_since: string | null };
   onExpand?: () => void;
 }) {
   return (
@@ -586,6 +603,13 @@ function CardTile({
         <span>⏱ {formatTicketAge(card.created_at)}</span>
         {noteCount > 0 && <span>💬 {noteCount}</span>}
       </div>
+      {!dragging && (
+        <CardTimerControl
+          cardId={card.id}
+          initialAccumulatedSeconds={timer?.accumulated_seconds ?? 0}
+          initialRunningSince={timer?.running_since ?? null}
+        />
+      )}
       {requestId && (
         <Link
           href={`/helpdesk/${requestId}`}

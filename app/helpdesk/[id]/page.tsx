@@ -94,19 +94,6 @@ export default async function HelpdeskRequestPage({
 
   const currentLeg = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off") ?? null;
 
-  // Active-work timer for the current leg -- quest theme only, but
-  // cheap enough to fetch regardless of theme rather than branching
-  // the query itself.
-  let currentLegTimer: { accumulated_seconds: number; running_since: string | null } | null = null;
-  if (currentLeg) {
-    const { data } = await supabase
-      .from("helpdesk_work_timers")
-      .select("accumulated_seconds, running_since")
-      .eq("leg_id", currentLeg.id)
-      .maybeSingle();
-    currentLegTimer = data;
-  }
-
   // Email-bonus eligibility for the current leg, if it's IT and still
   // active: has an email already been sent (bonus can only be earned
   // once), and is the 5h window still open.
@@ -264,8 +251,6 @@ export default async function HelpdeskRequestPage({
                     currentUserId={me.id}
                     requestTitle={request.title}
                     submittedBy={request.submitted_by}
-                    initialAccumulatedSeconds={currentLegTimer?.accumulated_seconds ?? 0}
-                    initialRunningSince={currentLegTimer?.running_since ?? null}
                   />
                 );
               }

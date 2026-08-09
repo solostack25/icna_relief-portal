@@ -34,8 +34,6 @@ export default function LiveLegCard({
   currentUserId,
   requestTitle,
   submittedBy,
-  initialAccumulatedSeconds,
-  initialRunningSince,
 }: {
   legId: string;
   requestId: string;
@@ -54,8 +52,6 @@ export default function LiveLegCard({
   currentUserId: string;
   requestTitle: string;
   submittedBy: string;
-  initialAccumulatedSeconds: number;
-  initialRunningSince: string | null;
 }) {
   const supabase = createClient();
   const [status, setStatus] = useState<LegStatus>(initialStatus);
@@ -148,8 +144,6 @@ export default function LiveLegCard({
           assignedToEmployeeId={assignedToEmployeeId}
           theme="quest"
           legCreatedAt={legCreatedAt}
-          initialAccumulatedSeconds={initialAccumulatedSeconds}
-          initialRunningSince={initialRunningSince}
         />
       )}
     </div>

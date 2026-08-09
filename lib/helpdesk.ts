@@ -5,6 +5,7 @@
 // file, not every page that touches a ticket.
 
 import { SupabaseClient } from "@supabase/supabase-js";
+import { pauseTimer } from "./workTimer";
 
 export type Department = "it" | "hr" | "marketing" | "finance";
 export type LegStatus = "open" | "in_progress" | "on_hold" | "quality_assurance" | "handed_off" | "closed";
@@ -377,6 +378,13 @@ export async function syncWorkboardCardsToLegStatus(
       .from("workboard_cards")
       .update({ column_id: targetColumn.id, sort_order: count ?? 0 })
       .eq("id", card.id);
+
+    // Same reasoning as the drag-driven path in BoardView -- a card
+    // shouldn't keep a running timer once it's landed somewhere marked
+    // as done, whichever direction caused the move.
+    if (newStatus === "closed") {
+      await pauseTimer(supabase, card.id).catch(() => {});
+    }
   }
 }
 
