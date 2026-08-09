@@ -45,16 +45,12 @@ export default async function HelpdeskRequestPage({
     .order("created_at", { ascending: true });
 
   const managedDepartments = await getManagedDepartments(supabase, me.id, me.role);
+  const isQuestThemed = managedDepartments.includes("it");
   const isSubmitter = request.submitted_by_email === me.email;
   const managesAnyLegDepartment = (legs ?? []).some((l) =>
     managedDepartments.includes(l.department as Department)
   );
 
-  // View access: the person who submitted this request, or anyone
-  // who manages a department this request has touched (current or
-  // past leg — a Marketing manager should still see a request they
-  // already handed off to IT). Admins already see everything via
-  // getManagedDepartments returning all four.
   if (!isSubmitter && !managesAnyLegDepartment) redirect("/helpdesk");
 
   const currentLegDept = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off")
@@ -92,10 +88,168 @@ export default async function HelpdeskRequestPage({
     .in("id", commentAuthorIds.length ? commentAuthorIds : ["00000000-0000-0000-0000-000000000000"]);
   const authorMap = new Map((commentAuthors ?? []).map((a) => [a.id, a]));
 
-  // The most recently created non-handed-off leg is the "current"
-  // owner of this request -- that's the one action buttons apply to.
   const currentLeg = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off") ?? null;
 
+  // ============================================================
+  // QUEST THEME
+  // ============================================================
+  if (isQuestThemed) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "radial-gradient(ellipse at top, #2A1858 0%, #150B2E 60%)",
+          color: "#EDE6FF",
+          fontFamily: "'DM Sans', sans-serif",
+          padding: "28px 16px 60px",
+        }}
+      >
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap');`}</style>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <Link href="/helpdesk" style={{ fontSize: 12, color: "#9C8FD9" }}>
+              ← Back to Help Desk
+            </Link>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                padding: "3px 10px",
+                borderRadius: 20,
+                background: request.overall_status === "closed" ? "rgba(255,255,255,0.08)" : "rgba(0,229,255,0.15)",
+                color: request.overall_status === "closed" ? "#9C8FD9" : "#00E5FF",
+              }}
+            >
+              {request.overall_status === "closed" ? "✓ Complete" : "In Progress"}
+            </span>
+          </div>
+
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 6 }}>
+            {request.title}
+          </div>
+          <p style={{ fontSize: 12, color: "#9C8FD9", marginBottom: 20 }}>
+            Submitted by {request.submitted_by} ({request.submitted_by_email}) ·{" "}
+            {new Date(request.created_at).toLocaleDateString()}
+          </p>
+
+          {request.description && (
+            <div
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid #3A2C68",
+                borderRadius: 12,
+                padding: 14,
+                fontSize: 13,
+                marginBottom: 24,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {request.description}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
+            Quest Chain
+          </div>
+          <div style={{ marginBottom: 24 }}>
+            {(legs ?? []).map((leg) => {
+              const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
+              const itDetail = itDetailsMap.get(leg.id);
+              const isCurrent = currentLeg?.id === leg.id;
+              return (
+                <div
+                  key={leg.id}
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: `1px solid ${isCurrent ? "#FF3EA5" : "#3A2C68"}`,
+                    borderRadius: 14,
+                    padding: 14,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#00E5FF" }}>
+                      {leg.department === "it" ? "⚔️ " : leg.department === "marketing" ? "🎨 " : leg.department === "hr" ? "🧑‍💼 " : "💰 "}
+                      {DEPARTMENT_LABELS[leg.department as Department]} Guild
+                      {leg.handed_off_from_leg_id && <span style={{ color: "#9C8FD9", fontWeight: 500 }}> ← handed off</span>}
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#9C8FD9", background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 20 }}>
+                      {LEG_STATUS_LABELS[leg.status as LegStatus]}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9C8FD9" }}>
+                    {leg.category ?? "No category"} · Priority: {leg.priority} ·{" "}
+                    {assignee
+                      ? `${assignee.first_name} ${assignee.last_name}`
+                      : leg.assigned_to_raw_name
+                        ? `${leg.assigned_to_raw_name} (legacy)`
+                        : "Unclaimed"}
+                  </div>
+                  {itDetail?.solution && (
+                    <div style={{ marginTop: 8, fontSize: 12.5 }}>
+                      <span style={{ color: "#9C8FD9" }}>Solution: </span>
+                      {itDetail.solution}
+                    </div>
+                  )}
+                  {itDetail?.additional_notes && (
+                    <div style={{ marginTop: 8, fontSize: 12.5, whiteSpace: "pre-wrap" }}>{itDetail.additional_notes}</div>
+                  )}
+
+                  {isCurrent && managedDepartments.includes(leg.department as Department) && (
+                    <LegActions
+                      legId={leg.id}
+                      requestId={request.id}
+                      department={leg.department}
+                      status={leg.status}
+                      currentUserId={me.id}
+                      departmentStaff={departmentStaff}
+                      assignedToEmployeeId={leg.assigned_to_employee_id}
+                      theme="quest"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
+            Comments
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            {(comments ?? []).length === 0 && <p style={{ fontSize: 12, color: "#9C8FD9" }}>No comments yet.</p>}
+            {(comments ?? []).map((c) => {
+              const author = c.author_employee_id ? authorMap.get(c.author_employee_id) : null;
+              return (
+                <div key={c.id} style={{ fontSize: 13, borderBottom: "1px solid #3A2C68", paddingBottom: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: "#9C8FD9", marginBottom: 4 }}>
+                    {author ? `${author.first_name} ${author.last_name}` : "Unknown"} ·{" "}
+                    {new Date(c.created_at).toLocaleString()}
+                  </div>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{c.body}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {currentLeg && (
+            <LegActions
+              legId={currentLeg.id}
+              requestId={request.id}
+              department={currentLeg.department}
+              status={currentLeg.status}
+              currentUserId={me.id}
+              commentOnly
+              theme="quest"
+            />
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  // ============================================================
+  // PLAIN THEME
+  // ============================================================
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-2xl mx-auto">

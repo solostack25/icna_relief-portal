@@ -5,8 +5,20 @@ import {
   DEPARTMENT_LABELS,
   LEG_STATUS_LABELS,
   getManagedDepartments,
+  getWeeklyItLeaderboard,
   type Department,
 } from "@/lib/helpdesk";
+
+const DIFFICULTY_BY_PRIORITY: Record<string, { label: string; cls: string }> = {
+  low: { label: "EASY", cls: "easy" },
+  normal: { label: "EASY", cls: "easy" },
+  high: { label: "HARD", cls: "hard" },
+  urgent: { label: "EPIC", cls: "epic" },
+};
+
+function initials(first: string, last: string) {
+  return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+}
 
 export default async function HelpdeskPage({
   searchParams,
@@ -30,8 +42,15 @@ export default async function HelpdeskPage({
 
   const managedDepartments = await getManagedDepartments(supabase, me.id, me.role);
 
-  // "My Requests" — anyone can see what they personally submitted,
-  // regardless of whether they manage any department queue.
+  // Whole-page theme decision: IT team members (anyone who manages
+  // the IT queue) get the quest-styled experience for their entire
+  // /helpdesk page. Everyone else -- regular employees submitting
+  // requests, and HR/Marketing/Finance managers -- see the plain
+  // professional version. Not per-department-tab within one page:
+  // the whole page is one theme or the other, chosen by who's
+  // looking, so it never feels like it's switching skins mid-browse.
+  const isQuestThemed = managedDepartments.includes("it");
+
   const { data: myRequests } = await supabase
     .from("helpdesk_requests")
     .select("id, title, overall_status, created_at")
@@ -39,9 +58,6 @@ export default async function HelpdeskPage({
     .order("created_at", { ascending: false })
     .limit(20);
 
-  // Department queue — only queried/shown if this employee manages
-  // at least one department. Selected tab must be one they manage;
-  // falls back to the first managed department otherwise.
   const activeDept: Department | null =
     dept && managedDepartments.includes(dept as Department)
       ? (dept as Department)
@@ -81,6 +97,331 @@ export default async function HelpdeskPage({
     .in("id", assigneeIds.length ? assigneeIds : ["00000000-0000-0000-0000-000000000000"]);
   const assigneeMap = new Map((assignees ?? []).map((a) => [a.id, a]));
 
+  // Only IT is scored — leaderboard only fetched/shown on the IT tab.
+  let leaderboard: { employeeId: string; points: number }[] = [];
+  let leaderboardEmployeeMap = new Map<string, { first_name: string; last_name: string }>();
+  if (isQuestThemed && activeDept === "it") {
+    leaderboard = await getWeeklyItLeaderboard(supabase);
+    const lbIds = leaderboard.map((l) => l.employeeId);
+    const { data: lbEmployees } = await supabase
+      .from("employees")
+      .select("id, first_name, last_name")
+      .in("id", lbIds.length ? lbIds : ["00000000-0000-0000-0000-000000000000"]);
+    leaderboardEmployeeMap = new Map((lbEmployees ?? []).map((e) => [e.id, e]));
+  }
+  const topScore = leaderboard[0]?.points ?? 1;
+
+  // ============================================================
+  // QUEST THEME — IT team members
+  // ============================================================
+  if (isQuestThemed) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "radial-gradient(ellipse at top, #2A1858 0%, #150B2E 60%)",
+          color: "#EDE6FF",
+          fontFamily: "'DM Sans', sans-serif",
+          padding: "28px 16px 60px",
+        }}
+      >
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap');
+          a.qbtn:hover{ border-color:#FF3EA5 !important; }
+        `}</style>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
+              ← Back
+            </Link>
+            {activeDept === "it" && (
+              <span style={{ fontSize: 11, color: "#9C8FD9" }}>Live leaderboard, resets Mondays</span>
+            )}
+          </div>
+
+          <div style={{ textAlign: "center", margin: "16px 0 24px" }}>
+            <div
+              style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 700,
+                fontSize: 30,
+                backgroundImage: "linear-gradient(90deg,#FF3EA5,#00E5FF)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              HELP DESK
+            </div>
+            <div style={{ fontSize: 12, color: "#9C8FD9", marginTop: 6 }}>
+              Welcome back, {me.first_name}
+            </div>
+          </div>
+
+          <Link
+            href="/helpdesk/new"
+            style={{
+              display: "block",
+              textAlign: "center",
+              padding: 15,
+              borderRadius: 14,
+              border: "none",
+              background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 14,
+              marginBottom: 24,
+              boxShadow: "0 0 20px rgba(255,62,165,0.35)",
+              textDecoration: "none",
+            }}
+          >
+            ⚔️ Post a New Quest
+          </Link>
+
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
+            My Requests
+          </div>
+          <div
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid #3A2C68",
+              borderRadius: 14,
+              padding: (myRequests ?? []).length === 0 ? 16 : 6,
+              marginBottom: 24,
+            }}
+          >
+            {(myRequests ?? []).length === 0 ? (
+              <p style={{ fontSize: 12, color: "#9C8FD9" }}>You haven't submitted any requests.</p>
+            ) : (
+              (myRequests ?? []).map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/helpdesk/${r.id}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 10px",
+                    fontSize: 13,
+                    color: "#EDE6FF",
+                    textDecoration: "none",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{r.title}</span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: r.overall_status === "closed" ? "rgba(255,255,255,0.08)" : "rgba(0,229,255,0.15)",
+                      color: r.overall_status === "closed" ? "#9C8FD9" : "#00E5FF",
+                    }}
+                  >
+                    {r.overall_status === "closed" ? "Closed" : "Open"}
+                  </span>
+                </Link>
+              ))
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            {managedDepartments.map((d) => {
+              const isIt = d === "it";
+              const isActive = activeDept === d;
+              return (
+                <Link
+                  key={d}
+                  href={`/helpdesk?dept=${d}&status=${statusFilter}`}
+                  className="qbtn"
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    border: isActive ? "1.5px solid transparent" : "1.5px solid #4A3B7A",
+                    color: isActive ? "#fff" : "#B5A8E8",
+                    background: isActive ? "linear-gradient(90deg,#FF3EA5,#7B3EFF)" : "transparent",
+                    boxShadow: isActive ? "0 0 16px rgba(255,62,165,0.4)" : "none",
+                  }}
+                >
+                  {isIt ? "⚔️ " : d === "marketing" ? "🎨 " : d === "hr" ? "🧑‍💼 " : "💰 "}
+                  {DEPARTMENT_LABELS[d]} Guild
+                </Link>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {(["open", "closed"] as const).map((s) => (
+              <Link
+                key={s}
+                href={`/helpdesk?dept=${activeDept}&status=${s}`}
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 20,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  border: statusFilter === s ? "1.5px solid transparent" : "1.5px solid #4A3B7A",
+                  color: statusFilter === s ? "#150B2E" : "#B5A8E8",
+                  background: statusFilter === s ? "#EDE6FF" : "transparent",
+                }}
+              >
+                {s === "open" ? "Open" : "Closed"}
+              </Link>
+            ))}
+          </div>
+
+          {activeDept === "it" && statusFilter === "open" && (
+            <div
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid #3A2C68",
+                borderRadius: 14,
+                padding: 16,
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 12 }}>
+                ⚡ This Week's Leaderboard
+              </div>
+              {leaderboard.length === 0 ? (
+                <p style={{ fontSize: 12, color: "#9C8FD9" }}>
+                  No points scored yet this week — close a ticket to get on the board.
+                </p>
+              ) : (
+                leaderboard.map((entry, i) => {
+                  const emp = leaderboardEmployeeMap.get(entry.employeeId);
+                  const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+                  return (
+                    <div key={entry.employeeId} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#FFD700", width: 24 }}>
+                        {medal}
+                      </div>
+                      <div
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 8,
+                          background: "linear-gradient(135deg,#FF3EA5,#7B3EFF)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {emp ? initials(emp.first_name, emp.last_name) : "?"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+                          {emp ? `${emp.first_name} ${emp.last_name}` : "Unknown"}
+                        </div>
+                        <div style={{ height: 6, background: "#3A2C68", borderRadius: 4, marginTop: 4, overflow: "hidden" }}>
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${Math.max(6, (entry.points / topScore) * 100)}%`,
+                              background: "linear-gradient(90deg,#00E5FF,#7B3EFF)",
+                              borderRadius: 4,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#9C8FD9", fontWeight: 700 }}>{entry.points} pts</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
+            {statusFilter === "open" ? "Open Quests" : "Completed Quests"}
+          </div>
+
+          {legs.length === 0 && (
+            <p style={{ fontSize: 12, color: "#9C8FD9" }}>Nothing here right now. 🎉</p>
+          )}
+
+          {legs.map((leg) => {
+            const req = requestMap.get(leg.request_id);
+            const diff = DIFFICULTY_BY_PRIORITY[leg.priority] ?? DIFFICULTY_BY_PRIORITY.normal;
+            const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
+            const assigneeLabel = assignee
+              ? `${assignee.first_name} ${assignee.last_name}`
+              : leg.assigned_to_raw_name
+                ? `${leg.assigned_to_raw_name} (legacy)`
+                : "Unclaimed";
+
+            return (
+              <Link
+                key={leg.id}
+                href={`/helpdesk/${leg.request_id}`}
+                style={{
+                  display: "block",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid #3A2C68",
+                  borderRadius: 14,
+                  padding: 14,
+                  marginBottom: 12,
+                  position: "relative",
+                  textDecoration: "none",
+                  color: "inherit",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    fontSize: 9,
+                    fontWeight: 800,
+                    padding: "4px 10px",
+                    borderBottomLeftRadius: 10,
+                    background: diff.cls === "epic" ? "#4D3A1E" : diff.cls === "hard" ? "#4D1E2A" : "#1E4D3A",
+                    color: diff.cls === "epic" ? "#FFD700" : diff.cls === "hard" ? "#FF6B9C" : "#5FFFAE",
+                  }}
+                >
+                  {diff.label}
+                </span>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 5, paddingRight: 60 }}>
+                  {req?.title ?? "Untitled request"}
+                </div>
+                <div style={{ fontSize: 11, color: "#9C8FD9" }}>
+                  {req?.submitted_by} · {assigneeLabel}
+                  {leg.handed_off_from_leg_id && <span style={{ color: "#00E5FF" }}> · ↳ handed off</span>}
+                </div>
+                {leg.department === "it" && statusFilter === "open" && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      marginTop: 8,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: "#FFD700",
+                      background: "rgba(255,215,0,0.1)",
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                    }}
+                  >
+                    5–10 pts to close · +10 after hours
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </main>
+    );
+  }
+
+  // ============================================================
+  // PLAIN THEME — regular employees, and HR/Marketing/Finance managers
+  // ============================================================
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
@@ -141,7 +482,7 @@ export default async function HelpdeskPage({
             <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
               Department Queue
             </h2>
-            <div className="flex gap-2 mb-4 flex-wrap items-center">
+            <div className="flex gap-2 mb-4 flex-wrap">
               {managedDepartments.map((d) => (
                 <Link
                   key={d}
@@ -155,15 +496,6 @@ export default async function HelpdeskPage({
                   {DEPARTMENT_LABELS[d]}
                 </Link>
               ))}
-              {activeDept === "it" && (
-                <Link
-                  href="/helpdesk/it-quest"
-                  className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
-                  style={{ background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)" }}
-                >
-                  🎮 Quest Board
-                </Link>
-              )}
             </div>
 
             <div className="flex gap-2 mb-6">

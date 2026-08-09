@@ -16,6 +16,7 @@ export default function LegActions({
   commentOnly = false,
   departmentStaff = [],
   assignedToEmployeeId = null,
+  theme = "plain",
 }: {
   legId: string;
   requestId: string;
@@ -25,6 +26,7 @@ export default function LegActions({
   commentOnly?: boolean;
   departmentStaff?: { id: string; first_name: string; last_name: string }[];
   assignedToEmployeeId?: string | null;
+  theme?: "plain" | "quest";
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -114,6 +116,23 @@ export default function LegActions({
     }
   }
 
+  const isQuest = theme === "quest";
+  const selectCls = isQuest
+    ? "text-xs rounded-lg px-2 py-1.5 bg-[#1A1035] border border-[#4A3B7A] text-[#EDE6FF]"
+    : "text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5";
+  const btnCls = isQuest
+    ? "text-xs px-3 py-1.5 rounded-lg border border-[#4A3B7A] text-[#B5A8E8] hover:border-[#FF3EA5] disabled:opacity-50"
+    : "text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50";
+  const primaryBtnCls = "text-xs px-3 py-1.5 rounded-lg text-white disabled:opacity-50";
+  const primaryBtnStyle = isQuest
+    ? { background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)" }
+    : { background: "var(--color-accent)" };
+  const textareaCls = isQuest
+    ? "w-full rounded-lg px-3 py-2 text-sm bg-[#1A1035] border border-[#4A3B7A] text-[#EDE6FF] placeholder:text-[#9C8FD9]"
+    : "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm";
+  const errorCls = isQuest ? "text-xs text-[#FF6B9C]" : "text-xs text-red-600";
+  const dividerCls = isQuest ? "border-[#3A2C68]" : "border-[var(--color-border)]";
+
   if (commentOnly) {
     return (
       <div className="space-y-2">
@@ -122,14 +141,10 @@ export default function LegActions({
           onChange={(e) => setComment(e.target.value)}
           rows={3}
           placeholder="Add a comment…"
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+          className={textareaCls}
         />
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        <button
-          onClick={submitComment}
-          disabled={busy || !comment.trim()}
-          className="rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
-        >
+        {error && <p className={errorCls}>{error}</p>}
+        <button onClick={submitComment} disabled={busy || !comment.trim()} className={primaryBtnCls} style={primaryBtnStyle}>
           Add Comment
         </button>
       </div>
@@ -142,13 +157,9 @@ export default function LegActions({
   const otherDepartments = ALL_DEPARTMENTS.filter((d) => d !== department);
 
   return (
-    <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-3">
+    <div className={`mt-3 pt-3 border-t ${dividerCls} space-y-3`}>
       <div className="flex items-center gap-2">
-        <select
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-          className="text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5"
-        >
+        <select value={assignee} onChange={(e) => setAssignee(e.target.value)} className={selectCls}>
           <option value="">Unassigned</option>
           {departmentStaff.map((s) => (
             <option key={s.id} value={s.id}>
@@ -159,37 +170,25 @@ export default function LegActions({
         <button
           onClick={submitAssign}
           disabled={busy || assignee === (assignedToEmployeeId ?? "")}
-          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50"
+          className={btnCls}
         >
-          Assign
+          {isQuest ? "Claim" : "Assign"}
         </button>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {status !== "in_progress" && (
-          <button
-            onClick={() => updateStatus("in_progress")}
-            disabled={busy}
-            className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50"
-          >
-            Mark In Progress
+          <button onClick={() => updateStatus("in_progress")} disabled={busy} className={btnCls}>
+            {isQuest ? "⚔️ Start Quest" : "Mark In Progress"}
           </button>
         )}
         {status !== "on_hold" && (
-          <button
-            onClick={() => updateStatus("on_hold")}
-            disabled={busy}
-            className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50"
-          >
-            Put On Hold
+          <button onClick={() => updateStatus("on_hold")} disabled={busy} className={btnCls}>
+            {isQuest ? "⏸ Pause" : "Put On Hold"}
           </button>
         )}
-        <button
-          onClick={() => updateStatus("closed")}
-          disabled={busy}
-          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] disabled:opacity-50"
-        >
-          Close
+        <button onClick={() => updateStatus("closed")} disabled={busy} className={primaryBtnCls} style={primaryBtnStyle}>
+          {isQuest ? "✓ Complete Quest" : "Close"}
         </button>
       </div>
 
@@ -197,25 +196,21 @@ export default function LegActions({
         <select
           value={handoffTarget}
           onChange={(e) => setHandoffTarget(e.target.value as Department)}
-          className="text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5"
+          className={selectCls}
         >
-          <option value="">Hand off to…</option>
+          <option value="">{isQuest ? "Send to another guild…" : "Hand off to…"}</option>
           {otherDepartments.map((d) => (
             <option key={d} value={d}>
               {DEPARTMENT_LABELS[d]}
             </option>
           ))}
         </select>
-        <button
-          onClick={submitHandoff}
-          disabled={busy || !handoffTarget}
-          className="text-xs px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white disabled:opacity-50"
-        >
+        <button onClick={submitHandoff} disabled={busy || !handoffTarget} className={primaryBtnCls} style={primaryBtnStyle}>
           Transfer
         </button>
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className={errorCls}>{error}</p>}
     </div>
   );
 }
