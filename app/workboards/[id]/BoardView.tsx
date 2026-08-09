@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -86,12 +86,22 @@ export default function BoardView({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // handleDragOver optimistically mutates a card's column_id in state
+  // for the live drag preview, BEFORE handleDragEnd runs -- so by the
+  // time handleDragEnd needs to know "did the column actually
+  // change?", the state it would compare against has already been
+  // rewritten to match. This ref captures the true starting column at
+  // drag-start, untouched by that later mutation, so the comparison
+  // in handleDragEnd is against reality instead of against itself.
+  const originalColumnIdRef = useRef<string | null>(null);
+
   const cardsByColumn = (columnId: string) =>
     cards.filter((c) => c.column_id === columnId).sort((a, b) => a.sort_order - b.sort_order);
 
   function handleDragStart(event: DragStartEvent) {
     const card = cards.find((c) => c.id === event.active.id);
     setActiveCard(card ?? null);
+    originalColumnIdRef.current = card?.column_id ?? null;
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -152,8 +162,13 @@ export default function BoardView({
     // Keep the linked ticket's real status in sync with whichever
     // column its card landed in -- only if the column actually
     // changed (dragging within the same column is just reordering)
-    // and that column has a status mapping set.
-    const columnChanged = activeCardData.column_id !== targetColumnId;
+    // and that column has a status mapping set. Compares against
+    // originalColumnIdRef (captured at drag-start), NOT
+    // activeCardData.column_id -- that field was already overwritten
+    // by handleDragOver's live-preview mutation during the drag, so
+    // comparing against it would always show "no change."
+    const columnChanged =
+      originalColumnIdRef.current !== null && originalColumnIdRef.current !== targetColumnId;
     const targetColumn = columns.find((c) => c.id === targetColumnId);
     if (columnChanged && activeCardData.linked_leg_id && targetColumn?.maps_to_status) {
       try {
@@ -162,12 +177,8 @@ export default function BoardView({
           targetStatus: targetColumn.maps_to_status as LegStatus,
           actingEmployeeId: currentUserId,
         });
+        router.refresh(); // pick up the new status if it's shown anywhere else on this page, and invalidate the client route cache for this path
       } catch {
-        // Card move already succeeded and is visible -- a failed
-        // status sync shouldn't be silently invisible, but it also
-        // shouldn't block the drag itself. Surfacing this quietly via
-        // console for now; worth a toast/notification if this comes
-        // up in practice.
         console.error("Failed to sync ticket status from workboard column move");
       }
     }
