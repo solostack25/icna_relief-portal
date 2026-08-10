@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Back2school",
+    "code": "B2S"
+  },
+  {
+    "name": "Disaster Relief Services",
+    "code": "DRS"
+  },
+  {
+    "name": "Helath Services",
+    "code": "HHS"
+  },
+  {
+    "name": "Hunger Prevention",
+    "code": "HPS"
+  },
+  {
+    "name": "Muslim Family Services - Counselling",
+    "code": "MFC"
+  },
+  {
+    "name": "Muslim Family Services - FATE",
+    "code": "MFF"
+  },
+  {
+    "name": "Refugee Services & Community Empowerment",
+    "code": "RCS"
+  },
+  {
+    "name": "Transitional Housing",
+    "code": "WTH"
+  },
+  {
+    "name": "General",
+    "code": "GEN"
+  }
+]

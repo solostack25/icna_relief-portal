@@ -1,6 +1,18 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { getHadithOfTheDay } from "@/lib/hadith";
 
 export default function HadithBanner() {
+  const pathname = usePathname();
+
+  // InKind kiosk screens are purpose-built, full-screen touch interfaces
+  // (barcode scanning, donor signature capture) — no portal chrome.
+  // Scoped to exactly /inkind and its children, not /inkind-admin, which
+  // is a normal staff page and should keep the banner like every other
+  // program.
+  if (pathname === "/inkind" || pathname?.startsWith("/inkind/")) return null;
+
   const hadith = getHadithOfTheDay();
   const content = `"${hadith.text}" — ${hadith.source}`;
 

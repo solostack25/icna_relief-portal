@@ -22,6 +22,18 @@
 
   --color-text: #1f2421;
   --color-text-dim: #5c6b5f;
+
+  /* InKind kiosk accent — kept distinct from the main portal palette,
+     carried over from the standalone kiosk app it was ported from. */
+  --color-brand: #1f6f54;
+  --color-brand-dark: #154a38;
+  --color-brand-light: #e8f4ee;
+}
+
+@theme inline {
+  --color-brand: var(--color-brand);
+  --color-brand-dark: var(--color-brand-dark);
+  --color-brand-light: var(--color-brand-light);
 }
 
 body {
@@ -66,4 +78,9 @@ option {
 
 .ticker-track:hover {
   animation-play-state: paused;
+}
+
+/* InKind kiosk — runs on touchscreen devices */
+.tap-target {
+  -webkit-tap-highlight-color: transparent;
 }

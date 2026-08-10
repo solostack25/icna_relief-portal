@@ -14,10 +14,13 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.0",
+    "bwip-js": "^4.11.2",
     "next": "14.2.5",
+    "pdf-lib": "^1.17.1",
     "react": "^18",
     "react-barcode": "^1.6.1",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "resend": "^4.8.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
