@@ -65,6 +65,12 @@ export default async function AdminPage() {
               Review Submissions
             </Link>
             <Link
+              href="/inkind-admin"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              InKind Admin
+            </Link>
+            <Link
               href="/select-app"
               className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
             >

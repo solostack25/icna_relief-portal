@@ -50,6 +50,14 @@ export default function TodayPage() {
             {totalValue.toFixed(2)}
           </p>
         </div>
+        <a
+          href="/inkind"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Open Scanning Kiosk →
+        </a>
       </div>
 
       {loading ? (
