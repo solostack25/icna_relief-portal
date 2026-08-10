@@ -47,6 +47,12 @@ export default async function AdminPage() {
               AD Mappings
             </Link>
             <Link
+              href="/admin/ad-preview"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              AD Provisioning Preview
+            </Link>
+            <Link
               href="/workboards"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >
