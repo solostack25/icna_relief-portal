@@ -211,6 +211,17 @@ export default function HelpdeskWizardPage() {
               </span>
             </div>
 
+            {intent.id === "it-new-employee" && (
+              <div className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 px-4 py-3 text-sm">
+                Once this new employee has portal access, they can use{" "}
+                <Link href="/office-apps" className="text-[var(--color-accent)] hover:underline">
+                  Office & Apps
+                </Link>{" "}
+                to sign into Microsoft 365 online or download the desktop
+                apps themselves — no need to include that in this ticket.
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium mb-1.5">Title</label>
               <input

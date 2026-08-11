@@ -159,6 +159,16 @@ export default async function SelectAppPage() {
             </Link>
           )}
 
+          <Link
+            href="/office-apps"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
+          >
+            <div className="text-lg font-medium">💼 Office & Apps</div>
+            <div className="text-xs text-[var(--color-text-dim)] mt-1">
+              Use Microsoft 365 online, or download the desktop apps
+            </div>
+          </Link>
+
           {visibleApps.map((app) => (
             <Link
               key={app.slug}
