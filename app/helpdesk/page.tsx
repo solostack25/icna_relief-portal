@@ -183,7 +183,7 @@ export default async function HelpdeskPage({
           </div>
 
           <Link
-            href="/helpdesk/new"
+            href="/helpdesk/wizard"
             style={{
               display: "block",
               textAlign: "center",
@@ -500,7 +500,7 @@ export default async function HelpdeskPage({
         </div>
 
         <Link
-          href="/helpdesk/new"
+          href="/helpdesk/wizard"
           className="block text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 mb-8"
         >
           + Submit a Request

@@ -112,6 +112,13 @@ export default function NewRequestPage() {
           </Link>
         </div>
 
+        <Link
+          href="/helpdesk/wizard"
+          className="block text-sm text-[var(--color-accent)] hover:underline mb-6"
+        >
+          Not sure which department or category? Try the guided wizard →
+        </Link>
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium mb-1.5">Department</label>
