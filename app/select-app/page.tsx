@@ -147,6 +147,18 @@ export default async function SelectAppPage() {
             </div>
           </Link>
 
+          {(employee.role === "admin" || allowedSlugs.some((s) => s.startsWith("helpdesk-"))) && (
+            <Link
+              href="/helpdesk/manage"
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
+            >
+              <div className="text-lg font-medium">🎫 Manage Tickets</div>
+              <div className="text-xs text-[var(--color-text-dim)] mt-1">
+                Your department's help desk queue
+              </div>
+            </Link>
+          )}
+
           {visibleApps.map((app) => (
             <Link
               key={app.slug}

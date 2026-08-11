@@ -23,14 +23,28 @@ function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
 }
 
+// Two genuinely separate systems living behind one shared data-fetching
+// component, not two skins on the same content:
+//
+// mode "submit" (/helpdesk) — open a ticket, check your own requests.
+// Identical for absolutely everyone: regular employees, department
+// managers, IT staff, admins. Always plain style — the quest theme
+// never appears here, on purpose, so opening a ticket is never gated
+// behind "which theme am I about to see."
+//
+// mode "manage" (/helpdesk/manage) — a department's queue. Quest-themed
+// automatically if IT is one of the departments being managed (matches
+// the rest of the portal's convention that quest styling is IT-specific),
+// otherwise plain. Nothing here is reachable unless the employee actually
+// manages at least one department.
 export async function HelpdeskView({
+  mode,
   dept,
   status,
-  forceTheme,
 }: {
+  mode: "submit" | "manage";
   dept?: string;
   status?: string;
-  forceTheme?: "quest" | "plain";
 }) {
   const supabase = await createClient();
 
@@ -48,27 +62,97 @@ export async function HelpdeskView({
 
   const managedDepartments = await getManagedDepartments(supabase, me.id, me.role);
 
-  // Whole-page theme decision: IT team members (anyone who manages
-  // the IT queue) get the quest-styled experience for their entire
-  // /helpdesk page. Everyone else -- regular employees submitting
-  // requests, and HR/Marketing/Finance managers -- see the plain
-  // professional version. Not per-department-tab within one page:
-  // the whole page is one theme or the other, chosen by who's
-  // looking, so it never feels like it's switching skins mid-browse.
-  //
-  // forceTheme overrides this - used by /helpdesk/submit so an admin
-  // (who manages "it" and would otherwise always get the quest theme)
-  // can still reach the exact same plain, "submit a request" experience
-  // a regular employee sees, separate from their management view.
-  const isQuestThemed = forceTheme ? forceTheme === "quest" : managedDepartments.includes("it");
+  if (mode === "manage" && managedDepartments.length === 0) {
+    // Nothing to manage — this employee only has the submit-a-ticket
+    // system available to them.
+    redirect("/helpdesk");
+  }
 
-  const { data: myRequests } = await supabase
-    .from("helpdesk_requests")
-    .select("id, title, overall_status, created_at")
-    .eq("submitted_by_email", me.email)
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const isQuestThemed = mode === "manage" && managedDepartments.includes("it");
 
+  // ============================================================
+  // SUBMIT MODE — everyone, always plain, no department queue
+  // ============================================================
+  if (mode === "submit") {
+    const { data: myRequests } = await supabase
+      .from("helpdesk_requests")
+      .select("id, title, overall_status, created_at")
+      .eq("submitted_by_email", me.email)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    return (
+      <main className="min-h-screen px-4 py-12">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-xl font-semibold">Help Desk</h1>
+              <p className="text-sm text-[var(--color-text-dim)]">
+                Submit a request, or check on one you've already sent in
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              {managedDepartments.length > 0 && (
+                <Link
+                  href="/helpdesk/manage"
+                  className="text-sm text-[var(--color-accent)] hover:underline"
+                >
+                  Manage Tickets →
+                </Link>
+              )}
+              <Link
+                href="/select-app"
+                className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+              >
+                ← Back
+              </Link>
+            </div>
+          </div>
+
+          <Link
+            href="/helpdesk/wizard"
+            className="block text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 mb-8"
+          >
+            + Submit a Request
+          </Link>
+
+          <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
+            My Requests
+          </h2>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+            {(myRequests ?? []).length === 0 ? (
+              <p className="p-5 text-sm text-[var(--color-text-dim)]">
+                You haven't submitted any requests.
+              </p>
+            ) : (
+              (myRequests ?? []).map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/helpdesk/${r.id}`}
+                  className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
+                >
+                  <span className="text-sm font-medium truncate">{r.title}</span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                      r.overall_status === "closed"
+                        ? "bg-black/5 text-[var(--color-text-dim)]"
+                        : "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                    }`}
+                  >
+                    {r.overall_status === "closed" ? "Closed" : "Open"}
+                  </span>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ============================================================
+  // MANAGE MODE — department queue(s), quest-themed if IT is one of them
+  // ============================================================
   const activeDept: Department | null =
     dept && managedDepartments.includes(dept as Department)
       ? (dept as Department)
@@ -137,9 +221,6 @@ export async function HelpdeskView({
   }
   const topScore = leaderboard[0]?.points ?? 1;
 
-  // ============================================================
-  // QUEST THEME — IT team members
-  // ============================================================
   if (isQuestThemed) {
     return (
       <main
@@ -158,7 +239,7 @@ export async function HelpdeskView({
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ maxWidth: 640, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <Link href={forceTheme === "quest" ? "/admin/helpdesk" : "/select-app"} style={{ fontSize: 12, color: "#9C8FD9" }}>
+            <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
               ← Back
             </Link>
             <Link href="/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
@@ -190,73 +271,6 @@ export async function HelpdeskView({
             </div>
           </div>
 
-          <Link
-            href="/helpdesk/wizard"
-            style={{
-              display: "block",
-              textAlign: "center",
-              padding: 15,
-              borderRadius: 14,
-              border: "none",
-              background: "linear-gradient(90deg,#FF3EA5,#7B3EFF)",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 14,
-              marginBottom: 24,
-              boxShadow: "0 0 20px rgba(255,62,165,0.35)",
-              textDecoration: "none",
-            }}
-          >
-            ⚔️ Post a New Quest
-          </Link>
-
-          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9C8FD9", marginBottom: 10 }}>
-            My Requests
-          </div>
-          <div
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid #3A2C68",
-              borderRadius: 14,
-              padding: (myRequests ?? []).length === 0 ? 16 : 6,
-              marginBottom: 24,
-            }}
-          >
-            {(myRequests ?? []).length === 0 ? (
-              <p style={{ fontSize: 12, color: "#9C8FD9" }}>You haven't submitted any requests.</p>
-            ) : (
-              (myRequests ?? []).map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/helpdesk/${r.id}`}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 10px",
-                    fontSize: 13,
-                    color: "#EDE6FF",
-                    textDecoration: "none",
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{r.title}</span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                      background: r.overall_status === "closed" ? "rgba(255,255,255,0.08)" : "rgba(0,229,255,0.15)",
-                      color: r.overall_status === "closed" ? "#9C8FD9" : "#00E5FF",
-                    }}
-                  >
-                    {r.overall_status === "closed" ? "Closed" : "Open"}
-                  </span>
-                </Link>
-              ))
-            )}
-          </div>
-
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             {managedDepartments.map((d) => {
               const isIt = d === "it";
@@ -264,7 +278,7 @@ export async function HelpdeskView({
               return (
                 <Link
                   key={d}
-                  href={`/helpdesk?dept=${d}&status=${statusFilter}`}
+                  href={`/helpdesk/manage?dept=${d}&status=${statusFilter}`}
                   className="qbtn"
                   style={{
                     padding: "8px 16px",
@@ -289,7 +303,7 @@ export async function HelpdeskView({
             {(["open", "closed"] as const).map((s) => (
               <Link
                 key={s}
-                href={`/helpdesk?dept=${activeDept}&status=${s}`}
+                href={`/helpdesk/manage?dept=${activeDept}&status=${s}`}
                 style={{
                   padding: "5px 14px",
                   borderRadius: 20,
@@ -487,176 +501,122 @@ export async function HelpdeskView({
   }
 
   // ============================================================
-  // PLAIN THEME — regular employees, and HR/Marketing/Finance managers
+  // MANAGE MODE, plain — HR/Marketing/Finance managers
   // ============================================================
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-semibold">Help Desk</h1>
+            <h1 className="text-xl font-semibold">Help Desk — Manage</h1>
             <p className="text-sm text-[var(--color-text-dim)]">
-              Submit a request, or manage your department's queue
+              Your department's ticket queue
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {me.role === "admin" && (
-              <Link
-                href="/admin"
-                className="text-sm text-[var(--color-accent)] hover:underline"
-              >
-                Admin Backend →
-              </Link>
-            )}
-            <Link
-              href="/select-app"
-              className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-            >
-              ← Back
-            </Link>
-          </div>
+          <Link
+            href="/select-app"
+            className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+          >
+            ← Back
+          </Link>
         </div>
 
-        <Link
-          href="/helpdesk/wizard"
-          className="block text-center rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 mb-8"
-        >
-          + Submit a Request
-        </Link>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {managedDepartments.map((d) => (
+            <Link
+              key={d}
+              href={`/helpdesk/manage?dept=${d}&status=${statusFilter}`}
+              className={`px-3 py-1.5 rounded-lg text-sm border ${
+                activeDept === d
+                  ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-accent)]"
+              }`}
+            >
+              {DEPARTMENT_LABELS[d]}
+            </Link>
+          ))}
+        </div>
 
-        <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
-          My Requests
-        </h2>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden mb-10">
-          {(myRequests ?? []).length === 0 ? (
-            <p className="p-5 text-sm text-[var(--color-text-dim)]">
-              You haven't submitted any requests.
+        <div className="flex gap-2 mb-6">
+          {(["open", "closed"] as const).map((s) => (
+            <Link
+              key={s}
+              href={`/helpdesk/manage?dept=${activeDept}&status=${s}`}
+              className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                statusFilter === s
+                  ? "bg-[var(--color-text)] text-[var(--color-surface)] border-[var(--color-text)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-text)]"
+              }`}
+            >
+              {s === "open" ? "Open" : "Closed"}
+            </Link>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+          {legs.length === 0 ? (
+            <p className="p-6 text-sm text-[var(--color-text-dim)]">
+              {legsError ? (
+                <span className="text-red-600">⚠ Couldn't load tickets: {legsError}</span>
+              ) : (
+                `No ${statusFilter} tickets in this queue.`
+              )}
             </p>
           ) : (
-            (myRequests ?? []).map((r) => (
-              <Link
-                key={r.id}
-                href={`/helpdesk/${r.id}`}
-                className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
-              >
-                <span className="text-sm font-medium truncate">{r.title}</span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
-                    r.overall_status === "closed"
-                      ? "bg-black/5 text-[var(--color-text-dim)]"
-                      : "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+            legs.map((leg) => {
+              const req = requestMap.get(leg.request_id);
+              const assignee = leg.assigned_to_employee_id
+                ? assigneeMap.get(leg.assigned_to_employee_id)
+                : null;
+              const overdue = isOverdue(leg.created_at, leg.status as LegStatus);
+              return (
+                <Link
+                  key={leg.id}
+                  href={`/helpdesk/${leg.request_id}`}
+                  className={`block px-5 py-4 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors ${
+                    overdue ? "bg-red-50/50" : ""
                   }`}
                 >
-                  {r.overall_status === "closed" ? "Closed" : "Open"}
-                </span>
-              </Link>
-            ))
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-accent)]">
+                          {DEPARTMENT_LABELS[leg.department as Department]}
+                        </span>
+                        {overdue && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white">
+                            ⚠ OVERDUE
+                          </span>
+                        )}
+                        {leg.handed_off_from_leg_id && (
+                          <span className="text-[10px] text-[var(--color-text-dim)]">
+                            (handed off)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium truncate">
+                        {req?.title ?? "Untitled request"}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-dim)]">
+                        {req?.submitted_by} ·{" "}
+                        {assignee
+                          ? `${assignee.first_name} ${assignee.last_name}`
+                          : leg.assigned_to_raw_name
+                            ? `${leg.assigned_to_raw_name} (legacy)`
+                            : "Unassigned"}
+                        {" · "}
+                        {formatTicketAge(leg.created_at)}
+                      </div>
+                    </div>
+                    <span className="text-xs whitespace-nowrap px-2 py-1 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
+                      {LEG_STATUS_LABELS[leg.status as keyof typeof LEG_STATUS_LABELS]}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })
           )}
         </div>
-
-        {managedDepartments.length > 0 && (
-          <>
-            <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
-              Department Queue
-            </h2>
-            <div className="flex gap-2 mb-4 flex-wrap">
-              {managedDepartments.map((d) => (
-                <Link
-                  key={d}
-                  href={`/helpdesk?dept=${d}&status=${statusFilter}`}
-                  className={`px-3 py-1.5 rounded-lg text-sm border ${
-                    activeDept === d
-                      ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
-                      : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-accent)]"
-                  }`}
-                >
-                  {DEPARTMENT_LABELS[d]}
-                </Link>
-              ))}
-            </div>
-
-            <div className="flex gap-2 mb-6">
-              {(["open", "closed"] as const).map((s) => (
-                <Link
-                  key={s}
-                  href={`/helpdesk?dept=${activeDept}&status=${s}`}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                    statusFilter === s
-                      ? "bg-[var(--color-text)] text-[var(--color-surface)] border-[var(--color-text)]"
-                      : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-text)]"
-                  }`}
-                >
-                  {s === "open" ? "Open" : "Closed"}
-                </Link>
-              ))}
-            </div>
-
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
-              {legs.length === 0 ? (
-                <p className="p-6 text-sm text-[var(--color-text-dim)]">
-                  {legsError ? (
-                    <span className="text-red-600">⚠ Couldn't load tickets: {legsError}</span>
-                  ) : (
-                    `No ${statusFilter} tickets in this queue.`
-                  )}
-                </p>
-              ) : (
-                legs.map((leg) => {
-                  const req = requestMap.get(leg.request_id);
-                  const assignee = leg.assigned_to_employee_id
-                    ? assigneeMap.get(leg.assigned_to_employee_id)
-                    : null;
-                  const overdue = isOverdue(leg.created_at, leg.status as LegStatus);
-                  return (
-                    <Link
-                      key={leg.id}
-                      href={`/helpdesk/${leg.request_id}`}
-                      className={`block px-5 py-4 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors ${
-                        overdue ? "bg-red-50/50" : ""
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-accent)]">
-                              {DEPARTMENT_LABELS[leg.department as Department]}
-                            </span>
-                            {overdue && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white">
-                                ⚠ OVERDUE
-                              </span>
-                            )}
-                            {leg.handed_off_from_leg_id && (
-                              <span className="text-[10px] text-[var(--color-text-dim)]">
-                                (handed off)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm font-medium truncate">
-                            {req?.title ?? "Untitled request"}
-                          </div>
-                          <div className="text-xs text-[var(--color-text-dim)]">
-                            {req?.submitted_by} ·{" "}
-                            {assignee
-                              ? `${assignee.first_name} ${assignee.last_name}`
-                              : leg.assigned_to_raw_name
-                                ? `${leg.assigned_to_raw_name} (legacy)`
-                                : "Unassigned"}
-                            {" · "}
-                            {formatTicketAge(leg.created_at)}
-                          </div>
-                        </div>
-                        <span className="text-xs whitespace-nowrap px-2 py-1 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
-                          {LEG_STATUS_LABELS[leg.status as keyof typeof LEG_STATUS_LABELS]}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-          </>
-        )}
       </div>
     </main>
   );

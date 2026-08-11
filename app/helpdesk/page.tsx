@@ -1,13 +1,8 @@
 import { HelpdeskView } from "./HelpdeskView";
 
-// Always the plain, everyone-sees-this view - no exceptions for admins
-// or IT staff. The quest-themed board is now purely an Admin Portal
-// tool, at /admin/helpdesk/quest.
-export default async function HelpdeskPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ dept?: string; status?: string }>;
-}) {
-  const { dept, status } = await searchParams;
-  return <HelpdeskView dept={dept} status={status} forceTheme="plain" />;
+// Always mode="submit" - open a ticket, check your own requests. The
+// exact same page for everyone, no exceptions for admins or IT staff.
+// Department management lives entirely separately at /helpdesk/manage.
+export default async function HelpdeskPage() {
+  return <HelpdeskView mode="submit" />;
 }
