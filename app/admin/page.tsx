@@ -65,7 +65,13 @@ export default async function AdminPage() {
               Help Desk Workload
             </Link>
             <Link
-              href="/helpdesk/submit"
+              href="/admin/helpdesk/quest"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              IT Quest Board
+            </Link>
+            <Link
+              href="/helpdesk"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >
               Submit a Ticket

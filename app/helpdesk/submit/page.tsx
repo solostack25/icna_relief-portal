@@ -1,16 +1,8 @@
-import { HelpdeskView } from "../HelpdeskView";
+import { redirect } from "next/navigation";
 
-// Forces the plain, everyone-sees-this view regardless of who's asking.
-// Exists because an admin visiting the normal /helpdesk always gets the
-// quest theme (they manage "it"), which means they'd otherwise never see
-// the exact same submit-a-request experience a regular employee does.
-// Linked from the Admin Portal / Admin Helpdesk Workload as a separate,
-// explicit "open a ticket like everyone else" path.
-export default async function HelpdeskSubmitPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string }>;
-}) {
-  const { status } = await searchParams;
-  return <HelpdeskView status={status} forceTheme="plain" />;
+// /helpdesk itself is now always the plain view (see app/helpdesk/page.tsx)
+// - this route is no longer needed as a distinct path. Kept as a redirect,
+// same pattern as /helpdesk/it-quest, in case anything already links here.
+export default function HelpdeskSubmitRedirect() {
+  redirect("/helpdesk");
 }

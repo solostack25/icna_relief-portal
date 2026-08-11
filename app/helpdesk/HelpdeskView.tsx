@@ -158,7 +158,7 @@ export async function HelpdeskView({
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ maxWidth: 640, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
+            <Link href={forceTheme === "quest" ? "/admin/helpdesk" : "/select-app"} style={{ fontSize: 12, color: "#9C8FD9" }}>
               ← Back
             </Link>
             <Link href="/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
@@ -502,7 +502,7 @@ export async function HelpdeskView({
           <div className="flex items-center gap-4">
             {me.role === "admin" && (
               <Link
-                href="/admin/helpdesk"
+                href="/admin"
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
                 Admin Backend →
