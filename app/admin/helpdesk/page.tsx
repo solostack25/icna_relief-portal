@@ -100,9 +100,17 @@ export default async function AdminHelpdeskPage({
               Open, in progress, and on-hold tickets by team member
             </p>
           </div>
-          <Link href="/admin" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
-            ← Back to Admin
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/helpdesk/submit"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              Submit a Ticket
+            </Link>
+            <Link href="/admin" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
+              ← Back to Admin
+            </Link>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-4 flex-wrap">
