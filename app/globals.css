@@ -2,27 +2,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,500;1,9..144,600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-/* ICNA Relief brand palette — from Brand Guidelines, last edited Sept. 2025 */
+/* ICNA Relief portal theme — emerald/gold, approved Aug 2026 (see
+   PortalHeader.tsx / select-app / admin for where this started). Applied
+   app-wide except the IT quest theme (fully hardcoded inline colors,
+   never touches these vars) and InKind (--color-brand-*, kept separate
+   below, unaffected by this change). */
 :root {
   color-scheme: light;
 
-  --color-bg: #ffffff;
-  --color-surface: #f7f8f4;
-  --color-border: #d9ded0;
+  --color-bg: #fbf7ef;
+  --color-surface: #ffffff;
+  --color-border: #dde4df;
 
-  /* Corporate logo colors */
-  --color-accent: #00a950;       /* Strong Green */
-  --color-accent-orange: #f28d1d; /* Bright Orange */
+  --color-accent: #1f6f54;        /* Emerald */
+  --color-accent-orange: #c99a3d; /* Gold, was Bright Orange */
 
-  /* Secondary palette */
+  /* Secondary palette — left as-is, these carry specific status/badge
+     meaning in a few pages (transitional housing, client detail) rather
+     than general brand identity. */
   --color-yellow-green: #d2dac3;
   --color-grayish-green: #789174;
   --color-dark-green: #476040;
   --color-bright-yellow: #e9ce3f;
   --color-dull-red: #b55139;
 
-  --color-text: #1f2421;
-  --color-text-dim: #5c6b5f;
+  --color-text: #16302b;
+  --color-text-dim: #5f6e68;
 
   /* InKind kiosk accent — kept distinct from the main portal palette,
      carried over from the standalone kiosk app it was ported from. */
@@ -30,10 +35,6 @@
   --color-brand-dark: #154a38;
   --color-brand-light: #e8f4ee;
 
-  /* Home page / Admin Portal redesign — deliberately namespaced (not
-     --color-*) so this doesn't cascade into the rest of the app, which
-     still uses the Brand Guidelines palette above. Scoped to
-     select-app/PortalHeader/admin only. */
   --portal-ink: #16302B;
   --portal-emerald: #1F6F54;
   --portal-emerald-deep: #123B2D;
@@ -53,11 +54,11 @@
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: "Roboto", system-ui, sans-serif;
+  font-family: "Manrope", system-ui, sans-serif;
 }
 
 h1, h2, h3 {
-  font-family: "Roboto", system-ui, sans-serif;
+  font-family: "Manrope", system-ui, sans-serif;
   font-weight: 700;
 }
 
