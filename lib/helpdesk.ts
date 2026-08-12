@@ -84,6 +84,14 @@ export async function getManagedDepartments(
     .eq("employee_id", employeeId);
 
   const slugs = new Set((data ?? []).map((r) => r.program_slug));
+
+  // IT manages the ticketing SYSTEM itself (troubleshooting, the quest
+  // board's own infrastructure, cross-department handoffs), not just the
+  // IT queue - matches the RLS policies on helpdesk_requests/
+  // helpdesk_request_legs, which give the same "helpdesk-it" grant full
+  // access across every department, not just IT's own tickets.
+  if (slugs.has("helpdesk-it")) return ALL_DEPARTMENTS;
+
   return ALL_DEPARTMENTS.filter((d) => slugs.has(departmentSlug(d)));
 }
 

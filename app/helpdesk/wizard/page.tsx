@@ -301,8 +301,8 @@ export default function HelpdeskWizardPage() {
                 <input
                   type="text"
                   value={submittedBy}
-                  onChange={(e) => setSubmittedBy(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  disabled
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-black/[0.03] px-3 py-2 text-sm text-[var(--color-text-dim)] cursor-not-allowed"
                 />
               </div>
               <div>
@@ -310,11 +310,14 @@ export default function HelpdeskWizardPage() {
                 <input
                   type="email"
                   value={submittedByEmail}
-                  onChange={(e) => setSubmittedByEmail(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  disabled
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-black/[0.03] px-3 py-2 text-sm text-[var(--color-text-dim)] cursor-not-allowed"
                 />
               </div>
             </div>
+            <p className="text-xs text-[var(--color-text-dim)] -mt-3">
+              Tickets are tied to your account, so this can't be changed.
+            </p>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
