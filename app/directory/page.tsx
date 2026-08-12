@@ -25,7 +25,7 @@ export default async function DirectoryPage() {
   let error: string | null = null;
   try {
     const users = await graphGetAll(
-      "/users?$select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,accountEnabled&$top=999"
+      "/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,accountEnabled&$top=999"
     );
     people = users
       .filter((u: any) => u.accountEnabled !== false && (u.mail || u.userPrincipalName))
