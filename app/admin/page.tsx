@@ -111,12 +111,6 @@ export default async function AdminPage() {
               <div className="text-sm font-medium">🎫 Manage Tickets</div>
             </Link>
           )}
-          <Link
-            href="/helpdesk/wizard"
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 hover:border-[var(--color-accent)] transition-colors"
-          >
-            <div className="text-sm font-medium">📝 Submit a Ticket</div>
-          </Link>
           {canManageFinance && (
             <Link
               href="/admin/finance"
