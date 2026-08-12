@@ -25,13 +25,22 @@ type DirUser = { id: string; name: string; email: string; jobTitle: string | nul
 
 type ApprovalRequest = {
   id: string;
+  request_id: string;
   amount: number;
   status: string;
   final_tier_name: string | null;
   created_at: string;
-  ticket: { title: string; submitted_by: string } | null;
+  ticket: { title: string; submitted_by: string; submitted_by_email: string } | null;
   pendingApprover: { name: string; email: string; jobTitle: string | null } | null;
-  steps: { step_order: number; approver_name: string; status: string }[];
+  steps: {
+    step_order: number;
+    approver_name: string;
+    chain_person_job_title: string | null;
+    acting_as_delegate_for_email: string | null;
+    status: string;
+    decided_at: string | null;
+    decision_note: string | null;
+  }[];
 };
 
 const TABS = ["Tiers", "Temporary Coverage", "Active Requests"] as const;
@@ -454,6 +463,7 @@ function DirectorySearch({
 function RequestsTab() {
   const [requests, setRequests] = useState<ApprovalRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/finance/requests")
@@ -468,41 +478,90 @@ function RequestsTab() {
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!requests) return <p className="text-sm text-[var(--color-text-dim)]">Loading…</p>;
 
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? requests.filter(
+        (r) =>
+          r.ticket?.title.toLowerCase().includes(q) ||
+          r.ticket?.submitted_by.toLowerCase().includes(q) ||
+          r.ticket?.submitted_by_email.toLowerCase().includes(q)
+      )
+    : requests;
+
   return (
-    <div className="space-y-2">
-      {requests.length === 0 && (
-        <p className="text-sm text-[var(--color-text-dim)]">No finance approval requests yet.</p>
-      )}
-      {requests.map((r) => (
-        <div key={r.id} className="rounded-lg border border-[var(--color-border)] px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">{r.ticket?.title ?? "Untitled"}</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full ${
-                r.status === "approved"
-                  ? "bg-green-100 text-green-700"
-                  : r.status === "denied"
-                    ? "bg-red-100 text-red-700"
-                    : "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-              }`}
-            >
-              {r.status}
-            </span>
+    <div>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search by ticket title, submitter name, or email…"
+        className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm mb-4"
+      />
+      <div className="space-y-3">
+        {filtered.length === 0 && (
+          <p className="text-sm text-[var(--color-text-dim)]">
+            {requests.length === 0 ? "No finance approval requests yet." : "No matches."}
+          </p>
+        )}
+        {filtered.map((r) => (
+          <div key={r.id} className="rounded-lg border border-[var(--color-border)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <a
+                href={`/helpdesk/${r.request_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium hover:underline"
+              >
+                {r.ticket?.title ?? "Untitled"}
+              </a>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  r.status === "approved"
+                    ? "bg-green-100 text-green-700"
+                    : r.status === "denied"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                }`}
+              >
+                {r.status}
+              </span>
+            </div>
+            <div className="text-xs text-[var(--color-text-dim)] mt-1 mb-3">
+              ${r.amount} · submitted by {r.ticket?.submitted_by ?? "unknown"} (
+              {r.ticket?.submitted_by_email ?? "—"}) · {new Date(r.created_at).toLocaleDateString()}
+              {r.final_tier_name && r.status !== "pending" && ` · resolved at ${r.final_tier_name} level`}
+            </div>
+
+            {/* Full step-by-step trail — this is the "who approved, who's it
+                waiting on" answer for status-check questions, not just the
+                current pending approver. */}
+            <div className="space-y-1 border-t border-[var(--color-border)] pt-2">
+              {[...r.steps]
+                .sort((a, b) => a.step_order - b.step_order)
+                .map((s) => (
+                  <div key={s.step_order} className="flex items-center justify-between text-xs">
+                    <span>
+                      {s.step_order}. {s.approver_name}
+                      {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
+                      {s.acting_as_delegate_for_email ? " — covering" : ""}
+                    </span>
+                    <span
+                      className={
+                        s.status === "approved"
+                          ? "text-green-700 font-medium"
+                          : s.status === "denied"
+                            ? "text-red-600 font-medium"
+                            : "text-[var(--color-accent)] font-medium"
+                      }
+                    >
+                      {s.status === "pending" ? "⏳ awaiting response" : s.status}
+                    </span>
+                  </div>
+                ))}
+            </div>
           </div>
-          <div className="text-xs text-[var(--color-text-dim)] mt-1">
-            ${r.amount} · submitted by {r.ticket?.submitted_by ?? "unknown"} ·{" "}
-            {new Date(r.created_at).toLocaleDateString()}
-            {r.pendingApprover && (
-              <>
-                {" · awaiting "}
-                {r.pendingApprover.name}
-                {r.pendingApprover.jobTitle ? ` (${r.pendingApprover.jobTitle})` : ""}
-              </>
-            )}
-            {r.final_tier_name && r.status !== "pending" && ` · resolved at ${r.final_tier_name} level`}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
