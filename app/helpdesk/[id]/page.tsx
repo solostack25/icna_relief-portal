@@ -17,10 +17,13 @@ import LiveLegCard from "./LiveLegCard";
 
 export default async function HelpdeskRequestPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ approvalError?: string }>;
 }) {
   const { id } = await params;
+  const { approvalError } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -93,6 +96,15 @@ export default async function HelpdeskRequestPage({
   const authorMap = new Map((commentAuthors ?? []).map((a) => [a.id, a]));
 
   const currentLeg = [...(legs ?? [])].reverse().find((l) => l.status !== "handed_off") ?? null;
+
+  const { data: financeApproval } = await supabase
+    .from("finance_approval_requests")
+    .select("*, finance_approval_steps(*)")
+    .eq("request_id", id)
+    .maybeSingle();
+  const sortedFinanceSteps = financeApproval
+    ? [...financeApproval.finance_approval_steps].sort((a: any, b: any) => a.step_order - b.step_order)
+    : [];
 
   // Email-bonus eligibility for the current leg, if it's IT and still
   // active: has an email already been sent (bonus can only be earned
@@ -168,6 +180,38 @@ export default async function HelpdeskRequestPage({
               }}
             >
               {request.description}
+            </div>
+          )}
+
+          {financeApproval && (
+            <div
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid #3A2C68",
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#9C8FD9", marginBottom: 8 }}>
+                💰 Finance Approval — ${financeApproval.amount}
+              </div>
+              {sortedFinanceSteps.map((s: any) => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
+                  <span>
+                    {s.approver_name}
+                    {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
+                  </span>
+                  <span
+                    style={{
+                      color: s.status === "approved" ? "#5FFFAE" : s.status === "denied" ? "#FF6B6B" : "#9C8FD9",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {s.status}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -362,9 +406,56 @@ export default async function HelpdeskRequestPage({
           {new Date(request.created_at).toLocaleDateString()}
         </p>
 
+        {approvalError && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm p-4 mb-6">
+            This request was submitted, but the finance approval chain couldn't be started
+            automatically. Contact IT or Finance to get it routed manually.
+          </div>
+        )}
+
         {request.description && (
           <div className="rounded-lg bg-black/[0.03] p-4 text-sm mb-8 whitespace-pre-wrap">
             {request.description}
+          </div>
+        )}
+
+        {financeApproval && (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 mb-8">
+            <div className="text-sm font-semibold mb-3">
+              💰 Finance Approval — ${financeApproval.amount}
+              <span
+                className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                  financeApproval.status === "approved"
+                    ? "bg-green-100 text-green-700"
+                    : financeApproval.status === "denied"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                }`}
+              >
+                {financeApproval.status}
+              </span>
+            </div>
+            <div className="space-y-1.5 text-sm">
+              {sortedFinanceSteps.map((s: any) => (
+                <div key={s.id} className="flex items-center justify-between">
+                  <span>
+                    {s.approver_name}
+                    {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
+                  </span>
+                  <span
+                    className={
+                      s.status === "approved"
+                        ? "text-green-700"
+                        : s.status === "denied"
+                          ? "text-red-600"
+                          : "text-[var(--color-text-dim)]"
+                    }
+                  >
+                    {s.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

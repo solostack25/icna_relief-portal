@@ -159,6 +159,20 @@ export default async function SelectAppPage() {
             </Link>
           )}
 
+          {(employee.role === "admin" ||
+            allowedSlugs.includes("helpdesk-finance") ||
+            allowedSlugs.includes("helpdesk-it")) && (
+            <Link
+              href="/admin/finance"
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
+            >
+              <div className="text-lg font-medium">💰 Finance Approvals</div>
+              <div className="text-xs text-[var(--color-text-dim)] mt-1">
+                Approval thresholds, temporary coverage, in-flight requests
+              </div>
+            </Link>
+          )}
+
           <Link
             href="/office-apps"
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"

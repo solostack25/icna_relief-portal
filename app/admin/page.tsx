@@ -65,6 +65,12 @@ export default async function AdminPage() {
               Help Desk Workload
             </Link>
             <Link
+              href="/admin/finance"
+              className="text-sm text-[var(--color-accent)] hover:underline"
+            >
+              Finance Approvals
+            </Link>
+            <Link
               href="/helpdesk/manage"
               className="text-sm text-[var(--color-accent)] hover:underline"
             >

@@ -81,6 +81,36 @@ export async function HelpdeskView({
       .order("created_at", { ascending: false })
       .limit(20);
 
+    const { data: pendingApprovalSteps } = await supabase
+      .from("finance_approval_steps")
+      .select("id, approval_token, chain_person_job_title, finance_approval_request_id")
+      .eq("status", "pending")
+      .ilike("approver_email", me.email);
+
+    const farIds = [...new Set((pendingApprovalSteps ?? []).map((s) => s.finance_approval_request_id))];
+    const { data: pendingFars } = await supabase
+      .from("finance_approval_requests")
+      .select("id, amount, request_id")
+      .in("id", farIds.length ? farIds : ["00000000-0000-0000-0000-000000000000"]);
+    const farMap = new Map((pendingFars ?? []).map((f) => [f.id, f]));
+
+    const pendingRequestIds = [...new Set((pendingFars ?? []).map((f) => f.request_id))];
+    const { data: pendingTickets } = await supabase
+      .from("helpdesk_requests")
+      .select("id, title")
+      .in("id", pendingRequestIds.length ? pendingRequestIds : ["00000000-0000-0000-0000-000000000000"]);
+    const ticketMap = new Map((pendingTickets ?? []).map((t) => [t.id, t]));
+
+    const pendingApprovals = (pendingApprovalSteps ?? [])
+      .map((s) => {
+        const far = farMap.get(s.finance_approval_request_id);
+        const ticket = far ? ticketMap.get(far.request_id) : null;
+        return far && ticket
+          ? { ...s, amount: far.amount, ticketTitle: ticket.title }
+          : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
@@ -115,6 +145,28 @@ export async function HelpdeskView({
           >
             + Submit a Request
           </Link>
+
+          {pendingApprovals.length > 0 && (
+            <>
+              <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
+                Pending Your Approval
+              </h2>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden mb-8">
+                {pendingApprovals.map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/finance-approvals/${a.approval_token}`}
+                    className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
+                  >
+                    <span className="text-sm font-medium truncate">{a.ticketTitle}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-700">
+                      ${a.amount}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
 
           <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
             My Requests
