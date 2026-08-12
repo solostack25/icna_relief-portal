@@ -28,7 +28,12 @@ export default async function DirectoryPage() {
       "/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,accountEnabled&$top=999"
     );
     people = users
-      .filter((u: any) => u.accountEnabled !== false && (u.mail || u.userPrincipalName))
+      .filter(
+        (u: any) =>
+          u.accountEnabled !== false &&
+          (u.mail || u.userPrincipalName) &&
+          (u.mail || u.userPrincipalName).toLowerCase().endsWith("@icnarelief.org")
+      )
       .map((u: any) => ({
         id: u.id,
         name: u.displayName ?? u.mail ?? u.userPrincipalName,
@@ -53,7 +58,7 @@ export default async function DirectoryPage() {
           </Link>
         </div>
         <p className="text-sm text-[var(--color-text-dim)] mb-8">
-          Live from Active Directory — {people.length} active accounts.
+          Live from Active Directory — {people.length} active @icnarelief.org accounts.
         </p>
 
         {error && (
