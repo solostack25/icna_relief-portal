@@ -138,42 +138,6 @@ export default async function SelectAppPage() {
           )}
 
           <Link
-            href="/workboards"
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
-          >
-            <div className="text-lg font-medium">📋 Workboards</div>
-            <div className="text-xs text-[var(--color-text-dim)] mt-1">
-              Your private task board, or the IT team board
-            </div>
-          </Link>
-
-          {(employee.role === "admin" || allowedSlugs.some((s) => s.startsWith("helpdesk-"))) && (
-            <Link
-              href="/helpdesk/manage"
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
-            >
-              <div className="text-lg font-medium">🎫 Manage Tickets</div>
-              <div className="text-xs text-[var(--color-text-dim)] mt-1">
-                Your department's help desk queue
-              </div>
-            </Link>
-          )}
-
-          {(employee.role === "admin" ||
-            allowedSlugs.includes("helpdesk-finance") ||
-            allowedSlugs.includes("helpdesk-it")) && (
-            <Link
-              href="/admin/finance"
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
-            >
-              <div className="text-lg font-medium">💰 Finance Approvals</div>
-              <div className="text-xs text-[var(--color-text-dim)] mt-1">
-                Approval thresholds, temporary coverage, in-flight requests
-              </div>
-            </Link>
-          )}
-
-          <Link
             href="/directory"
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
           >
@@ -203,7 +167,11 @@ export default async function SelectAppPage() {
             </Link>
           ))}
 
-          {employee.role === "admin" && (
+          {(employee.role === "admin" ||
+            employee.role === "regional_director" ||
+            employee.role === "program_director" ||
+            allowedSlugs.some((s) => s.startsWith("helpdesk-")) ||
+            allowedSlugs.includes("in-kind-donation")) && (
             <Link
               href="/admin"
               className="rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
@@ -211,21 +179,8 @@ export default async function SelectAppPage() {
               <div className="text-lg font-medium text-[var(--color-accent)]">
                 Admin Portal
               </div>
-            </Link>
-          )}
-
-          {(employee.role === "regional_director" || employee.role === "program_director") && (
-            <Link
-              href="/admin/review"
-              className="rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-6 hover:border-[var(--color-accent)] transition-colors"
-            >
-              <div className="text-lg font-medium text-[var(--color-accent)]">
-                Review Submissions
-              </div>
               <div className="text-xs text-[var(--color-text-dim)] mt-1">
-                {employee.role === "regional_director"
-                  ? "Your region's submissions"
-                  : "Your program's submissions"}
+                Manage tickets, finance approvals, workboards, and more
               </div>
             </Link>
           )}
