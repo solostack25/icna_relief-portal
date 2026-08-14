@@ -15,15 +15,16 @@ import {
   newLineElement,
 } from "@/lib/flierElements";
 import ApprovedImagePicker from "../../ApprovedImagePicker";
+import { Icon } from "../../icons";
 
 const FlierCanvas = dynamic(() => import("@/components/FlierCanvas"), { ssr: false });
 
 const ICONS = {
-  text: "🔤",
-  image: "🖼️",
-  rect: "▭",
-  circle: "◯",
-  line: "╱",
+  text: <Icon.TextTool />,
+  image: <Icon.ImageTool />,
+  rect: <Icon.RectTool />,
+  circle: <Icon.CircleTool />,
+  line: <Icon.LineTool />,
 };
 
 export default function BuilderClient({ template }: { template: any }) {
@@ -242,53 +243,53 @@ export default function BuilderClient({ template }: { template: any }) {
 
       {/* Action bar: undo/redo, align, layers, zoom */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap p-2 rounded-lg" style={{ background: "white", border: "1px solid var(--portal-line)" }}>
-        <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)">↺</IconBtn>
-        <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)">↻</IconBtn>
+        <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
+        <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
         <Divider />
-        <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)">⧉</IconBtn>
-        <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete">🗑</IconBtn>
+        <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
+        <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
         <Divider />
-        <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left">⊢</IconBtn>
-        <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center">⊟</IconBtn>
-        <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right">⊣</IconBtn>
-        <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top">⊤</IconBtn>
-        <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle">⊝</IconBtn>
-        <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom">⊥</IconBtn>
+        <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
+        <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
+        <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
+        <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
+        <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
+        <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
         <Divider />
-        <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front">⬆</IconBtn>
-        <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward">↑</IconBtn>
-        <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward">↓</IconBtn>
-        <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back">⬇</IconBtn>
+        <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
+        <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
+        <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
+        <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
         <Divider />
-        <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out">－</IconBtn>
+        <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
         <span className="text-xs w-10 text-center" style={{ color: "rgba(22,48,43,0.5)" }}>
           {Math.round(zoom * 100)}%
         </span>
-        <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in">＋</IconBtn>
-        <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom">⤢</IconBtn>
+        <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
+        <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom"><Icon.ZoomReset /></IconBtn>
       </div>
 
       <div className="flex gap-3">
         {/* Toolbar */}
         <div className="flex flex-col gap-1.5 w-16 flex-shrink-0">
           <button onClick={() => addElement(newTextElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add text">
-            <span style={{ fontSize: 16 }}>{ICONS.text}</span>
+            <span style={{ width: 18, height: 18 }}>{ICONS.text}</span>
             Text
           </button>
           <button onClick={() => addElement(newImageElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add image">
-            <span style={{ fontSize: 16 }}>{ICONS.image}</span>
+            <span style={{ width: 18, height: 18 }}>{ICONS.image}</span>
             Image
           </button>
           <button onClick={() => addElement(newRectElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add rectangle">
-            <span style={{ fontSize: 16 }}>{ICONS.rect}</span>
+            <span style={{ width: 18, height: 18 }}>{ICONS.rect}</span>
             Rect
           </button>
           <button onClick={() => addElement(newCircleElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add circle">
-            <span style={{ fontSize: 16 }}>{ICONS.circle}</span>
+            <span style={{ width: 18, height: 18 }}>{ICONS.circle}</span>
             Circle
           </button>
           <button onClick={() => addElement(newLineElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add line">
-            <span style={{ fontSize: 16 }}>{ICONS.line}</span>
+            <span style={{ width: 18, height: 18 }}>{ICONS.line}</span>
             Line
           </button>
         </div>
@@ -411,13 +412,87 @@ export default function BuilderClient({ template }: { template: any }) {
               )}
 
               {selected.type === "image" && (
-                <button
-                  onClick={() => setPickerOpen(true)}
-                  className="text-xs px-3 py-2 rounded-lg cursor-pointer w-full"
-                  style={{ border: "1px solid var(--portal-line)" }}
-                >
-                  {selected.dropboxPath ? "Change Image" : "Choose Image"}
-                </button>
+                <>
+                  <button
+                    onClick={() => setPickerOpen(true)}
+                    className="text-xs px-3 py-2 rounded-lg cursor-pointer w-full"
+                    style={{ border: "1px solid var(--portal-line)" }}
+                  >
+                    {selected.dropboxPath ? "Change Image" : "Choose Image"}
+                  </button>
+
+                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
+                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Shape mask
+                    </label>
+                    <div className="flex gap-1.5">
+                      {(["rect", "rounded", "circle"] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => updateSelected({ maskShape: m })}
+                          className="flex-1 text-xs py-1.5 rounded cursor-pointer capitalize"
+                          style={{
+                            border: `1px solid ${selected.maskShape === m ? "var(--portal-emerald)" : "var(--portal-line)"}`,
+                            color: selected.maskShape === m ? "var(--portal-emerald)" : "#666",
+                          }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    {selected.maskShape === "rounded" && (
+                      <div className="flex gap-2 items-center mt-1.5">
+                        <label className="text-[10px]" style={{ color: "rgba(22,48,43,0.5)" }}>
+                          Corner radius
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={Math.min(selected.width, selected.height) / 2}
+                          value={selected.maskCornerRadius}
+                          onChange={(e) => updateSelected({ maskCornerRadius: Number(e.target.value) }, false)}
+                          onMouseUp={(e) => updateSelected({ maskCornerRadius: Number((e.target as HTMLInputElement).value) })}
+                          className="flex-1"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
+                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Reposition in frame
+                    </label>
+                    <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
+                    <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
+                    <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
+                  </div>
+
+                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
+                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Filter
+                    </label>
+                    <div className="flex gap-1.5 mb-2">
+                      {(["none", "grayscale", "sepia"] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => updateSelected({ filter: f })}
+                          className="flex-1 text-xs py-1.5 rounded cursor-pointer capitalize"
+                          style={{
+                            border: `1px solid ${selected.filter === f ? "var(--portal-emerald)" : "var(--portal-line)"}`,
+                            color: selected.filter === f ? "var(--portal-emerald)" : "#666",
+                          }}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                    <SliderRow label="Brightness" min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
+                    <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                    <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+                  </div>
+
+                  <BorderShadowControls selected={selected} updateSelected={updateSelected} />
+                </>
               )}
 
               {(selected.type === "rect" || selected.type === "circle") && (
@@ -432,6 +507,10 @@ export default function BuilderClient({ template }: { template: any }) {
                   ))}
                   <input type="color" value={(selected as any).fill} onChange={(e) => updateSelected({ fill: e.target.value })} className="w-6 h-6 rounded cursor-pointer" />
                 </div>
+              )}
+
+              {(selected.type === "rect" || selected.type === "circle") && (
+                <BorderShadowControls selected={selected} updateSelected={updateSelected} />
               )}
 
               {selected.type === "rect" && (
@@ -533,7 +612,7 @@ export default function BuilderClient({ template }: { template: any }) {
                     color: selectedId === el.id ? "var(--portal-emerald)" : "#444",
                   }}
                 >
-                  <span>{ICONS[el.type as keyof typeof ICONS]}</span>
+                  <span style={{ width: 14, height: 14, display: "inline-block" }}>{ICONS[el.type as keyof typeof ICONS]}</span>
                   <span className="truncate">
                     {el.type === "text" ? el.text.slice(0, 20) || "Text" : el.type}
                     {(el as any).editable ? " · editable" : ""}
@@ -579,14 +658,81 @@ function IconBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-8 h-8 rounded-md flex items-center justify-center text-sm cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/5"
+      className="w-8 h-8 rounded-md flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/5"
       style={{ color: "#333" }}
     >
-      {children}
+      <span style={{ width: 16, height: 16, display: "inline-block" }}>{children}</span>
     </button>
   );
 }
 
 function Divider() {
   return <div className="w-px h-5 mx-1" style={{ background: "var(--portal-line)" }} />;
+}
+
+function SliderRow({
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  onCommit: (v: number) => void;
+}) {
+  return (
+    <div className="flex gap-2 items-center mb-1">
+      <label className="text-[10px] w-14 flex-shrink-0" style={{ color: "rgba(22,48,43,0.5)" }}>
+        {label}
+      </label>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        onMouseUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
+        className="flex-1"
+      />
+    </div>
+  );
+}
+
+function BorderShadowControls({ selected, updateSelected }: { selected: any; updateSelected: (patch: any, commit?: boolean) => void }) {
+  return (
+    <div className="pt-2 space-y-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] w-14 flex-shrink-0" style={{ color: "rgba(22,48,43,0.5)" }}>
+          Border
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={12}
+          value={selected.borderWidth}
+          onChange={(e) => updateSelected({ borderWidth: Number(e.target.value) }, false)}
+          onMouseUp={(e) => updateSelected({ borderWidth: Number((e.target as HTMLInputElement).value) })}
+          className="flex-1"
+        />
+        <input
+          type="color"
+          value={selected.borderColor}
+          onChange={(e) => updateSelected({ borderColor: e.target.value })}
+          className="w-6 h-6 rounded cursor-pointer flex-shrink-0"
+        />
+      </div>
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={selected.shadow} onChange={(e) => updateSelected({ shadow: e.target.checked })} />
+        Drop shadow
+      </label>
+    </div>
+  );
 }

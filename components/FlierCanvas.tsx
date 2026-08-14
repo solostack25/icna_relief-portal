@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Transformer } from "react-konva";
-import type Konva from "konva";
-import type { FlierElement } from "@/lib/flierElements";
+import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Group, Transformer } from "react-konva";
+import Konva from "konva";
+import type { FlierElement, FlierImageElement } from "@/lib/flierElements";
+import { computeCoverCrop } from "@/lib/flierElements";
 
 const SNAP_TOLERANCE = 8;
 
@@ -23,33 +24,64 @@ function useHtmlImage(url: string | null): HTMLImageElement | null {
   return img;
 }
 
-function ImageNode({ el, ...konvaProps }: { el: any; [key: string]: any }) {
-  const img = useHtmlImage(el.imageUrl);
-  if (!img) {
-    return (
-      <Rect
-        x={el.x}
-        y={el.y}
-        width={el.width}
-        height={el.height}
-        rotation={el.rotation}
-        opacity={el.opacity}
-        fill="#EAF3EF"
-        stroke="#DDE4DF"
-        dash={[6, 4]}
-        {...konvaProps}
-      />
-    );
-  }
+function maskClipFunc(el: FlierImageElement) {
+  return (ctx: any) => {
+    if (el.maskShape === "circle") {
+      ctx.beginPath();
+      ctx.ellipse(el.width / 2, el.height / 2, el.width / 2, el.height / 2, 0, 0, Math.PI * 2);
+      ctx.closePath();
+    } else if (el.maskShape === "rounded") {
+      const r = Math.min(el.maskCornerRadius, el.width / 2, el.height / 2);
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.arcTo(el.width, 0, el.width, el.height, r);
+      ctx.arcTo(el.width, el.height, 0, el.height, r);
+      ctx.arcTo(0, el.height, 0, 0, r);
+      ctx.arcTo(0, 0, el.width, 0, r);
+      ctx.closePath();
+    } else {
+      ctx.rect(0, 0, el.width, el.height);
+    }
+  };
+}
+
+function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img: HTMLImageElement; [key: string]: any }) {
+  const imgRef = useRef<Konva.Image>(null);
+
+  useEffect(() => {
+    const node = imgRef.current;
+    if (!node) return;
+    const filters: any[] = [];
+    if (el.filter === "grayscale") filters.push(Konva.Filters.Grayscale);
+    if (el.filter === "sepia") filters.push(Konva.Filters.Sepia);
+    if (el.brightness !== 0) filters.push(Konva.Filters.Brighten);
+    if (el.contrast !== 0) filters.push(Konva.Filters.Contrast);
+    if (el.blur > 0) filters.push(Konva.Filters.Blur);
+
+    if (filters.length > 0) {
+      node.cache();
+      node.filters(filters);
+      node.brightness(el.brightness);
+      node.contrast(el.contrast);
+      node.blurRadius(el.blur);
+    } else {
+      node.clearCache();
+      node.filters([]);
+    }
+    node.getLayer()?.batchDraw();
+  }, [el.filter, el.brightness, el.contrast, el.blur, img]);
+
+  const naturalW = img.naturalWidth || img.width;
+  const naturalH = img.naturalHeight || img.height;
+  const { cropX, cropY, cropWidth, cropHeight } = computeCoverCrop(naturalW, naturalH, el.width, el.height, el.cropZoom, el.cropOffsetX, el.cropOffsetY);
+
   return (
     <KonvaImage
+      ref={imgRef}
       image={img}
-      x={el.x}
-      y={el.y}
       width={el.width}
       height={el.height}
-      rotation={el.rotation}
-      opacity={el.opacity}
+      crop={{ x: cropX, y: cropY, width: cropWidth, height: cropHeight }}
       {...konvaProps}
     />
   );
@@ -149,6 +181,13 @@ export default function FlierCanvas({
           {elements.map((el) => {
             if (el.id === editingId) return null; // covered by the HTML overlay instead
             const interactive = mode === "builder" || (mode === "fill" && el.editable);
+            const shadowProps = (el as any).shadow
+              ? { shadowColor: "#000000", shadowBlur: 12, shadowOffset: { x: 0, y: 4 }, shadowOpacity: 0.25 }
+              : {};
+            const borderProps =
+              (el as any).borderWidth > 0
+                ? { stroke: (el as any).borderColor, strokeWidth: (el as any).borderWidth }
+                : {};
             const common = {
               key: el.id,
               ref: (node: any) => {
@@ -185,6 +224,8 @@ export default function FlierCanvas({
               return (
                 <Rect
                   {...common}
+                  {...shadowProps}
+                  {...borderProps}
                   x={el.x}
                   y={el.y}
                   width={el.width}
@@ -199,6 +240,8 @@ export default function FlierCanvas({
               return (
                 <Ellipse
                   {...common}
+                  {...shadowProps}
+                  {...borderProps}
                   x={el.x + el.width / 2}
                   y={el.y + el.height / 2}
                   radiusX={el.width / 2}
@@ -242,7 +285,15 @@ export default function FlierCanvas({
               );
             }
             if (el.type === "image") {
-              return <ImageNode el={el} {...common} />;
+              return (
+                <ImageWithMask
+                  key={el.id}
+                  el={el}
+                  common={common}
+                  shadowProps={shadowProps}
+                  borderProps={borderProps}
+                />
+              );
             }
             return null;
           })}
@@ -297,5 +348,66 @@ export default function FlierCanvas({
         />
       )}
     </div>
+  );
+}
+
+// Image elements are wrapped in a Group so the mask (clipFunc) applies
+// to the group's local coordinate space - the draggable/transformable
+// node is the Group itself (carries `common`'s handlers), with the
+// actual filtered/cropped Image positioned at local (0,0) inside it.
+function ImageWithMask({
+  el,
+  common,
+  shadowProps,
+  borderProps,
+}: {
+  el: FlierImageElement;
+  common: any;
+  shadowProps: any;
+  borderProps: any;
+}) {
+  const img = useHtmlImage(el.imageUrl);
+
+  if (!img) {
+    return (
+      <Rect
+        {...common}
+        x={el.x}
+        y={el.y}
+        width={el.width}
+        height={el.height}
+        rotation={el.rotation}
+        fill="#EAF3EF"
+        stroke="#DDE4DF"
+        dash={[6, 4]}
+      />
+    );
+  }
+
+  return (
+    <Group {...common} x={el.x} y={el.y} rotation={el.rotation} clipFunc={el.maskShape !== "rect" ? maskClipFunc(el) : undefined}>
+      <FilteredImage el={el} img={img} x={0} y={0} listening={false} />
+      {el.maskShape === "circle" && el.borderWidth > 0 && (
+        <Ellipse
+          x={el.width / 2}
+          y={el.height / 2}
+          radiusX={el.width / 2}
+          radiusY={el.height / 2}
+          {...borderProps}
+          listening={false}
+        />
+      )}
+      {el.maskShape !== "circle" && el.borderWidth > 0 && (
+        <Rect
+          x={0}
+          y={0}
+          width={el.width}
+          height={el.height}
+          cornerRadius={el.maskShape === "rounded" ? el.maskCornerRadius : 0}
+          {...borderProps}
+          listening={false}
+        />
+      )}
+    </Group>
   );
 }

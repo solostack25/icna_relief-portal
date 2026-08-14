@@ -37,6 +37,25 @@ export type FlierImageElement = {
   imageUrl: string | null;
   editable: boolean;
   editableLabel?: string;
+  // Shape masking - "merge a square photo into a circle" and similar.
+  maskShape: "rect" | "circle" | "rounded";
+  maskCornerRadius: number; // used when maskShape === "rounded"
+  // Reposition/zoom the source image within its fixed frame, expressed
+  // as bounded slider values rather than freeform drag-to-pan - simpler
+  // UI, still gets the "adjust how the photo sits in frame" result.
+  // cropOffsetX/Y: -1..1 (pan), cropZoom: 1..3 (1 = just covers the frame).
+  cropOffsetX: number;
+  cropOffsetY: number;
+  cropZoom: number;
+  // Photoshop-style filters, applied via Konva's native filter pipeline.
+  filter: "none" | "grayscale" | "sepia";
+  brightness: number; // -1..1
+  contrast: number; // -100..100 (Konva's Contrast filter range)
+  blur: number; // 0..20
+  // Border + shadow, shared styling concept across shapes/images.
+  borderWidth: number;
+  borderColor: string;
+  shadow: boolean;
 };
 
 export type FlierRectElement = {
@@ -50,6 +69,9 @@ export type FlierRectElement = {
   opacity: number;
   fill: string;
   cornerRadius: number;
+  borderWidth: number;
+  borderColor: string;
+  shadow: boolean;
   editable: false;
 };
 
@@ -63,6 +85,9 @@ export type FlierCircleElement = {
   rotation: number;
   opacity: number;
   fill: string;
+  borderWidth: number;
+  borderColor: string;
+  shadow: boolean;
   editable: false;
 };
 
@@ -134,6 +159,18 @@ export function newImageElement(overrides: Partial<FlierImageElement> = {}): Fli
     dropboxPath: null,
     imageUrl: null,
     editable: false,
+    maskShape: "rect",
+    maskCornerRadius: 0,
+    cropOffsetX: 0,
+    cropOffsetY: 0,
+    cropZoom: 1,
+    filter: "none",
+    brightness: 0,
+    contrast: 0,
+    blur: 0,
+    borderWidth: 0,
+    borderColor: "#16302B",
+    shadow: false,
     ...overrides,
   };
 }
@@ -150,6 +187,9 @@ export function newRectElement(overrides: Partial<FlierRectElement> = {}): Flier
     opacity: 1,
     fill: "#1F6F54",
     cornerRadius: 0,
+    borderWidth: 0,
+    borderColor: "#16302B",
+    shadow: false,
     editable: false,
     ...overrides,
   };
@@ -166,6 +206,9 @@ export function newCircleElement(overrides: Partial<FlierCircleElement> = {}): F
     rotation: 0,
     opacity: 1,
     fill: "#C99A3D",
+    borderWidth: 0,
+    borderColor: "#16302B",
+    shadow: false,
     editable: false,
     ...overrides,
   };
@@ -186,4 +229,28 @@ export function newLineElement(overrides: Partial<FlierLineElement> = {}): Flier
     editable: false,
     ...overrides,
   };
+}
+
+// "object-fit: cover" math, parameterized by a bounded zoom + pan so the
+// Builder can expose this as sliders instead of freeform drag-to-pan -
+// simpler UI, still gets a real "reposition the photo within its frame"
+// result. Returns a Konva `crop` rect in source-image pixel space.
+export function computeCoverCrop(
+  naturalWidth: number,
+  naturalHeight: number,
+  frameWidth: number,
+  frameHeight: number,
+  zoom: number,
+  offsetX: number,
+  offsetY: number
+) {
+  const baseScale = Math.max(frameWidth / naturalWidth, frameHeight / naturalHeight);
+  const scale = baseScale * Math.max(1, zoom);
+  const cropWidth = Math.min(naturalWidth, frameWidth / scale);
+  const cropHeight = Math.min(naturalHeight, frameHeight / scale);
+  const maxPanX = Math.max(0, naturalWidth - cropWidth);
+  const maxPanY = Math.max(0, naturalHeight - cropHeight);
+  const cropX = (maxPanX * (1 + Math.max(-1, Math.min(1, offsetX)))) / 2;
+  const cropY = (maxPanY * (1 + Math.max(-1, Math.min(1, offsetY)))) / 2;
+  return { cropX, cropY, cropWidth, cropHeight };
 }
