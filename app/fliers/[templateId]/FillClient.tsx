@@ -87,6 +87,7 @@ export default function FillClient({ template, folders }: { template: any; folde
           <FlierCanvas
             width={template.canvas_width}
             height={template.canvas_height}
+            background={template.canvas_background}
             elements={elements}
             mode="fill"
             scale={CANVAS_SCALE}
