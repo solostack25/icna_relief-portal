@@ -55,3 +55,33 @@ export async function uploadContentFile(params: {
 
   return { path: res.result.path_display ?? path, sizeBytes: params.fileBuffer.length };
 }
+
+// ---- Browsing, for the Flier Builder's image-approval picker ----
+
+export type DropboxImageEntry = { path: string; name: string };
+
+// Lists image files (by extension) directly inside a folder - not
+// recursive, matches the flat structure Upload Content already creates.
+export async function listImagesInFolder(dropboxFolderName: string): Promise<DropboxImageEntry[]> {
+  const dbx = await getDropboxClient();
+  const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic)$/i;
+  try {
+    const res = await dbx.filesListFolder({ path: `/${dropboxFolderName}` });
+    return res.result.entries
+      .filter((e) => e[".tag"] === "file" && IMAGE_EXT.test(e.name))
+      .map((e) => ({ path: (e as any).path_display ?? `/${dropboxFolderName}/${e.name}`, name: e.name }));
+  } catch {
+    // Folder doesn't exist yet (nothing uploaded there) - not an error,
+    // just nothing to show.
+    return [];
+  }
+}
+
+// A temporary (short-lived, a few hours) direct-access URL - good enough
+// for rendering a thumbnail/preview in the browser without proxying the
+// image's binary data through our own server.
+export async function getTemporaryImageLink(path: string): Promise<string> {
+  const dbx = await getDropboxClient();
+  const res = await dbx.filesGetTemporaryLink({ path });
+  return res.result.link;
+}

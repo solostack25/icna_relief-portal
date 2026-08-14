@@ -74,6 +74,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
     </svg>
   ),
+  fliers: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  ),
 };
 
 export default async function AdminPage() {
@@ -107,7 +113,17 @@ export default async function AdminPage() {
         .maybeSingle();
   const canInkind = isAdmin || !!inkindAccess;
 
-  if (!isAdmin && !canManageTickets && !canManageFinance && !canReview && !canInkind) {
+  const { data: flierAccess } = isAdmin
+    ? { data: null }
+    : await supabase
+        .from("employee_program_access")
+        .select("program_slug")
+        .eq("employee_id", me.id)
+        .eq("program_slug", "flier-marketing")
+        .maybeSingle();
+  const canManageFliers = isAdmin || !!flierAccess;
+
+  if (!isAdmin && !canManageTickets && !canManageFinance && !canReview && !canInkind && !canManageFliers) {
     redirect("/select-app");
   }
 
@@ -182,6 +198,7 @@ export default async function AdminPage() {
     { href: "/admin/training", label: "Training Courses", icon: "training", show: isAdmin },
     { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders", show: isAdmin },
     { href: "/admin/dropbox", label: "Dropbox Connection", icon: "dropboxSettings", show: isAdmin },
+    { href: "/marketing/fliers/builder", label: "Flier Templates", icon: "fliers", show: canManageFliers },
     { href: "/workboards", label: "Workboards", icon: "workboards", show: true },
   ].filter((c) => c.show);
 

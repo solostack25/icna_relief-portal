@@ -263,6 +263,19 @@ export default async function SelectAppPage() {
               </svg>
             }
           />
+          <QuickCard
+            href="/fliers"
+            title="Make a Flier"
+            desc="Fill in a brand-approved template — no design skills needed"
+            tint="#F4E9EE"
+            iconColor="#A0498A"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <path d="M8 8h8M8 12h8M8 16h5" />
+              </svg>
+            }
+          />
         </div>
 
         {/* ---------- YOUR PROGRAMS ---------- */}
