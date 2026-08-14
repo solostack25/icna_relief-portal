@@ -56,6 +56,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M9 3v18M15 3v18" />
     </svg>
   ),
+  training: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5" />
+    </svg>
+  ),
 };
 
 export default async function AdminPage() {
@@ -161,6 +167,7 @@ export default async function AdminPage() {
     { href: "/admin/finance", label: "Finance Approvals", icon: "finance", show: canManageFinance },
     { href: "/inkind-admin", label: "InKind Admin", icon: "inkind", show: canInkind },
     { href: "/admin/review", label: "Review Submissions", icon: "review", show: canReview },
+    { href: "/admin/training", label: "Training Courses", icon: "training", show: isAdmin },
     { href: "/workboards", label: "Workboards", icon: "workboards", show: true },
   ].filter((c) => c.show);
 

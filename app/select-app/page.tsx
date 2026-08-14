@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import PortalHeader from "@/app/PortalHeader";
 import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
+import { getCoursesWithStatus } from "@/lib/lms";
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -112,6 +113,11 @@ export default async function SelectAppPage() {
     .eq("status", "pending")
     .ilike("approver_email", employee.email);
 
+  const courses = await getCoursesWithStatus(supabase, employee.id, employee.role);
+  const trainingDueCount = courses.filter(
+    (c) => c.required && (c.status === "not_started" || c.status === "due_for_refresher")
+  ).length;
+
   const canSeeAdminPortal =
     employee.role === "admin" ||
     employee.role === "regional_director" ||
@@ -179,6 +185,7 @@ export default async function SelectAppPage() {
             >
               <HeroStat value={openTicketsCount ?? 0} label="Open Tickets" />
               <HeroStat value={pendingApprovalsCount ?? 0} label="Awaiting Your Approval" gold />
+              <HeroStat value={trainingDueCount} label="Training Due" />
               <Suspense fallback={<HeroStatSkeleton label="Help Desk (IT)" />}>
                 <ItTicketHeroStat fullName={`${employee.first_name} ${employee.last_name}`} />
               </Suspense>
@@ -188,7 +195,7 @@ export default async function SelectAppPage() {
 
         {/* ---------- QUICK ACTIONS ---------- */}
         <SectionHead title="Quick Actions" note="The things you reach for most" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
           {showClientIntake && (
             <QuickCard
               href="/intake"
@@ -227,6 +234,19 @@ export default async function SelectAppPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="14" rx="2" />
                 <path d="M3 9h18" />
+              </svg>
+            }
+          />
+          <QuickCard
+            href="/training"
+            title="Training"
+            desc="Onboarding courses and refreshers, at your own pace"
+            tint="#F3E9F4"
+            iconColor="#8A5FA0"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 10L12 5 2 10l10 5 10-5z" />
+                <path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5" />
               </svg>
             }
           />
