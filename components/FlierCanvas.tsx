@@ -288,7 +288,7 @@ export default function FlierCanvas({
             }
             if (el.type === "circle") {
               return (
-                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
                   <Ellipse
                     {...shadowProps}
                     {...borderProps}
@@ -316,7 +316,7 @@ export default function FlierCanvas({
             }
             if (el.type === "star") {
               return (
-                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
                   <Star
                     {...shadowProps}
                     x={el.width / 2}
@@ -331,7 +331,7 @@ export default function FlierCanvas({
             }
             if (el.type === "polygon") {
               return (
-                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
                   <RegularPolygon
                     {...shadowProps}
                     x={el.width / 2}
@@ -345,7 +345,7 @@ export default function FlierCanvas({
             }
             if (el.type === "arrow") {
               return (
-                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
                   <Arrow
                     {...shadowProps}
                     x={0}
@@ -364,7 +364,7 @@ export default function FlierCanvas({
               const def = ICON_LIBRARY.find((i) => i.id === el.iconId);
               if (!def) return null;
               return (
-                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
                   <Path
                     {...shadowProps}
                     x={0}
@@ -511,7 +511,7 @@ function ImageWithMask({
   }
 
   return (
-    <Group {...common} x={el.x} y={el.y} rotation={el.rotation} clipFunc={el.maskShape !== "rect" ? maskClipFunc(el) : undefined}>
+    <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation} clipFunc={el.maskShape !== "rect" ? maskClipFunc(el) : undefined}>
       <FilteredImage el={el} img={img} x={0} y={0} listening={false} />
       {el.maskShape === "circle" && el.borderWidth > 0 && (
         <Ellipse
