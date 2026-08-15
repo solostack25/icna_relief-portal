@@ -21,7 +21,7 @@ export default async function FlierBuilderListPage() {
           </h1>
           <div className="flex items-center gap-4">
             <Link href="/marketing/fliers/images" className="text-sm" style={{ color: "var(--portal-emerald)" }}>
-              Approved Images →
+              Content Library →
             </Link>
             <Link href="/select-app" className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
               ← Back
