@@ -72,4 +72,22 @@ export const Icon = {
   LineTool: () => (
     <svg {...base}><path d="M4 20L20 4" /></svg>
   ),
+  Bold: () => (
+    <svg {...base}><path d="M6 4h8a4 4 0 0 1 0 8H6z" /><path d="M6 12h9a4 4 0 0 1 0 8H6z" /></svg>
+  ),
+  Italic: () => (
+    <svg {...base}><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4L9 20" /></svg>
+  ),
+  Style: () => (
+    <svg {...base}><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></svg>
+  ),
+  Effects: () => (
+    <svg {...base}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+  ),
+  Layers: () => (
+    <svg {...base}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+  ),
+  ImagePicker: () => (
+    <svg {...base}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+  ),
 };

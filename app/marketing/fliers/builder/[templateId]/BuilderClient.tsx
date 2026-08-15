@@ -27,6 +27,9 @@ const ICONS = {
   line: <Icon.LineTool />,
 };
 
+const PANEL = { border: "1px solid var(--portal-line)", boxShadow: "0 1px 3px rgba(22,48,43,0.06)" };
+const DIM = "rgba(22,48,43,0.5)";
+
 export default function BuilderClient({ template }: { template: any }) {
   const supabase = createClient();
 
@@ -41,6 +44,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [zoom, setZoom] = useState(0.42);
+  const [panelTab, setPanelTab] = useState<"style" | "effects">("style");
 
   // ---- Undo/redo history ----
   const [history, setHistory] = useState<FlierElement[][]>([elements]);
@@ -68,6 +72,10 @@ export default function BuilderClient({ template }: { template: any }) {
 
   const selected = elements.find((e) => e.id === selectedId) ?? null;
 
+  useEffect(() => {
+    setPanelTab("style");
+  }, [selectedId]);
+
   function addElement(el: FlierElement) {
     commit([...elements, el]);
     setSelectedId(el.id);
@@ -90,7 +98,6 @@ export default function BuilderClient({ template }: { template: any }) {
     setSelectedId(copy.id);
   }
 
-  // ---- Layer ordering ----
   function reorder(dir: "front" | "back" | "forward" | "backward") {
     if (!selected) return;
     const idx = elements.findIndex((e) => e.id === selected.id);
@@ -112,7 +119,6 @@ export default function BuilderClient({ template }: { template: any }) {
     commit(next);
   }
 
-  // ---- Alignment ----
   function align(pos: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
     if (!selected) return;
     const patch: Partial<FlierElement> = {};
@@ -125,7 +131,6 @@ export default function BuilderClient({ template }: { template: any }) {
     updateSelected(patch);
   }
 
-  // ---- Keyboard shortcuts ----
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -179,26 +184,27 @@ export default function BuilderClient({ template }: { template: any }) {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const toolbarBtn = "text-[11px] px-2.5 py-2 rounded-lg cursor-pointer text-center flex flex-col items-center gap-0.5";
+  const hasEffectsTab = !!selected && selected.type !== "line";
 
   return (
     <div>
-      {/* Top bar */}
-      <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap rounded-2xl bg-white px-4 py-2.5" style={PANEL}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="text-lg font-bold bg-transparent border-none outline-none"
-            style={{ minWidth: 180 }}
+            className="text-base font-bold bg-transparent border-none outline-none"
+            style={{ minWidth: 160 }}
           />
+          <VDivider />
           <input
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="Category"
-            className="text-sm px-2 py-1 rounded"
-            style={{ border: "1px solid var(--portal-line)", width: 130 }}
+            className="text-sm bg-transparent border-none outline-none"
+            style={{ width: 110, color: "#444" }}
           />
+          <VDivider />
           <select
             onChange={(e) => {
               const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
@@ -207,8 +213,8 @@ export default function BuilderClient({ template }: { template: any }) {
                 setCanvasHeight(preset.height);
               }
             }}
-            className="text-xs px-2 py-1.5 rounded"
-            style={{ border: "1px solid var(--portal-line)" }}
+            className="text-sm bg-transparent border-none outline-none cursor-pointer"
+            style={{ color: "#444" }}
             defaultValue=""
           >
             <option value="" disabled>
@@ -220,399 +226,327 @@ export default function BuilderClient({ template }: { template: any }) {
               </option>
             ))}
           </select>
-          <input
-            type="color"
-            value={background}
-            onChange={(e) => setBackground(e.target.value)}
-            title="Canvas background"
-            className="w-7 h-7 rounded cursor-pointer"
-          />
+          <VDivider />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: DIM }}>
+              Background
+            </span>
+            <input
+              type="color"
+              value={background}
+              onChange={(e) => setBackground(e.target.value)}
+              className="w-6 h-6 rounded-md cursor-pointer"
+              style={{ border: "1px solid var(--portal-line)" }}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-xs" style={{ color: "var(--portal-emerald)" }}>Saved ✓</span>}
+          {saved && (
+            <span className="text-xs font-medium" style={{ color: "var(--portal-emerald)" }}>
+              Saved ✓
+            </span>
+          )}
           <button
             onClick={save}
             disabled={saving}
-            className="text-sm px-5 py-2 rounded-lg text-white font-medium cursor-pointer disabled:opacity-60"
-            style={{ background: "var(--portal-emerald)" }}
+            className="text-sm px-6 py-2.5 rounded-xl text-white font-semibold cursor-pointer disabled:opacity-60"
+            style={{ background: "var(--portal-emerald)", boxShadow: "0 2px 8px rgba(31,111,84,0.3)" }}
           >
             {saving ? "Saving…" : "Save Template"}
           </button>
         </div>
       </div>
 
-      {/* Action bar: undo/redo, align, layers, zoom */}
-      <div className="flex items-center gap-1.5 mb-3 flex-wrap p-2 rounded-lg" style={{ background: "white", border: "1px solid var(--portal-line)" }}>
-        <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
-        <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
-        <Divider />
-        <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
-        <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
-        <Divider />
-        <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
-        <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
-        <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
-        <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
-        <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
-        <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
-        <Divider />
-        <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
-        <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
-        <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
-        <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
-        <Divider />
-        <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
-        <span className="text-xs w-10 text-center" style={{ color: "rgba(22,48,43,0.5)" }}>
-          {Math.round(zoom * 100)}%
-        </span>
-        <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
-        <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom"><Icon.ZoomReset /></IconBtn>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <PillGroup>
+          <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
+          <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
+        </PillGroup>
+        <PillGroup>
+          <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
+          <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
+        </PillGroup>
+        <PillGroup>
+          <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
+          <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
+          <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
+          <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
+          <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
+          <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
+        </PillGroup>
+        <PillGroup>
+          <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
+          <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
+          <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
+          <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
+        </PillGroup>
+        <PillGroup>
+          <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
+          <span className="text-xs w-10 text-center font-medium" style={{ color: DIM }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
+          <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom"><Icon.ZoomReset /></IconBtn>
+        </PillGroup>
       </div>
 
-      <div className="flex gap-3">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-1.5 w-16 flex-shrink-0">
-          <button onClick={() => addElement(newTextElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add text">
-            <span style={{ width: 18, height: 18 }}>{ICONS.text}</span>
-            Text
-          </button>
-          <button onClick={() => addElement(newImageElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add image">
-            <span style={{ width: 18, height: 18 }}>{ICONS.image}</span>
-            Image
-          </button>
-          <button onClick={() => addElement(newRectElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add rectangle">
-            <span style={{ width: 18, height: 18 }}>{ICONS.rect}</span>
-            Rect
-          </button>
-          <button onClick={() => addElement(newCircleElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add circle">
-            <span style={{ width: 18, height: 18 }}>{ICONS.circle}</span>
-            Circle
-          </button>
-          <button onClick={() => addElement(newLineElement())} className={toolbarBtn} style={{ border: "1px solid var(--portal-line)", background: "white" }} title="Add line">
-            <span style={{ width: 18, height: 18 }}>{ICONS.line}</span>
-            Line
-          </button>
+      <div className="flex gap-3 items-start">
+        <div className="flex flex-col gap-2 w-[64px] flex-shrink-0 rounded-2xl bg-white p-2" style={PANEL}>
+          <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} />
+          <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} />
+          <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} />
+          <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} />
+          <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} />
         </div>
 
-        {/* Canvas */}
-        <div className="flex-shrink-0 overflow-auto" style={{ border: "1px solid var(--portal-line)", borderRadius: 8, maxHeight: 640 }}>
-          <FlierCanvas
-            width={canvasWidth}
-            height={canvasHeight}
-            background={background}
-            elements={elements}
-            mode="builder"
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onChange={setElements}
-            onCommit={commit}
-            scale={zoom}
-          />
+        <div
+          className="flex-1 rounded-2xl overflow-auto flex items-center justify-center p-8"
+          style={{ background: "#E7E9EA", minHeight: 500, maxHeight: 680 }}
+        >
+          <div style={{ boxShadow: "0 12px 40px rgba(16,24,22,0.22)", borderRadius: 6, overflow: "hidden" }}>
+            <FlierCanvas
+              width={canvasWidth}
+              height={canvasHeight}
+              background={background}
+              elements={elements}
+              mode="builder"
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onChange={setElements}
+              onCommit={commit}
+              scale={zoom}
+            />
+          </div>
         </div>
 
-        {/* Properties panel */}
-        <div className="flex-1 min-w-[220px] space-y-3">
-          {!selected ? (
-            <p className="text-xs" style={{ color: "rgba(22,48,43,0.45)" }}>
-              Select an element on the canvas to edit it, or add a new one from the toolbar. Double-click
-              text to edit it directly. Arrow keys nudge; hold Shift to move faster.
-            </p>
-          ) : (
-            <div className="rounded-xl bg-white p-4 space-y-3" style={{ border: "1px solid var(--portal-line)" }}>
-              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "rgba(22,48,43,0.5)" }}>
-                {selected.type}
-              </div>
-
-              {selected.type === "text" && (
-                <>
-                  <textarea
-                    value={selected.text}
-                    onChange={(e) => updateSelected({ text: e.target.value }, false)}
-                    onBlur={(e) => updateSelected({ text: e.target.value })}
-                    rows={2}
-                    className="w-full rounded-lg px-2 py-1.5 text-sm"
-                    style={{ border: "1px solid var(--portal-line)" }}
-                  />
-                  <select
-                    value={selected.fontFamily}
-                    onChange={(e) => updateSelected({ fontFamily: e.target.value })}
-                    className="w-full rounded-lg px-2 py-1.5 text-sm"
-                    style={{ border: "1px solid var(--portal-line)" }}
-                  >
-                    {BRAND_FONTS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={selected.fontSize}
-                      onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
-                      className="w-1/2 rounded-lg px-2 py-1.5 text-sm"
-                      style={{ border: "1px solid var(--portal-line)" }}
-                    />
-                    <select
-                      value={selected.fontStyle}
-                      onChange={(e) => updateSelected({ fontStyle: e.target.value as any })}
-                      className="w-1/2 rounded-lg px-2 py-1.5 text-sm"
-                      style={{ border: "1px solid var(--portal-line)" }}
-                    >
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
-                      <option value="italic">Italic</option>
-                      <option value="bold italic">Bold Italic</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-1.5">
-                    {(["left", "center", "right"] as const).map((a) => (
-                      <button
-                        key={a}
-                        onClick={() => updateSelected({ align: a })}
-                        className="flex-1 text-xs py-1.5 rounded cursor-pointer"
-                        style={{
-                          border: `1px solid ${selected.align === a ? "var(--portal-emerald)" : "var(--portal-line)"}`,
-                          color: selected.align === a ? "var(--portal-emerald)" : "#666",
-                        }}
-                      >
-                        {a}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <label className="text-[10px]" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      Letter spacing
-                    </label>
-                    <input
-                      type="number"
-                      value={selected.letterSpacing}
-                      onChange={(e) => updateSelected({ letterSpacing: Number(e.target.value) })}
-                      className="w-16 rounded px-1.5 py-1 text-xs"
-                      style={{ border: "1px solid var(--portal-line)" }}
-                    />
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {BRAND_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => updateSelected({ fill: c })}
-                        className="w-6 h-6 rounded-full cursor-pointer"
-                        style={{ background: c, border: selected.fill === c ? "2px solid var(--portal-gold)" : "1px solid var(--portal-line)" }}
-                      />
-                    ))}
-                    <input
-                      type="color"
-                      value={selected.fill}
-                      onChange={(e) => updateSelected({ fill: e.target.value })}
-                      className="w-6 h-6 rounded cursor-pointer"
-                    />
-                  </div>
-                </>
-              )}
-
-              {selected.type === "image" && (
-                <>
-                  <button
-                    onClick={() => setPickerOpen(true)}
-                    className="text-xs px-3 py-2 rounded-lg cursor-pointer w-full"
-                    style={{ border: "1px solid var(--portal-line)" }}
-                  >
-                    {selected.dropboxPath ? "Change Image" : "Choose Image"}
-                  </button>
-
-                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
-                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      Shape mask
-                    </label>
-                    <div className="flex gap-1.5">
-                      {(["rect", "rounded", "circle"] as const).map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => updateSelected({ maskShape: m })}
-                          className="flex-1 text-xs py-1.5 rounded cursor-pointer capitalize"
-                          style={{
-                            border: `1px solid ${selected.maskShape === m ? "var(--portal-emerald)" : "var(--portal-line)"}`,
-                            color: selected.maskShape === m ? "var(--portal-emerald)" : "#666",
-                          }}
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </div>
-                    {selected.maskShape === "rounded" && (
-                      <div className="flex gap-2 items-center mt-1.5">
-                        <label className="text-[10px]" style={{ color: "rgba(22,48,43,0.5)" }}>
-                          Corner radius
-                        </label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={Math.min(selected.width, selected.height) / 2}
-                          value={selected.maskCornerRadius}
-                          onChange={(e) => updateSelected({ maskCornerRadius: Number(e.target.value) }, false)}
-                          onMouseUp={(e) => updateSelected({ maskCornerRadius: Number((e.target as HTMLInputElement).value) })}
-                          className="flex-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
-                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      Reposition in frame
-                    </label>
-                    <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
-                    <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
-                    <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
-                  </div>
-
-                  <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
-                    <label className="block text-[10px] mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      Filter
-                    </label>
-                    <div className="flex gap-1.5 mb-2">
-                      {(["none", "grayscale", "sepia"] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => updateSelected({ filter: f })}
-                          className="flex-1 text-xs py-1.5 rounded cursor-pointer capitalize"
-                          style={{
-                            border: `1px solid ${selected.filter === f ? "var(--portal-emerald)" : "var(--portal-line)"}`,
-                            color: selected.filter === f ? "var(--portal-emerald)" : "#666",
-                          }}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                    <SliderRow label="Brightness" min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
-                    <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
-                    <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
-                  </div>
-
-                  <BorderShadowControls selected={selected} updateSelected={updateSelected} />
-                </>
-              )}
-
-              {(selected.type === "rect" || selected.type === "circle") && (
-                <div className="flex gap-1.5 flex-wrap">
-                  {BRAND_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => updateSelected({ fill: c })}
-                      className="w-6 h-6 rounded-full cursor-pointer"
-                      style={{ background: c, border: (selected as any).fill === c ? "2px solid var(--portal-gold)" : "1px solid var(--portal-line)" }}
-                    />
-                  ))}
-                  <input type="color" value={(selected as any).fill} onChange={(e) => updateSelected({ fill: e.target.value })} className="w-6 h-6 rounded cursor-pointer" />
-                </div>
-              )}
-
-              {(selected.type === "rect" || selected.type === "circle") && (
-                <BorderShadowControls selected={selected} updateSelected={updateSelected} />
-              )}
-
-              {selected.type === "rect" && (
-                <div className="flex gap-2 items-center">
-                  <label className="text-[10px]" style={{ color: "rgba(22,48,43,0.5)" }}>
-                    Corner radius
-                  </label>
-                  <input
-                    type="number"
-                    value={selected.cornerRadius}
-                    onChange={(e) => updateSelected({ cornerRadius: Number(e.target.value) })}
-                    className="w-16 rounded px-1.5 py-1 text-xs"
-                    style={{ border: "1px solid var(--portal-line)" }}
-                  />
-                </div>
-              )}
-
-              {selected.type === "line" && (
-                <>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {BRAND_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => updateSelected({ stroke: c })}
-                        className="w-6 h-6 rounded-full cursor-pointer"
-                        style={{ background: c, border: (selected as any).stroke === c ? "2px solid var(--portal-gold)" : "1px solid var(--portal-line)" }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <label className="text-[10px]" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      Thickness
-                    </label>
-                    <input
-                      type="number"
-                      value={selected.strokeWidth}
-                      onChange={(e) => updateSelected({ strokeWidth: Number(e.target.value) })}
-                      className="w-16 rounded px-1.5 py-1 text-xs"
-                      style={{ border: "1px solid var(--portal-line)" }}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex gap-2 items-center pt-1" style={{ borderTop: "1px solid var(--portal-line)" }}>
-                <label className="text-[10px] pt-1" style={{ color: "rgba(22,48,43,0.5)" }}>
-                  Opacity
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={(selected as any).opacity ?? 1}
-                  onChange={(e) => updateSelected({ opacity: Number(e.target.value) } as any, false)}
-                  onMouseUp={(e) => updateSelected({ opacity: Number((e.target as HTMLInputElement).value) } as any)}
-                  className="flex-1"
-                />
-              </div>
-
-              {selected.type !== "rect" && selected.type !== "circle" && selected.type !== "line" && (
-                <div className="pt-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
-                  <label className="flex items-center gap-2 text-xs mb-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.editable}
-                      onChange={(e) => updateSelected({ editable: e.target.checked })}
-                    />
-                    Editable by field offices
-                  </label>
-                  {selected.editable && (
-                    <input
-                      value={(selected as any).editableLabel ?? ""}
-                      onChange={(e) => updateSelected({ editableLabel: e.target.value } as any, false)}
-                      onBlur={(e) => updateSelected({ editableLabel: e.target.value } as any)}
-                      placeholder="Field label (e.g. Event Title)"
-                      className="w-full rounded-lg px-2 py-1.5 text-xs"
-                      style={{ border: "1px solid var(--portal-line)" }}
-                    />
+        <div className="w-[268px] flex-shrink-0 space-y-3">
+          <div className="rounded-2xl bg-white overflow-hidden" style={PANEL}>
+            {!selected ? (
+              <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
+                Select an element on the canvas to edit it, or add a new one from the left. Double-click
+                text to edit it directly. Arrow keys nudge; hold Shift to move faster.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center" style={{ borderBottom: "1px solid var(--portal-line)" }}>
+                  <TabBtn active={panelTab === "style"} onClick={() => setPanelTab("style")} icon={<Icon.Style />} label="Style" />
+                  {hasEffectsTab && (
+                    <TabBtn active={panelTab === "effects"} onClick={() => setPanelTab("effects")} icon={<Icon.Effects />} label="Effects" />
                   )}
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* Layers list */}
-          <div className="rounded-xl bg-white p-3" style={{ border: "1px solid var(--portal-line)" }}>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "rgba(22,48,43,0.5)" }}>
+                <div className="p-4 space-y-3">
+                  {panelTab === "style" && (
+                    <>
+                      {selected.type === "text" && (
+                        <>
+                          <textarea
+                            value={selected.text}
+                            onChange={(e) => updateSelected({ text: e.target.value }, false)}
+                            onBlur={(e) => updateSelected({ text: e.target.value })}
+                            rows={2}
+                            className="w-full rounded-lg px-2.5 py-2 text-sm"
+                            style={{ border: "1px solid var(--portal-line)" }}
+                          />
+                          <select
+                            value={selected.fontFamily}
+                            onChange={(e) => updateSelected({ fontFamily: e.target.value })}
+                            className="w-full rounded-lg px-2.5 py-2 text-sm"
+                            style={{ border: "1px solid var(--portal-line)" }}
+                          >
+                            {BRAND_FONTS.map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={selected.fontSize}
+                              onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
+                              className="w-1/2 rounded-lg px-2.5 py-2 text-sm"
+                              style={{ border: "1px solid var(--portal-line)" }}
+                            />
+                            <div className="flex flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--portal-line)" }}>
+                              <ToggleIconBtn
+                                active={selected.fontStyle.includes("bold")}
+                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "bold") as any })}
+                                icon={<Icon.Bold />}
+                              />
+                              <ToggleIconBtn
+                                active={selected.fontStyle.includes("italic")}
+                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "italic") as any })}
+                                icon={<Icon.Italic />}
+                              />
+                              <ToggleIconBtn active={selected.align === "left"} onClick={() => updateSelected({ align: "left" })} icon={<Icon.AlignLeft />} />
+                              <ToggleIconBtn active={selected.align === "center"} onClick={() => updateSelected({ align: "center" })} icon={<Icon.AlignCenterH />} />
+                              <ToggleIconBtn active={selected.align === "right"} onClick={() => updateSelected({ align: "right" })} icon={<Icon.AlignRight />} />
+                            </div>
+                          </div>
+                          <SliderRow
+                            label="Letter sp."
+                            min={-2}
+                            max={20}
+                            step={1}
+                            value={selected.letterSpacing}
+                            onChange={(v) => updateSelected({ letterSpacing: v }, false)}
+                            onCommit={(v) => updateSelected({ letterSpacing: v })}
+                          />
+                          <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                        </>
+                      )}
+
+                      {selected.type === "image" && (
+                        <button
+                          onClick={() => setPickerOpen(true)}
+                          className="text-xs px-3 py-2.5 rounded-lg cursor-pointer w-full font-medium flex items-center justify-center gap-2"
+                          style={{ border: "1.5px solid var(--portal-emerald)", color: "var(--portal-emerald)" }}
+                        >
+                          <span style={{ width: 14, height: 14 }}>
+                            <Icon.ImagePicker />
+                          </span>
+                          {selected.dropboxPath ? "Change Image" : "Choose Image"}
+                        </button>
+                      )}
+
+                      {(selected.type === "rect" || selected.type === "circle") && (
+                        <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
+                      )}
+
+                      {selected.type === "rect" && (
+                        <SliderRow
+                          label="Corners"
+                          min={0}
+                          max={Math.min(selected.width, selected.height) / 2}
+                          step={1}
+                          value={selected.cornerRadius}
+                          onChange={(v) => updateSelected({ cornerRadius: v }, false)}
+                          onCommit={(v) => updateSelected({ cornerRadius: v })}
+                        />
+                      )}
+
+                      {selected.type === "line" && (
+                        <>
+                          <ColorSwatchRow value={selected.stroke} onChange={(c) => updateSelected({ stroke: c })} />
+                          <SliderRow
+                            label="Thickness"
+                            min={1}
+                            max={20}
+                            step={1}
+                            value={selected.strokeWidth}
+                            onChange={(v) => updateSelected({ strokeWidth: v }, false)}
+                            onCommit={(v) => updateSelected({ strokeWidth: v })}
+                          />
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {panelTab === "effects" && selected.type === "image" && (
+                    <>
+                      <PanelLabel>Shape mask</PanelLabel>
+                      <div className="flex gap-1.5">
+                        {(["rect", "rounded", "circle"] as const).map((m) => (
+                          <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
+                            {m}
+                          </SegBtn>
+                        ))}
+                      </div>
+                      {selected.maskShape === "rounded" && (
+                        <SliderRow
+                          label="Radius"
+                          min={0}
+                          max={Math.min(selected.width, selected.height) / 2}
+                          step={1}
+                          value={selected.maskCornerRadius}
+                          onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
+                          onCommit={(v) => updateSelected({ maskCornerRadius: v })}
+                        />
+                      )}
+
+                      <PanelDivider />
+                      <PanelLabel>Reposition in frame</PanelLabel>
+                      <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
+                      <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
+                      <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
+
+                      <PanelDivider />
+                      <PanelLabel>Filter</PanelLabel>
+                      <div className="flex gap-1.5 mb-1">
+                        {(["none", "grayscale", "sepia"] as const).map((f) => (
+                          <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
+                            {f}
+                          </SegBtn>
+                        ))}
+                      </div>
+                      <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
+                      <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                      <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+
+                      <PanelDivider />
+                      <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
+                    </>
+                  )}
+
+                  {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
+                    <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
+                  )}
+
+                  {panelTab === "effects" && selected.type === "text" && (
+                    <SliderRow
+                      label="Opacity"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={(selected as any).opacity ?? 1}
+                      onChange={(v) => updateSelected({ opacity: v } as any, false)}
+                      onCommit={(v) => updateSelected({ opacity: v } as any)}
+                    />
+                  )}
+
+                  {selected.type !== "rect" && selected.type !== "circle" && selected.type !== "line" && (
+                    <div className="pt-3" style={{ borderTop: "1px solid var(--portal-line)" }}>
+                      <label className="flex items-center gap-2 text-xs mb-2 cursor-pointer">
+                        <input type="checkbox" checked={selected.editable} onChange={(e) => updateSelected({ editable: e.target.checked })} />
+                        Editable by field offices
+                      </label>
+                      {selected.editable && (
+                        <input
+                          value={(selected as any).editableLabel ?? ""}
+                          onChange={(e) => updateSelected({ editableLabel: e.target.value } as any, false)}
+                          onBlur={(e) => updateSelected({ editableLabel: e.target.value } as any)}
+                          placeholder="Field label (e.g. Event Title)"
+                          className="w-full rounded-lg px-2.5 py-2 text-xs"
+                          style={{ border: "1px solid var(--portal-line)" }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="rounded-2xl bg-white p-3" style={PANEL}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide mb-2 px-1" style={{ color: DIM }}>
+              <span style={{ width: 12, height: 12 }}>
+                <Icon.Layers />
+              </span>
               Layers ({elements.length})
             </div>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div className="space-y-0.5 max-h-48 overflow-y-auto">
               {[...elements].reverse().map((el) => (
                 <button
                   key={el.id}
                   onClick={() => setSelectedId(el.id)}
-                  className="w-full text-left text-xs px-2 py-1.5 rounded cursor-pointer flex items-center gap-2"
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg cursor-pointer flex items-center gap-2 transition-colors"
                   style={{
                     background: selectedId === el.id ? "#F3F8F6" : "transparent",
                     color: selectedId === el.id ? "var(--portal-emerald)" : "#444",
                   }}
                 >
-                  <span style={{ width: 14, height: 14, display: "inline-block" }}>{ICONS[el.type as keyof typeof ICONS]}</span>
+                  <span style={{ width: 14, height: 14, display: "inline-block", flexShrink: 0 }}>{ICONS[el.type as keyof typeof ICONS]}</span>
                   <span className="truncate">
                     {el.type === "text" ? el.text.slice(0, 20) || "Text" : el.type}
                     {(el as any).editable ? " · editable" : ""}
@@ -620,7 +554,7 @@ export default function BuilderClient({ template }: { template: any }) {
                 </button>
               ))}
               {elements.length === 0 && (
-                <p className="text-xs" style={{ color: "rgba(22,48,43,0.4)" }}>
+                <p className="text-xs px-1" style={{ color: "rgba(22,48,43,0.4)" }}>
                   No elements yet.
                 </p>
               )}
@@ -642,6 +576,29 @@ export default function BuilderClient({ template }: { template: any }) {
   );
 }
 
+function toggleStyle(current: string, kind: "bold" | "italic"): string {
+  const hasBold = current.includes("bold");
+  const hasItalic = current.includes("italic");
+  const nextBold = kind === "bold" ? !hasBold : hasBold;
+  const nextItalic = kind === "italic" ? !hasItalic : hasItalic;
+  if (nextBold && nextItalic) return "bold italic";
+  if (nextBold) return "bold";
+  if (nextItalic) return "italic";
+  return "normal";
+}
+
+function VDivider() {
+  return <div className="w-px h-5" style={{ background: "var(--portal-line)" }} />;
+}
+
+function PillGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-full bg-white px-2 py-1.5" style={PANEL}>
+      {children}
+    </div>
+  );
+}
+
 function IconBtn({
   children,
   onClick,
@@ -658,16 +615,103 @@ function IconBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-8 h-8 rounded-md flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/5"
+      className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed hover:bg-black/[0.06] transition-colors"
       style={{ color: "#333" }}
     >
-      <span style={{ width: 16, height: 16, display: "inline-block" }}>{children}</span>
+      <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
     </button>
   );
 }
 
-function Divider() {
-  return <div className="w-px h-5 mx-1" style={{ background: "var(--portal-line)" }} />;
+function RailBtn({ onClick, label, icon }: { onClick: () => void; label: string; icon: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={`Add ${label}`}
+      className="flex flex-col items-center gap-1 py-2.5 rounded-xl cursor-pointer hover:bg-black/[0.04] transition-colors"
+    >
+      <span style={{ width: 18, height: 18, color: "#333" }}>{icon}</span>
+      <span className="text-[10px]" style={{ color: DIM }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 cursor-pointer transition-colors"
+      style={{
+        color: active ? "var(--portal-emerald)" : DIM,
+        borderBottom: active ? "2px solid var(--portal-emerald)" : "2px solid transparent",
+        marginBottom: -1,
+      }}
+    >
+      <span style={{ width: 13, height: 13 }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function ToggleIconBtn({ active, onClick, icon }: { active: boolean; onClick: () => void; icon: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex-1 flex items-center justify-center py-1.5 cursor-pointer transition-colors"
+      style={{ background: active ? "var(--portal-emerald)" : "transparent", color: active ? "white" : "#555" }}
+    >
+      <span style={{ width: 14, height: 14 }}>{icon}</span>
+    </button>
+  );
+}
+
+function SegBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex-1 text-xs py-1.5 rounded-lg cursor-pointer capitalize transition-colors"
+      style={{
+        border: `1px solid ${active ? "var(--portal-emerald)" : "var(--portal-line)"}`,
+        color: active ? "var(--portal-emerald)" : "#666",
+        background: active ? "#F3F8F6" : "white",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PanelLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: DIM }}>
+      {children}
+    </div>
+  );
+}
+
+function PanelDivider() {
+  return <div className="my-1" style={{ borderTop: "1px solid var(--portal-line)" }} />;
+}
+
+function ColorSwatchRow({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  return (
+    <div className="flex gap-1.5 flex-wrap items-center">
+      {BRAND_COLORS.map((c) => (
+        <button
+          key={c}
+          onClick={() => onChange(c)}
+          className="w-6 h-6 rounded-full cursor-pointer flex-shrink-0 transition-transform hover:scale-110"
+          style={{
+            background: c,
+            border: value === c ? "2px solid var(--portal-gold)" : "1px solid var(--portal-line)",
+          }}
+        />
+      ))}
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-6 h-6 rounded-full cursor-pointer flex-shrink-0" title="Custom color" />
+    </div>
+  );
 }
 
 function SliderRow({
@@ -689,7 +733,7 @@ function SliderRow({
 }) {
   return (
     <div className="flex gap-2 items-center mb-1">
-      <label className="text-[10px] w-14 flex-shrink-0" style={{ color: "rgba(22,48,43,0.5)" }}>
+      <label className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
         {label}
       </label>
       <input
@@ -701,16 +745,21 @@ function SliderRow({
         onChange={(e) => onChange(Number(e.target.value))}
         onMouseUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
         className="flex-1"
+        style={{ accentColor: "var(--portal-emerald)" }}
       />
+      <span className="text-[10px] w-8 text-right flex-shrink-0" style={{ color: DIM }}>
+        {Math.round(value * 100) / 100}
+      </span>
     </div>
   );
 }
 
-function BorderShadowControls({ selected, updateSelected }: { selected: any; updateSelected: (patch: any, commit?: boolean) => void }) {
+function BorderShadowOpacityControls({ selected, updateSelected }: { selected: any; updateSelected: (patch: any, commit?: boolean) => void }) {
   return (
-    <div className="pt-2 space-y-2" style={{ borderTop: "1px solid var(--portal-line)" }}>
+    <div className="space-y-2">
+      <PanelLabel>Border &amp; shadow</PanelLabel>
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] w-14 flex-shrink-0" style={{ color: "rgba(22,48,43,0.5)" }}>
+        <label className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
           Border
         </label>
         <input
@@ -721,18 +770,29 @@ function BorderShadowControls({ selected, updateSelected }: { selected: any; upd
           onChange={(e) => updateSelected({ borderWidth: Number(e.target.value) }, false)}
           onMouseUp={(e) => updateSelected({ borderWidth: Number((e.target as HTMLInputElement).value) })}
           className="flex-1"
+          style={{ accentColor: "var(--portal-emerald)" }}
         />
         <input
           type="color"
           value={selected.borderColor}
           onChange={(e) => updateSelected({ borderColor: e.target.value })}
-          className="w-6 h-6 rounded cursor-pointer flex-shrink-0"
+          className="w-6 h-6 rounded-full cursor-pointer flex-shrink-0"
         />
       </div>
-      <label className="flex items-center gap-2 text-xs">
+      <label className="flex items-center gap-2 text-xs cursor-pointer">
         <input type="checkbox" checked={selected.shadow} onChange={(e) => updateSelected({ shadow: e.target.checked })} />
         Drop shadow
       </label>
+      <PanelDivider />
+      <SliderRow
+        label="Opacity"
+        min={0}
+        max={1}
+        step={0.05}
+        value={selected.opacity ?? 1}
+        onChange={(v) => updateSelected({ opacity: v }, false)}
+        onCommit={(v) => updateSelected({ opacity: v })}
+      />
     </div>
   );
 }

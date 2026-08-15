@@ -307,6 +307,15 @@ export default function FlierCanvas({
             <Transformer
               ref={trRef}
               boundBoxFunc={(oldBox, newBox) => (newBox.width < 10 || newBox.height < 10 ? oldBox : newBox)}
+              anchorSize={9}
+              anchorCornerRadius={5}
+              anchorStroke="#1F6F54"
+              anchorFill="#FFFFFF"
+              anchorStrokeWidth={1.5}
+              borderStroke="#1F6F54"
+              borderStrokeWidth={1.5}
+              borderDash={[4, 3]}
+              rotateAnchorOffset={22}
             />
           )}
         </Layer>
