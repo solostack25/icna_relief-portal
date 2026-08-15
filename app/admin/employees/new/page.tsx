@@ -99,19 +99,10 @@ export default function NewEmployeePage() {
   const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-xl font-semibold">Add Employee</h1>
-          <Link
-            href="/admin"
-            className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-          >
-            ← Admin
-          </Link>
-        </div>
+    <div>
+      <h1 className="text-xl font-semibold mb-8">Add Employee</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
             <h2 className="text-sm font-medium">Details</h2>
             <div className="grid grid-cols-2 gap-4">
@@ -244,7 +235,6 @@ export default function NewEmployeePage() {
             {saving ? "Creating..." : "Create Employee & Send Invite"}
           </button>
         </form>
-      </div>
-    </main>
+    </div>
   );
 }

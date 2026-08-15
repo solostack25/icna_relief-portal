@@ -69,25 +69,24 @@ export default async function ReviewDetailPage({
   );
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-2xl mx-auto">
-        <Link
-          href={`/admin/review?program=${program}`}
-          className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-        >
-          ← Back to review list
-        </Link>
+    <div>
+      <Link
+        href={`/admin/review?program=${program}`}
+        className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+      >
+        ← Back to review list
+      </Link>
 
-        <div className="mt-4 mb-8">
-          <h1 className="text-xl font-semibold">
-            {PROGRAM_LABELS[program]} Submission
-          </h1>
-          <p className="text-sm text-[var(--color-text-dim)]">
-            {office?.field_office} ({office?.region}) · {submission.month}/{submission.year}
-          </p>
-        </div>
+      <div className="mt-4 mb-8">
+        <h1 className="text-xl font-semibold">
+          {PROGRAM_LABELS[program]} Submission
+        </h1>
+        <p className="text-sm text-[var(--color-text-dim)]">
+          {office?.field_office} ({office?.region}) · {submission.month}/{submission.year}
+        </p>
+      </div>
 
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
+      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
           <h2 className="text-sm font-medium mb-4">Submitted Data</h2>
           <dl className="grid grid-cols-2 gap-y-3 text-sm">
             {fieldEntries.map(([key, value]) => (
@@ -120,7 +119,6 @@ export default async function ReviewDetailPage({
           submissionId={id}
           currentStatus={submission.status}
         />
-      </div>
-    </main>
+    </div>
   );
 }

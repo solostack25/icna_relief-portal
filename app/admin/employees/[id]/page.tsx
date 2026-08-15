@@ -58,40 +58,38 @@ export default async function EmployeeDetailPage({
   const grantedSlugs = (access ?? []).map((a) => a.program_slug);
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-xl mx-auto">
-        <Link
-          href="/admin"
-          className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-        >
-          ← Back to employees
-        </Link>
+    <div>
+      <Link
+        href="/admin"
+        className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+      >
+        ← Back to employees
+      </Link>
 
-        <h1 className="text-xl font-semibold mt-4 mb-1">
-          {employee.first_name} {employee.last_name}
-        </h1>
-        <p className="text-sm text-[var(--color-text-dim)] mb-8">
-          {employee.email}
-        </p>
+      <h1 className="text-xl font-semibold mt-4 mb-1">
+        {employee.first_name} {employee.last_name}
+      </h1>
+      <p className="text-sm text-[var(--color-text-dim)] mb-8">
+        {employee.email}
+      </p>
 
-        <div className="space-y-8">
-          <OfficeAssignmentEditor
-            employeeId={employee.id}
-            offices={offices ?? []}
-            regions={regions ?? []}
-            currentOfficeId={employee.assigned_office_id}
-            currentRegion={employee.assigned_region}
-            currentRole={employee.role}
-          />
+      <div className="space-y-8">
+        <OfficeAssignmentEditor
+          employeeId={employee.id}
+          offices={offices ?? []}
+          regions={regions ?? []}
+          currentOfficeId={employee.assigned_office_id}
+          currentRegion={employee.assigned_region}
+          currentRole={employee.role}
+        />
 
-          <AccessEditor
-            employeeId={employee.id}
-            authUserId={employee.auth_user_id}
-            allApps={allApps ?? []}
-            grantedSlugs={grantedSlugs}
-          />
-        </div>
+        <AccessEditor
+          employeeId={employee.id}
+          authUserId={employee.auth_user_id}
+          allApps={allApps ?? []}
+          grantedSlugs={grantedSlugs}
+        />
       </div>
-    </main>
+    </div>
   );
 }

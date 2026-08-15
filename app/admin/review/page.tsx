@@ -52,11 +52,9 @@ export default async function AdminReviewPage({
 
   if (!activeProgram) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <p className="text-sm text-[var(--color-text-dim)]">
-          You don't have review access to any program yet. Contact an admin.
-        </p>
-      </main>
+      <p className="text-sm text-[var(--color-text-dim)]">
+        You don't have review access to any program yet. Contact an admin.
+      </p>
     );
   }
 
@@ -85,21 +83,14 @@ export default async function AdminReviewPage({
   }
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold">Review Submissions</h1>
-            <p className="text-sm text-[var(--color-text-dim)]">
-              Mark field submissions reviewed, or flag issues back to the office
-            </p>
-          </div>
-          <Link
-            href={me.role === "admin" ? "/admin" : "/select-app"}
-            className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
-          >
-            ← {me.role === "admin" ? "Admin" : "Back"}
-          </Link>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold">Review Submissions</h1>
+          <p className="text-sm text-[var(--color-text-dim)]">
+            Mark field submissions reviewed, or flag issues back to the office
+          </p>
+        </div>
         </div>
 
         <div className="flex gap-2 mb-4">
@@ -164,7 +155,6 @@ export default async function AdminReviewPage({
             })
           )}
         </div>
-      </div>
-    </main>
+    </div>
   );
 }

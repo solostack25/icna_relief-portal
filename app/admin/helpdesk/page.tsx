@@ -91,48 +91,44 @@ export default async function AdminHelpdeskPage({
   };
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold">Help Desk — Workload</h1>
-            <p className="text-sm text-[var(--color-text-dim)]">
-              Open, in progress, and on-hold tickets by team member
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/helpdesk/manage"
-              className="text-sm text-[var(--color-accent)] hover:underline"
-            >
-              Manage Tickets
-            </Link>
-            <Link
-              href="/helpdesk/wizard"
-              className="text-sm text-[var(--color-accent)] hover:underline"
-            >
-              Submit a Ticket
-            </Link>
-            <Link href="/admin" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
-              ← Back to Admin
-            </Link>
-          </div>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold">Help Desk — Workload</h1>
+          <p className="text-sm text-[var(--color-text-dim)]">
+            Open, in progress, and on-hold tickets by team member
+          </p>
         </div>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/helpdesk/manage"
+            className="text-sm text-[var(--color-accent)] hover:underline"
+          >
+            Manage Tickets
+          </Link>
+          <Link
+            href="/helpdesk/wizard"
+            className="text-sm text-[var(--color-accent)] hover:underline"
+          >
+            Submit a Ticket
+          </Link>
+        </div>
+      </div>
 
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {ALL_DEPARTMENTS.map((d) => (
-            <Link
-              key={d}
-              href={`/admin/helpdesk?dept=${d}`}
-              className={`px-3 py-1.5 rounded-lg text-sm border ${
-                activeDept === d
-                  ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
-                  : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-accent)]"
-              }`}
-            >
-              {DEPARTMENT_LABELS[d]}
-            </Link>
-          ))}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {ALL_DEPARTMENTS.map((d) => (
+          <Link
+            key={d}
+            href={`/admin/helpdesk?dept=${d}`}
+            className={`px-3 py-1.5 rounded-lg text-sm border ${
+              activeDept === d
+                ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-accent)]"
+            }`}
+          >
+            {DEPARTMENT_LABELS[d]}
+          </Link>
+        ))}
         </div>
 
         <form action="/api/admin/import-it-tickets" method="POST" className="mb-8">
@@ -186,7 +182,6 @@ export default async function AdminHelpdeskPage({
             </div>
           ))}
         </div>
-      </div>
-    </main>
+    </div>
   );
 }
