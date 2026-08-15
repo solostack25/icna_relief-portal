@@ -472,6 +472,45 @@ export default function BuilderClient({ template }: { template: any }) {
                         <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
                       )}
 
+                      {(selected.type === "rect" || selected.type === "circle") && (
+                        <div className="pt-1">
+                          <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selected.gradient.enabled}
+                              onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
+                            />
+                            Gradient fill
+                          </label>
+                          {selected.gradient.enabled && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={selected.gradient.from}
+                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
+                                className="w-6 h-6 rounded-full cursor-pointer"
+                              />
+                              <input
+                                type="color"
+                                value={selected.gradient.to}
+                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
+                                className="w-6 h-6 rounded-full cursor-pointer"
+                              />
+                              <select
+                                value={selected.gradient.direction}
+                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
+                                className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+                                style={{ border: "1px solid var(--portal-line)" }}
+                              >
+                                <option value="horizontal">Horizontal</option>
+                                <option value="vertical">Vertical</option>
+                                <option value="diagonal">Diagonal</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {selected.type === "star" && (
                         <SliderRow
                           label="Points"

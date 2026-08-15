@@ -31,6 +31,32 @@ export const ICON_LIBRARY: IconDef[] = [
   },
   { id: "flag", label: "Flag", path: "M4 2 L4 10 L18 6 Z", mode: "filled" },
   {
+    id: "calendar",
+    label: "Calendar",
+    path: "M3 4 L21 4 L21 20 L3 20 Z M3 8 L21 8 M7 2 L7 6 M17 2 L17 6",
+    mode: "stroke",
+  },
+  {
+    id: "pin",
+    label: "Location Pin",
+    path: "M12 2 C8.13 2 5 5.13 5 9 C5 14.25 12 22 12 22 C12 22 19 14.25 19 9 C19 5.13 15.87 2 12 2 Z",
+    mode: "filled",
+  },
+  {
+    id: "phone",
+    label: "Phone",
+    path:
+      "M7 2 L17 2 C17.55 2 18 2.45 18 3 L18 21 C18 21.55 17.55 22 17 22 L7 22 C6.45 22 6 21.55 6 21 L6 3 C6 2.45 6.45 2 7 2 Z M12 17.8 C12.66 17.8 13.2 18.34 13.2 19 C13.2 19.66 12.66 20.2 12 20.2 C11.34 20.2 10.8 19.66 10.8 19 C10.8 18.34 11.34 17.8 12 17.8 Z",
+    mode: "stroke",
+  },
+  {
+    id: "globe",
+    label: "Globe",
+    path:
+      "M12 2 C17.52 2 22 6.48 22 12 C22 17.52 17.52 22 12 22 C6.48 22 2 17.52 2 12 C2 6.48 6.48 2 12 2 Z M2 12 L22 12 M12 2 C8 6 8 18 12 22 M12 2 C16 6 16 18 12 22",
+    mode: "stroke",
+  },
+  {
     id: "sparkle",
     label: "Sparkle",
     path: "M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z",

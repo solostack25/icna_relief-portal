@@ -62,6 +62,20 @@ export type FlierImageElement = {
   shadow: boolean;
 };
 
+export type GradientProps = {
+  enabled: boolean;
+  from: string;
+  to: string;
+  direction: "horizontal" | "vertical" | "diagonal";
+};
+
+export const defaultGradient = (): GradientProps => ({
+  enabled: false,
+  from: "#1F6F54",
+  to: "#C99A3D",
+  direction: "diagonal",
+});
+
 export type FlierRectElement = {
   id: string;
   type: "rect";
@@ -72,6 +86,7 @@ export type FlierRectElement = {
   rotation: number;
   opacity: number;
   fill: string;
+  gradient: GradientProps;
   cornerRadius: number;
   borderWidth: number;
   borderColor: string;
@@ -89,6 +104,7 @@ export type FlierCircleElement = {
   rotation: number;
   opacity: number;
   fill: string;
+  gradient: GradientProps;
   borderWidth: number;
   borderColor: string;
   shadow: boolean;
@@ -315,6 +331,7 @@ export function newRectElement(overrides: Partial<FlierRectElement> = {}): Flier
     rotation: 0,
     opacity: 1,
     fill: "#1F6F54",
+    gradient: defaultGradient(),
     cornerRadius: 0,
     borderWidth: 0,
     borderColor: "#16302B",
@@ -335,6 +352,7 @@ export function newCircleElement(overrides: Partial<FlierCircleElement> = {}): F
     rotation: 0,
     opacity: 1,
     fill: "#C99A3D",
+    gradient: defaultGradient(),
     borderWidth: 0,
     borderColor: "#16302B",
     shadow: false,

@@ -25,6 +25,22 @@ function useHtmlImage(url: string | null): HTMLImageElement | null {
   return img;
 }
 
+function gradientFillProps(el: any, width: number, height: number) {
+  if (!el.gradient?.enabled) return { fill: el.fill };
+  const { from, to, direction } = el.gradient;
+  const points =
+    direction === "horizontal"
+      ? { start: { x: 0, y: height / 2 }, end: { x: width, y: height / 2 } }
+      : direction === "vertical"
+        ? { start: { x: width / 2, y: 0 }, end: { x: width / 2, y: height } }
+        : { start: { x: 0, y: 0 }, end: { x: width, y: height } };
+  return {
+    fillLinearGradientStartPoint: points.start,
+    fillLinearGradientEndPoint: points.end,
+    fillLinearGradientColorStops: [0, from, 1, to],
+  };
+}
+
 function maskClipFunc(el: FlierImageElement) {
   return (ctx: any) => {
     if (el.maskShape === "circle") {
@@ -265,7 +281,7 @@ export default function FlierCanvas({
                   width={el.width}
                   height={el.height}
                   rotation={el.rotation}
-                  fill={el.fill}
+                  {...gradientFillProps(el, el.width, el.height)}
                   cornerRadius={el.cornerRadius}
                 />
               );
@@ -273,7 +289,15 @@ export default function FlierCanvas({
             if (el.type === "circle") {
               return (
                 <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
-                  <Ellipse {...shadowProps} {...borderProps} x={el.width / 2} y={el.height / 2} radiusX={el.width / 2} radiusY={el.height / 2} fill={el.fill} />
+                  <Ellipse
+                    {...shadowProps}
+                    {...borderProps}
+                    x={el.width / 2}
+                    y={el.height / 2}
+                    radiusX={el.width / 2}
+                    radiusY={el.height / 2}
+                    {...gradientFillProps(el, el.width, el.height)}
+                  />
                 </Group>
               );
             }
