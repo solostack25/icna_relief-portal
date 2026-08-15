@@ -48,10 +48,14 @@ export type FlierImageElement = {
   cropOffsetY: number;
   cropZoom: number;
   // Photoshop-style filters, applied via Konva's native filter pipeline.
-  filter: "none" | "grayscale" | "sepia";
+  filter: "none" | "grayscale" | "sepia" | "invert" | "posterize" | "duotone";
   brightness: number; // -1..1
   contrast: number; // -100..100 (Konva's Contrast filter range)
   blur: number; // 0..20
+  saturation: number; // -2..2 (Konva's HSL filter saturation range)
+  hue: number; // 0..360 (Konva's HSL filter hue range)
+  duotoneShadow: string; // hex, used when filter === "duotone"
+  duotoneHighlight: string; // hex, used when filter === "duotone"
   // Border + shadow, shared styling concept across shapes/images.
   borderWidth: number;
   borderColor: string;
@@ -115,13 +119,65 @@ export type FlierElement = FlierTextElement | FlierImageElement | FlierRectEleme
 export const BRAND_FONTS = ["Manrope", "Fraunces", "IBM Plex Mono"];
 export const BRAND_COLORS = ["#16302B", "#1F6F54", "#C99A3D", "#FBF7EF", "#FFFFFF", "#3E7C9A", "#B55139"];
 
-export const CANVAS_SIZE_PRESETS = [
-  { label: "Flier (Print)", width: 1080, height: 1350 },
-  { label: "Instagram Post", width: 1080, height: 1080 },
-  { label: "Instagram Story", width: 1080, height: 1920 },
-  { label: "Facebook Post", width: 1200, height: 630 },
-  { label: "US Letter Poster", width: 850, height: 1100 },
+export type SizePreset = { label: string; width: number; height: number; group: string };
+
+export const CANVAS_SIZE_PRESETS: SizePreset[] = [
+  { label: "Flier (Print)", width: 1080, height: 1350, group: "Print" },
+  { label: "US Letter Poster", width: 850, height: 1100, group: "Print" },
+
+  { label: "Instagram Feed (Portrait)", width: 1080, height: 1350, group: "Instagram" },
+  { label: "Instagram Feed (Square)", width: 1080, height: 1080, group: "Instagram" },
+  { label: "Instagram Story / Reel", width: 1080, height: 1920, group: "Instagram" },
+
+  { label: "Facebook Post", width: 1200, height: 630, group: "Facebook" },
+  { label: "Facebook Cover", width: 851, height: 315, group: "Facebook" },
+  { label: "Facebook Story", width: 1080, height: 1920, group: "Facebook" },
+
+  { label: "LinkedIn Post", width: 1200, height: 1200, group: "LinkedIn" },
+  { label: "LinkedIn Company Cover", width: 1128, height: 191, group: "LinkedIn" },
+
+  { label: "YouTube Thumbnail", width: 1280, height: 720, group: "YouTube" },
+  { label: "YouTube Channel Banner", width: 2560, height: 1440, group: "YouTube" },
+
+  { label: "TikTok Post", width: 1080, height: 1920, group: "TikTok" },
+
+  { label: "Pinterest Pin", width: 1000, height: 1500, group: "Pinterest" },
+
+  { label: "X / Twitter Post", width: 1600, height: 900, group: "X / Twitter" },
+  { label: "X / Twitter Header", width: 1500, height: 500, group: "X / Twitter" },
 ];
+
+// Proportional resize: scales every element by the SAME factor (the
+// smaller of the two axis ratios, so nothing overflows or distorts),
+// then re-centers the scaled content in the new canvas. Distinct from
+// just changing canvas_width/height directly (which is for starting a
+// blank template at a given size) - this is for taking an EXISTING
+// design and adapting it to a different platform's dimensions as a
+// real starting point, not a from-scratch redo.
+export function resizeElementsToCanvas(
+  elements: FlierElement[],
+  oldWidth: number,
+  oldHeight: number,
+  newWidth: number,
+  newHeight: number
+): FlierElement[] {
+  const scale = Math.min(newWidth / oldWidth, newHeight / oldHeight);
+  const offsetX = (newWidth - oldWidth * scale) / 2;
+  const offsetY = (newHeight - oldHeight * scale) / 2;
+  return elements.map((el) => {
+    const scaled: any = {
+      ...el,
+      x: el.x * scale + offsetX,
+      y: el.y * scale + offsetY,
+      width: el.width * scale,
+      height: el.height * scale,
+    };
+    if (el.type === "text") scaled.fontSize = Math.max(6, Math.round(el.fontSize * scale));
+    if (el.type === "line") scaled.strokeWidth = Math.max(1, el.strokeWidth * scale);
+    if (el.type === "rect") scaled.cornerRadius = el.cornerRadius * scale;
+    return scaled as FlierElement;
+  });
+}
 
 export function newTextElement(overrides: Partial<FlierTextElement> = {}): FlierTextElement {
   return {
@@ -168,6 +224,10 @@ export function newImageElement(overrides: Partial<FlierImageElement> = {}): Fli
     brightness: 0,
     contrast: 0,
     blur: 0,
+    saturation: 0,
+    hue: 0,
+    duotoneShadow: "#16302B",
+    duotoneHighlight: "#C99A3D",
     borderWidth: 0,
     borderColor: "#16302B",
     shadow: false,

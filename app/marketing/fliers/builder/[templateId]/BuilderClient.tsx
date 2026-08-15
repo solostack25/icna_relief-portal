@@ -8,6 +8,7 @@ import {
   BRAND_FONTS,
   BRAND_COLORS,
   CANVAS_SIZE_PRESETS,
+  resizeElementsToCanvas,
   newTextElement,
   newImageElement,
   newRectElement,
@@ -26,6 +27,8 @@ const ICONS = {
   circle: <Icon.CircleTool />,
   line: <Icon.LineTool />,
 };
+
+const presetGroups = [...new Set(CANVAS_SIZE_PRESETS.map((p) => p.group))];
 
 const PANEL = { border: "1px solid var(--portal-line)", boxShadow: "0 1px 3px rgba(22,48,43,0.06)" };
 const DIM = "rgba(22,48,43,0.5)";
@@ -96,6 +99,13 @@ export default function BuilderClient({ template }: { template: any }) {
     const copy = { ...selected, id: crypto.randomUUID(), x: selected.x + 20, y: selected.y + 20 };
     commit([...elements, copy as FlierElement]);
     setSelectedId(copy.id);
+  }
+
+  function resizeTo(newWidth: number, newHeight: number) {
+    const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
+    setCanvasWidth(newWidth);
+    setCanvasHeight(newHeight);
+    commit(resized);
   }
 
   function reorder(dir: "front" | "back" | "forward" | "backward") {
@@ -216,14 +226,48 @@ export default function BuilderClient({ template }: { template: any }) {
             className="text-sm bg-transparent border-none outline-none cursor-pointer"
             style={{ color: "#444" }}
             defaultValue=""
+            title="Set canvas size for a blank template - doesn't move existing elements"
           >
             <option value="" disabled>
-              Canvas size…
+              Set size…
             </option>
-            {CANVAS_SIZE_PRESETS.map((p, i) => (
-              <option key={p.label} value={i}>
-                {p.label} ({p.width}×{p.height})
-              </option>
+            {presetGroups.map((group) => (
+              <optgroup key={group} label={group}>
+                {CANVAS_SIZE_PRESETS.map((p, i) =>
+                  p.group === group ? (
+                    <option key={p.label} value={i}>
+                      {p.label} ({p.width}×{p.height})
+                    </option>
+                  ) : null
+                )}
+              </optgroup>
+            ))}
+          </select>
+          <VDivider />
+          <select
+            onChange={(e) => {
+              const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
+              if (preset) resizeTo(preset.width, preset.height);
+              e.target.value = "";
+            }}
+            className="text-sm bg-transparent border-none outline-none cursor-pointer font-medium"
+            style={{ color: "var(--portal-emerald)" }}
+            defaultValue=""
+            title="Rescale the current design to fit a different platform size"
+          >
+            <option value="" disabled>
+              Resize to…
+            </option>
+            {presetGroups.map((group) => (
+              <optgroup key={group} label={group}>
+                {CANVAS_SIZE_PRESETS.map((p, i) =>
+                  p.group === group ? (
+                    <option key={p.label} value={i}>
+                      {p.label} ({p.width}×{p.height})
+                    </option>
+                  ) : null
+                )}
+              </optgroup>
             ))}
           </select>
           <VDivider />
@@ -473,15 +517,36 @@ export default function BuilderClient({ template }: { template: any }) {
 
                       <PanelDivider />
                       <PanelLabel>Filter</PanelLabel>
-                      <div className="flex gap-1.5 mb-1">
-                        {(["none", "grayscale", "sepia"] as const).map((f) => (
+                      <div className="flex gap-1.5 mb-1 flex-wrap">
+                        {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
                           <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
                             {f}
                           </SegBtn>
                         ))}
                       </div>
+                      {selected.filter === "duotone" && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
+                            Shadow / Light
+                          </span>
+                          <input
+                            type="color"
+                            value={selected.duotoneShadow}
+                            onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
+                            className="w-6 h-6 rounded-full cursor-pointer"
+                          />
+                          <input
+                            type="color"
+                            value={selected.duotoneHighlight}
+                            onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
+                            className="w-6 h-6 rounded-full cursor-pointer"
+                          />
+                        </div>
+                      )}
                       <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
                       <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                      <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
+                      <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
                       <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
 
                       <PanelDivider />

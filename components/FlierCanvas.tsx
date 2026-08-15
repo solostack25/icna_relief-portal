@@ -45,6 +45,33 @@ function maskClipFunc(el: FlierImageElement) {
   };
 }
 
+function hexToRgb(hex: string) {
+  const clean = hex.replace("#", "");
+  return {
+    r: parseInt(clean.slice(0, 2), 16) || 0,
+    g: parseInt(clean.slice(2, 4), 16) || 0,
+    b: parseInt(clean.slice(4, 6), 16) || 0,
+  };
+}
+
+// Konva doesn't ship a duotone filter - custom filters are just a
+// function(imageData) that mutates the pixel buffer directly, same
+// contract as Konva's own built-ins, so this plugs into the same
+// filters() array as Grayscale/Sepia/etc.
+function makeDuotoneFilter(shadowHex: string, highlightHex: string) {
+  const shadow = hexToRgb(shadowHex);
+  const highlight = hexToRgb(highlightHex);
+  return function (imageData: ImageData) {
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+      data[i] = shadow.r + (highlight.r - shadow.r) * gray;
+      data[i + 1] = shadow.g + (highlight.g - shadow.g) * gray;
+      data[i + 2] = shadow.b + (highlight.b - shadow.b) * gray;
+    }
+  };
+}
+
 function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img: HTMLImageElement; [key: string]: any }) {
   const imgRef = useRef<Konva.Image>(null);
 
@@ -54,9 +81,13 @@ function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img:
     const filters: any[] = [];
     if (el.filter === "grayscale") filters.push(Konva.Filters.Grayscale);
     if (el.filter === "sepia") filters.push(Konva.Filters.Sepia);
+    if (el.filter === "invert") filters.push(Konva.Filters.Invert);
+    if (el.filter === "posterize") filters.push(Konva.Filters.Posterize);
+    if (el.filter === "duotone") filters.push(makeDuotoneFilter(el.duotoneShadow, el.duotoneHighlight));
     if (el.brightness !== 0) filters.push(Konva.Filters.Brighten);
     if (el.contrast !== 0) filters.push(Konva.Filters.Contrast);
     if (el.blur > 0) filters.push(Konva.Filters.Blur);
+    if (el.saturation !== 0 || el.hue !== 0) filters.push(Konva.Filters.HSL);
 
     if (filters.length > 0) {
       node.cache();
@@ -64,12 +95,14 @@ function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img:
       node.brightness(el.brightness);
       node.contrast(el.contrast);
       node.blurRadius(el.blur);
+      node.saturation(el.saturation);
+      node.hue(el.hue);
     } else {
       node.clearCache();
       node.filters([]);
     }
     node.getLayer()?.batchDraw();
-  }, [el.filter, el.brightness, el.contrast, el.blur, img]);
+  }, [el.filter, el.brightness, el.contrast, el.blur, el.saturation, el.hue, el.duotoneShadow, el.duotoneHighlight, img]);
 
   const naturalW = img.naturalWidth || img.width;
   const naturalH = img.naturalHeight || img.height;
