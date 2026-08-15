@@ -43,6 +43,11 @@ export default function DropboxSettingsClient() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const [oauthValues, setOauthValues] = useState({ appKey: "", appSecret: "", code: "" });
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+
   async function load() {
     const res = await fetch("/api/admin/dropbox-settings");
     const body = await res.json();
@@ -51,6 +56,28 @@ export default function DropboxSettingsClient() {
   useEffect(() => {
     load();
   }, []);
+
+  async function connectWithCode() {
+    setConnecting(true);
+    setConnectError(null);
+    setConnected(false);
+    try {
+      const res = await fetch("/api/admin/dropbox-oauth-exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(oauthValues),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setOauthValues({ appKey: "", appSecret: "", code: "" });
+      setConnected(true);
+      load();
+    } catch (e: any) {
+      setConnectError(e.message);
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -96,6 +123,66 @@ export default function DropboxSettingsClient() {
 
   return (
     <div>
+      <div className="rounded-xl bg-white p-4 mb-6" style={{ border: "1.5px solid var(--portal-emerald)" }}>
+        <h3 className="text-sm font-bold mb-1">Connect via Authorization Code</h3>
+        <p className="text-xs mb-3" style={{ color: "rgba(22,48,43,0.55)" }}>
+          The easy path — paste your App Key, App Secret, and a fresh authorization code from Dropbox
+          (from visiting the authorize URL), and this does the token exchange and saves everything
+          for you.
+        </p>
+        <div className="space-y-2 mb-3">
+          <input
+            type="password"
+            value={oauthValues.appKey}
+            onChange={(e) => setOauthValues({ ...oauthValues, appKey: e.target.value })}
+            placeholder="App Key"
+            className="w-full rounded-lg px-3 py-2 text-sm"
+            style={{ border: "1px solid var(--portal-line)" }}
+            autoComplete="off"
+          />
+          <input
+            type="password"
+            value={oauthValues.appSecret}
+            onChange={(e) => setOauthValues({ ...oauthValues, appSecret: e.target.value })}
+            placeholder="App Secret"
+            className="w-full rounded-lg px-3 py-2 text-sm"
+            style={{ border: "1px solid var(--portal-line)" }}
+            autoComplete="off"
+          />
+          <input
+            type="password"
+            value={oauthValues.code}
+            onChange={(e) => setOauthValues({ ...oauthValues, code: e.target.value })}
+            placeholder="Authorization Code (from the Dropbox authorize page)"
+            className="w-full rounded-lg px-3 py-2 text-sm"
+            style={{ border: "1px solid var(--portal-line)" }}
+            autoComplete="off"
+          />
+        </div>
+        {connectError && <p className="text-sm text-red-600 mb-2">{connectError}</p>}
+        {connected && (
+          <p className="text-sm mb-2" style={{ color: "var(--portal-emerald)" }}>
+            Connected — all three credentials saved and live immediately.
+          </p>
+        )}
+        <button
+          onClick={connectWithCode}
+          disabled={connecting || Object.values(oauthValues).some((v) => !v.trim())}
+          className="text-sm px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          style={{ background: "var(--portal-emerald)" }}
+        >
+          {connecting ? "Connecting…" : "Connect"}
+        </button>
+        <p className="text-[11px] mt-2" style={{ color: "rgba(22,48,43,0.4)" }}>
+          Authorization codes expire within a few minutes — if this fails, generate a fresh one by
+          revisiting the Dropbox authorize URL and try again right away.
+        </p>
+      </div>
+
+      <p className="text-xs mb-3 font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+        Or set each value manually
+      </p>
+
       <div className="space-y-4 mb-6">
         {(Object.keys(LABELS) as (keyof Status)[]).map((field) => (
           <div key={field} className="rounded-xl bg-white p-4" style={{ border: "1px solid var(--portal-line)" }}>
