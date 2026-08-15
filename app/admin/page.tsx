@@ -68,23 +68,22 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M17 8l-5-5-5 5M12 3v12" />
     </svg>
   ),
-  dropboxSettings: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-    </svg>
-  ),
   fliers: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="4" y="2" width="16" height="20" rx="2" />
       <path d="M8 8h8M8 12h8M8 16h5" />
     </svg>
   ),
-  stockPhotos: (
+  library: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
+    </svg>
+  ),
+  connectors: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 17H7a5 5 0 010-10h2M15 7h2a5 5 0 010 10h-2M8 12h8" />
     </svg>
   ),
 };
@@ -193,22 +192,57 @@ export default async function AdminPage() {
     }
   }
 
-  const cards: { href: string; label: string; icon: string; show: boolean }[] = [
-    { href: "/admin/employees/new", label: "Add Employee", icon: "addEmployee", show: isAdmin },
-    { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings", show: isAdmin },
-    { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview", show: isAdmin },
-    { href: "/admin/helpdesk", label: "Help Desk Workload", icon: "workload", show: isAdmin },
-    { href: "/helpdesk/manage", label: "Manage Tickets", icon: "tickets", show: canManageTickets },
-    { href: "/admin/finance", label: "Finance Approvals", icon: "finance", show: canManageFinance },
-    { href: "/inkind-admin", label: "InKind Admin", icon: "inkind", show: canInkind },
-    { href: "/admin/review", label: "Review Submissions", icon: "review", show: canReview },
-    { href: "/admin/training", label: "Training Courses", icon: "training", show: isAdmin },
-    { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders", show: isAdmin },
-    { href: "/admin/dropbox", label: "Dropbox Connection", icon: "dropboxSettings", show: isAdmin },
-    { href: "/admin/pexels", label: "Stock Photos", icon: "stockPhotos", show: isAdmin },
-    { href: "/marketing/fliers/builder", label: "Flier Templates", icon: "fliers", show: canManageFliers },
-    { href: "/workboards", label: "Workboards", icon: "workboards", show: true },
-  ].filter((c) => c.show);
+  type Card = { href: string; label: string; icon: string; show: boolean };
+  const sections: { title: string; cards: Card[] }[] = [
+    {
+      title: "Help Desk",
+      cards: [
+        { href: "/helpdesk/manage", label: "Manage Tickets", icon: "tickets", show: canManageTickets },
+        { href: "/admin/helpdesk", label: "Help Desk Workload", icon: "workload", show: isAdmin },
+      ],
+    },
+    {
+      title: "Finance",
+      cards: [{ href: "/admin/finance", label: "Finance Approvals", icon: "finance", show: canManageFinance }],
+    },
+    {
+      title: "Marketing & Content",
+      cards: [
+        { href: "/marketing/fliers/builder", label: "Flier Templates", icon: "fliers", show: canManageFliers },
+        { href: "/marketing/fliers/images", label: "Content Library", icon: "library", show: canManageFliers },
+        { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders", show: isAdmin },
+      ],
+    },
+    {
+      title: "Programs",
+      cards: [
+        { href: "/inkind-admin", label: "InKind Admin", icon: "inkind", show: canInkind },
+        { href: "/admin/review", label: "Review Submissions", icon: "review", show: canReview },
+      ],
+    },
+    {
+      title: "Training",
+      cards: [{ href: "/admin/training", label: "Training Courses", icon: "training", show: isAdmin }],
+    },
+    {
+      title: "People & Access",
+      cards: [
+        { href: "/admin/employees/new", label: "Add Employee", icon: "addEmployee", show: isAdmin },
+        { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings", show: isAdmin },
+        { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview", show: isAdmin },
+      ],
+    },
+    {
+      title: "System",
+      cards: [{ href: "/admin/connectors", label: "Connectors", icon: "connectors", show: isAdmin }],
+    },
+    {
+      title: "General",
+      cards: [{ href: "/workboards", label: "Workboards", icon: "workboards", show: true }],
+    },
+  ]
+    .map((s) => ({ ...s, cards: s.cards.filter((c) => c.show) }))
+    .filter((s) => s.cards.length > 0);
 
   return (
     <main style={{ minHeight: "100vh", background: "var(--portal-sand)" }}>
@@ -237,27 +271,46 @@ export default async function AdminPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-10">
-          {cards.map((c) => (
-            <Link
-              key={c.href}
-              href={c.href}
-              className="rounded-xl bg-white p-4 transition-all hover:-translate-y-0.5"
+        {sections.map((section) => (
+          <div key={section.title} className="mb-8">
+            <div
+              className="text-xs font-medium mb-3"
               style={{
-                border: "1px solid var(--portal-line)",
-                boxShadow: "0 1px 2px rgba(22,48,43,0.04)",
+                fontFamily: "'IBM Plex Mono', monospace",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--portal-emerald)",
               }}
             >
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
-                style={{ background: "#EAF3EF", color: "var(--portal-emerald)" }}
-              >
-                <span style={{ width: 16, height: 16, display: "block" }}>{ICONS[c.icon]}</span>
-              </div>
-              <div className="text-sm font-bold">{c.label}</div>
-            </Link>
-          ))}
-        </div>
+              {section.title}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {section.cards.map((c) => (
+                <Link
+                  key={c.href}
+                  href={c.href}
+                  className="rounded-xl bg-white p-4 transition-all hover:-translate-y-0.5"
+                  style={{
+                    border: "1px solid var(--portal-line)",
+                    boxShadow: "0 1px 2px rgba(22,48,43,0.04)",
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
+                    style={{ background: "#EAF3EF", color: "var(--portal-emerald)" }}
+                  >
+                    <span style={{ width: 16, height: 16, display: "block" }}>{ICONS[c.icon]}</span>
+                  </div>
+                  <div className="text-sm font-bold">{c.label}</div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {(canManageFinance || isAdmin) && (
+          <div className="my-2" style={{ borderTop: "1px solid var(--portal-line)" }} />
+        )}
 
         {canManageFinance && pendingApprovals.length > 0 && (
           <>
