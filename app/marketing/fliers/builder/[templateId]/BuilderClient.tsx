@@ -14,7 +14,12 @@ import {
   newRectElement,
   newCircleElement,
   newLineElement,
+  newStarElement,
+  newPolygonElement,
+  newArrowElement,
+  newIconElement,
 } from "@/lib/flierElements";
+import { ICON_LIBRARY } from "@/lib/flierIcons";
 import ApprovedImagePicker from "../../ApprovedImagePicker";
 import { Icon } from "../../icons";
 
@@ -26,6 +31,10 @@ const ICONS = {
   rect: <Icon.RectTool />,
   circle: <Icon.CircleTool />,
   line: <Icon.LineTool />,
+  star: <Icon.CircleTool />,
+  polygon: <Icon.RectTool />,
+  arrow: <Icon.AlignRight />,
+  icon: <Icon.Style />,
 };
 
 const presetGroups = [...new Set(CANVAS_SIZE_PRESETS.map((p) => p.group))];
@@ -46,6 +55,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [zoom, setZoom] = useState(0.42);
   const [panelTab, setPanelTab] = useState<"style" | "effects">("style");
 
@@ -341,6 +351,10 @@ export default function BuilderClient({ template }: { template: any }) {
           <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} />
           <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} />
           <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} />
+          <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} />
+          <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} />
+          <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} />
+          <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} />
         </div>
 
         <div
@@ -454,8 +468,32 @@ export default function BuilderClient({ template }: { template: any }) {
                         </button>
                       )}
 
-                      {(selected.type === "rect" || selected.type === "circle") && (
+                      {(selected.type === "rect" || selected.type === "circle" || selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
                         <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
+                      )}
+
+                      {selected.type === "star" && (
+                        <SliderRow
+                          label="Points"
+                          min={3}
+                          max={12}
+                          step={1}
+                          value={selected.numPoints}
+                          onChange={(v) => updateSelected({ numPoints: v }, false)}
+                          onCommit={(v) => updateSelected({ numPoints: v })}
+                        />
+                      )}
+
+                      {selected.type === "polygon" && (
+                        <SliderRow
+                          label="Sides"
+                          min={3}
+                          max={10}
+                          step={1}
+                          value={selected.sides}
+                          onChange={(v) => updateSelected({ sides: v }, false)}
+                          onCommit={(v) => updateSelected({ sides: v })}
+                        />
                       )}
 
                       {selected.type === "rect" && (
@@ -558,19 +596,26 @@ export default function BuilderClient({ template }: { template: any }) {
                     <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
                   )}
 
-                  {panelTab === "effects" && selected.type === "text" && (
-                    <SliderRow
-                      label="Opacity"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={(selected as any).opacity ?? 1}
-                      onChange={(v) => updateSelected({ opacity: v } as any, false)}
-                      onCommit={(v) => updateSelected({ opacity: v } as any)}
-                    />
-                  )}
+                  {panelTab === "effects" &&
+                    (selected.type === "text" || selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
+                      <SliderRow
+                        label="Opacity"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={(selected as any).opacity ?? 1}
+                        onChange={(v) => updateSelected({ opacity: v } as any, false)}
+                        onCommit={(v) => updateSelected({ opacity: v } as any)}
+                      />
+                    )}
 
-                  {selected.type !== "rect" && selected.type !== "circle" && selected.type !== "line" && (
+                  {selected.type !== "rect" &&
+                    selected.type !== "circle" &&
+                    selected.type !== "line" &&
+                    selected.type !== "star" &&
+                    selected.type !== "polygon" &&
+                    selected.type !== "arrow" &&
+                    selected.type !== "icon" && (
                     <div className="pt-3" style={{ borderTop: "1px solid var(--portal-line)" }}>
                       <label className="flex items-center gap-2 text-xs mb-2 cursor-pointer">
                         <input type="checkbox" checked={selected.editable} onChange={(e) => updateSelected({ editable: e.target.checked })} />
@@ -630,12 +675,58 @@ export default function BuilderClient({ template }: { template: any }) {
 
       {pickerOpen && (
         <ApprovedImagePicker
+          allowMore
           onClose={() => setPickerOpen(false)}
           onSelect={(img) => {
             updateSelected({ dropboxPath: img.dropbox_path, imageUrl: img.link } as any);
             setPickerOpen(false);
           }}
         />
+      )}
+
+      {iconPickerOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-50"
+          style={{ background: "rgba(22,48,43,0.5)" }}
+          onClick={() => setIconPickerOpen(false)}
+        >
+          <div
+            className="rounded-2xl bg-white p-5 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold">Choose an Icon</h3>
+              <button onClick={() => setIconPickerOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {ICON_LIBRARY.map((def) => (
+                <button
+                  key={def.id}
+                  onClick={() => {
+                    addElement(newIconElement(def.id));
+                    setIconPickerOpen(false);
+                  }}
+                  title={def.label}
+                  className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
+                  style={{ border: "1px solid var(--portal-line)" }}
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22">
+                    <path
+                      d={def.path}
+                      fill={def.mode === "filled" ? "#16302B" : "none"}
+                      stroke={def.mode === "stroke" ? "#16302B" : "none"}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

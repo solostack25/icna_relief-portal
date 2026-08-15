@@ -109,7 +109,76 @@ export type FlierLineElement = {
   editable: false;
 };
 
-export type FlierElement = FlierTextElement | FlierImageElement | FlierRectElement | FlierCircleElement | FlierLineElement;
+export type FlierStarElement = {
+  id: string;
+  type: "star";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  fill: string;
+  numPoints: number;
+  editable: false;
+};
+
+export type FlierPolygonElement = {
+  id: string;
+  type: "polygon";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  fill: string;
+  sides: number;
+  editable: false;
+};
+
+export type FlierArrowElement = {
+  id: string;
+  type: "arrow";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  fill: string;
+  editable: false;
+};
+
+// Vector "sticker" icons (arrows, stars, badges, etc.) - a fixed SVG
+// path drawn at whatever fill color is chosen, scaled to fit width/
+// height. Distinct from the Star/Polygon/Arrow shape primitives above -
+// those are geometric Konva shapes; icons are arbitrary path data from
+// the curated set in lib/flierIcons.ts.
+export type FlierIconElement = {
+  id: string;
+  type: "icon";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  fill: string;
+  iconId: string; // key into ICON_LIBRARY
+  editable: false;
+};
+
+export type FlierElement =
+  | FlierTextElement
+  | FlierImageElement
+  | FlierRectElement
+  | FlierCircleElement
+  | FlierLineElement
+  | FlierStarElement
+  | FlierPolygonElement
+  | FlierArrowElement
+  | FlierIconElement;
 
 // Curated brand choices, not a free color/font picker for offices -
 // admin-configurable via integration_settings-style pattern would be a
@@ -286,6 +355,73 @@ export function newLineElement(overrides: Partial<FlierLineElement> = {}): Flier
     opacity: 1,
     stroke: "#16302B",
     strokeWidth: 3,
+    editable: false,
+    ...overrides,
+  };
+}
+
+export function newStarElement(overrides: Partial<FlierStarElement> = {}): FlierStarElement {
+  return {
+    id: crypto.randomUUID(),
+    type: "star",
+    x: 60,
+    y: 60,
+    width: 180,
+    height: 180,
+    rotation: 0,
+    opacity: 1,
+    fill: "#C99A3D",
+    numPoints: 5,
+    editable: false,
+    ...overrides,
+  };
+}
+
+export function newPolygonElement(overrides: Partial<FlierPolygonElement> = {}): FlierPolygonElement {
+  return {
+    id: crypto.randomUUID(),
+    type: "polygon",
+    x: 60,
+    y: 60,
+    width: 180,
+    height: 180,
+    rotation: 0,
+    opacity: 1,
+    fill: "#1F6F54",
+    sides: 6,
+    editable: false,
+    ...overrides,
+  };
+}
+
+export function newArrowElement(overrides: Partial<FlierArrowElement> = {}): FlierArrowElement {
+  return {
+    id: crypto.randomUUID(),
+    type: "arrow",
+    x: 60,
+    y: 60,
+    width: 220,
+    height: 40,
+    rotation: 0,
+    opacity: 1,
+    fill: "#16302B",
+    editable: false,
+    ...overrides,
+  };
+}
+
+export function newIconElement(iconId: string, overrides: Partial<FlierIconElement> = {}): FlierIconElement {
+  return {
+    id: crypto.randomUUID(),
+    type: "icon",
+    x: 60,
+    y: 60,
+    width: 80,
+    height: 80,
+    rotation: 0,
+    opacity: 1,
+    fill: "#1F6F54",
+    iconId,
     editable: false,
     ...overrides,
   };

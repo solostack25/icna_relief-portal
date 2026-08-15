@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Group, Transformer } from "react-konva";
+import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Group, Transformer, Star, RegularPolygon, Arrow, Path } from "react-konva";
 import Konva from "konva";
 import type { FlierElement, FlierImageElement } from "@/lib/flierElements";
 import { computeCoverCrop } from "@/lib/flierElements";
+import { ICON_LIBRARY } from "@/lib/flierIcons";
 
 const SNAP_TOLERANCE = 8;
 
@@ -271,17 +272,9 @@ export default function FlierCanvas({
             }
             if (el.type === "circle") {
               return (
-                <Ellipse
-                  {...common}
-                  {...shadowProps}
-                  {...borderProps}
-                  x={el.x + el.width / 2}
-                  y={el.y + el.height / 2}
-                  radiusX={el.width / 2}
-                  radiusY={el.height / 2}
-                  rotation={el.rotation}
-                  fill={el.fill}
-                />
+                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                  <Ellipse {...shadowProps} {...borderProps} x={el.width / 2} y={el.height / 2} radiusX={el.width / 2} radiusY={el.height / 2} fill={el.fill} />
+                </Group>
               );
             }
             if (el.type === "line") {
@@ -295,6 +288,73 @@ export default function FlierCanvas({
                   stroke={el.stroke}
                   strokeWidth={el.strokeWidth}
                 />
+              );
+            }
+            if (el.type === "star") {
+              return (
+                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                  <Star
+                    {...shadowProps}
+                    x={el.width / 2}
+                    y={el.height / 2}
+                    numPoints={el.numPoints}
+                    innerRadius={Math.min(el.width, el.height) / 4}
+                    outerRadius={Math.min(el.width, el.height) / 2}
+                    fill={el.fill}
+                  />
+                </Group>
+              );
+            }
+            if (el.type === "polygon") {
+              return (
+                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                  <RegularPolygon
+                    {...shadowProps}
+                    x={el.width / 2}
+                    y={el.height / 2}
+                    sides={el.sides}
+                    radius={Math.min(el.width, el.height) / 2}
+                    fill={el.fill}
+                  />
+                </Group>
+              );
+            }
+            if (el.type === "arrow") {
+              return (
+                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                  <Arrow
+                    {...shadowProps}
+                    x={0}
+                    y={el.height / 2}
+                    points={[0, 0, el.width, 0]}
+                    pointerLength={el.height}
+                    pointerWidth={el.height}
+                    fill={el.fill}
+                    stroke={el.fill}
+                    strokeWidth={el.height / 2.5}
+                  />
+                </Group>
+              );
+            }
+            if (el.type === "icon") {
+              const def = ICON_LIBRARY.find((i) => i.id === el.iconId);
+              if (!def) return null;
+              return (
+                <Group {...common} x={el.x} y={el.y} rotation={el.rotation}>
+                  <Path
+                    {...shadowProps}
+                    x={0}
+                    y={0}
+                    data={def.path}
+                    scaleX={el.width / 24}
+                    scaleY={el.height / 24}
+                    fill={def.mode === "filled" ? el.fill : undefined}
+                    stroke={def.mode === "stroke" ? el.fill : undefined}
+                    strokeWidth={def.mode === "stroke" ? 2 : 0}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                </Group>
               );
             }
             if (el.type === "text") {
