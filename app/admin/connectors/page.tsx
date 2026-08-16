@@ -62,7 +62,7 @@ export default async function AdminConnectorsPage() {
 
       <ConnectorSection
         title="Calling & Texting (3CX / Skyetel)"
-        description="Powers bulk SMS, donor calling campaigns, and click-to-call across the portal. Skyetel is the SIP trunk provider (SMS/MMS API); 3CX Call Control API handles call origination from an employee's extension."
+        description="Powers bulk SMS, donor calling campaigns, and click-to-call across the portal. Skyetel is the SIP trunk provider (SMS/MMS API); 3CX Call Control API handles call origination from an employee's extension. For inbound SMS/STOP handling, set your Skyetel SMS-enabled number's callback URL (in the Skyetel portal, on that number's SMS tab) to this app's /api/marketing/sms/inbound."
       >
         <ConnectorKeyField settingKey="skyetel_api_key" label="Skyetel API Key" placeholder="For outbound SMS/MMS" />
         <ConnectorKeyField settingKey="skyetel_api_secret" label="Skyetel API Secret" />
