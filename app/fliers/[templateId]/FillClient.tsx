@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import type { FlierElement } from "@/lib/flierElements";
-import ApprovedImagePicker from "../../marketing/fliers/ApprovedImagePicker";
+import ApprovedImagePicker from "../../admin/fliers/ApprovedImagePicker";
 
 const FlierCanvas = dynamic(() => import("@/components/FlierCanvas"), { ssr: false });
 

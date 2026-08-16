@@ -6,8 +6,8 @@ import {
   sumProgramTotals,
   type DashboardSession,
 } from "@/lib/inkind/fetchSessions";
-import ProgramTotals from "@/app/inkind-admin/components/ProgramTotals";
-import SessionsTable from "@/app/inkind-admin/components/SessionsTable";
+import ProgramTotals from "@/app/admin/inkind/components/ProgramTotals";
+import SessionsTable from "@/app/admin/inkind/components/SessionsTable";
 
 export default function MonthlyPage() {
   const [sessions, setSessions] = useState<DashboardSession[]>([]);

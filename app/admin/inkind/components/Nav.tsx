@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/inkind-admin", label: "Today" },
-  { href: "/inkind-admin/weekly", label: "Weekly" },
-  { href: "/inkind-admin/monthly", label: "Monthly" },
-  { href: "/inkind-admin/items", label: "Items" },
-  { href: "/inkind-admin/settings", label: "Settings" },
+  { href: "/admin/inkind", label: "Today" },
+  { href: "/admin/inkind/weekly", label: "Weekly" },
+  { href: "/admin/inkind/monthly", label: "Monthly" },
+  { href: "/admin/inkind/items", label: "Items" },
+  { href: "/admin/inkind/settings", label: "Settings" },
 ];
 
 export default function Nav() {

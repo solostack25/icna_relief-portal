@@ -32,7 +32,7 @@ function initials(first: string, last: string) {
 // never appears here, on purpose, so opening a ticket is never gated
 // behind "which theme am I about to see."
 //
-// mode "manage" (/helpdesk/manage) — a department's queue. Quest-themed
+// mode "manage" (/admin/helpdesk/manage) — a department's queue. Quest-themed
 // automatically if IT is one of the departments being managed (matches
 // the rest of the portal's convention that quest styling is IT-specific),
 // otherwise plain. Nothing here is reachable unless the employee actually
@@ -124,7 +124,7 @@ export async function HelpdeskView({
             <div className="flex items-center gap-4">
               {managedDepartments.length > 0 && (
                 <Link
-                  href="/helpdesk/manage"
+                  href="/admin/helpdesk/manage"
                   className="text-sm text-[var(--color-accent)] hover:underline"
                 >
                   Manage Tickets →
@@ -294,7 +294,7 @@ export async function HelpdeskView({
             <Link href="/select-app" style={{ fontSize: 12, color: "#9C8FD9" }}>
               ← Back
             </Link>
-            <Link href="/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
+            <Link href="/admin/workboards" style={{ fontSize: 12, color: "#00E5FF", fontWeight: 700 }}>
               📋 Workboards
             </Link>
           </div>
@@ -330,7 +330,7 @@ export async function HelpdeskView({
               return (
                 <Link
                   key={d}
-                  href={`/helpdesk/manage?dept=${d}&status=${statusFilter}`}
+                  href={`/admin/helpdesk/manage?dept=${d}&status=${statusFilter}`}
                   className="qbtn"
                   style={{
                     padding: "8px 16px",
@@ -355,7 +355,7 @@ export async function HelpdeskView({
             {(["open", "closed"] as const).map((s) => (
               <Link
                 key={s}
-                href={`/helpdesk/manage?dept=${activeDept}&status=${s}`}
+                href={`/admin/helpdesk/manage?dept=${activeDept}&status=${s}`}
                 style={{
                   padding: "5px 14px",
                   borderRadius: 20,
@@ -577,7 +577,7 @@ export async function HelpdeskView({
           {managedDepartments.map((d) => (
             <Link
               key={d}
-              href={`/helpdesk/manage?dept=${d}&status=${statusFilter}`}
+              href={`/admin/helpdesk/manage?dept=${d}&status=${statusFilter}`}
               className={`px-3 py-1.5 rounded-lg text-sm border ${
                 activeDept === d
                   ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
@@ -593,7 +593,7 @@ export async function HelpdeskView({
           {(["open", "closed"] as const).map((s) => (
             <Link
               key={s}
-              href={`/helpdesk/manage?dept=${activeDept}&status=${s}`}
+              href={`/admin/helpdesk/manage?dept=${activeDept}&status=${s}`}
               className={`px-3 py-1 rounded-full text-xs font-medium border ${
                 statusFilter === s
                   ? "bg-[var(--color-text)] text-[var(--color-surface)] border-[var(--color-text)]"

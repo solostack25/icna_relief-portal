@@ -22,7 +22,7 @@ export default function NewBoardForm({ ownerEmployeeId }: { ownerEmployeeId: str
         name: name.trim(),
         ownerEmployeeId,
       });
-      router.push(`/workboards/${boardId}`);
+      router.push(`/admin/workboards/${boardId}`);
     } catch (e: any) {
       setError(e.message ?? "Failed to create board");
       setBusy(false);

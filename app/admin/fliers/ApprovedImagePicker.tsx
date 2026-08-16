@@ -112,7 +112,7 @@ export default function ApprovedImagePicker({
             {images && images.length === 0 && (
               <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
                 No approved images yet. Marketing can approve images from{" "}
-                <a href="/marketing/fliers/images" className="underline">
+                <a href="/admin/fliers/images" className="underline">
                   Approved Images
                 </a>
                 .

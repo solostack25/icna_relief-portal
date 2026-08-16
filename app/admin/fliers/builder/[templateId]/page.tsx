@@ -18,7 +18,7 @@ export default async function TemplateEditorPage({ params }: { params: Promise<{
     <main style={{ minHeight: "100vh", background: "var(--portal-sand)" }}>
       <PortalHeader />
       <div className="max-w-6xl mx-auto px-4 sm:px-10 py-6">
-        <Link href="/marketing/fliers/builder" className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
+        <Link href="/admin/fliers/builder" className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
           ← All Templates
         </Link>
         <BuilderClient template={template} />

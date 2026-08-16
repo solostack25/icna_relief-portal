@@ -101,7 +101,7 @@ export default async function AdminHelpdeskPage({
         </div>
         <div className="flex items-center gap-4">
           <Link
-            href="/helpdesk/manage"
+            href="/admin/helpdesk/manage"
             className="text-sm text-[var(--color-accent)] hover:underline"
           >
             Manage Tickets

@@ -33,7 +33,7 @@ export default function TemplatesListClient() {
       .select("id")
       .single();
     setCreating(false);
-    if (!error && data) router.push(`/marketing/fliers/builder/${data.id}`);
+    if (!error && data) router.push(`/admin/fliers/builder/${data.id}`);
   }
 
   async function toggleActive(t: Template) {
@@ -53,7 +53,7 @@ export default function TemplatesListClient() {
             style={{ border: "1px solid var(--portal-line)", boxShadow: "0 1px 2px rgba(22,48,43,0.04)" }}
           >
             <div>
-              <Link href={`/marketing/fliers/builder/${t.id}`} className="text-sm font-bold hover:underline">
+              <Link href={`/admin/fliers/builder/${t.id}`} className="text-sm font-bold hover:underline">
                 {t.name}
               </Link>
               <div className="text-[11px] mt-0.5" style={{ color: "rgba(22,48,43,0.45)" }}>
@@ -65,7 +65,7 @@ export default function TemplatesListClient() {
               <button onClick={() => toggleActive(t)} className="text-xs cursor-pointer" style={{ color: "rgba(22,48,43,0.5)" }}>
                 {t.is_active ? "Unpublish" : "Publish"}
               </button>
-              <Link href={`/marketing/fliers/builder/${t.id}`} className="text-xs font-medium" style={{ color: "var(--portal-emerald)" }}>
+              <Link href={`/admin/fliers/builder/${t.id}`} className="text-xs font-medium" style={{ color: "var(--portal-emerald)" }}>
                 Edit →
               </Link>
             </div>

@@ -121,7 +121,7 @@ export default async function WorkboardPage({ params }: { params: Promise<{ id: 
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap');`}</style>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <Link href="/workboards" style={{ fontSize: 12, color: "#9C8FD9" }}>
+          <Link href="/admin/workboards" style={{ fontSize: 12, color: "#9C8FD9" }}>
             ← All Boards
           </Link>
           {board.type === "team" && (

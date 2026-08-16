@@ -8,7 +8,7 @@ export default function HadithBanner() {
 
   // InKind kiosk screens are purpose-built, full-screen touch interfaces
   // (barcode scanning, donor signature capture) — no portal chrome.
-  // Scoped to exactly /inkind and its children, not /inkind-admin, which
+  // Scoped to exactly /inkind and its children, not /admin/inkind, which
   // is a normal staff page and should keep the banner like every other
   // program.
   if (pathname === "/inkind" || pathname?.startsWith("/inkind/")) return null;

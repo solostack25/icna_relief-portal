@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 // Shared authorization for the InKind admin/ops app. The page-level gate
-// (app/inkind-admin/layout.tsx) only covers page navigation - it does NOT
+// (app/admin/inkind/layout.tsx) only covers page navigation - it does NOT
 // cover direct calls to /api/inkind-admin/* routes, which are independently
 // reachable by anyone with a valid portal session. These helpers close that
 // gap and are the single place office/program access is decided, so the
@@ -17,7 +17,7 @@ export type InkindAccess =
       assignedRegion: string | null;
     };
 
-// Does the current user have any access to /inkind-admin at all (admin,
+// Does the current user have any access to /admin/inkind at all (admin,
 // or explicitly granted the 'in-kind-donation' program)? Use this at the
 // top of every /api/inkind-admin/* route, and in the page layout.
 export async function getInkindAccess(): Promise<InkindAccess> {

@@ -74,7 +74,7 @@ export default function MoveToWorkboardAction({
     return (
       <p style={{ fontSize: 12, color: "#5FFFAE", fontWeight: 700 }}>
         ✓ Moved to workboard —{" "}
-        <Link href={`/workboards/${moved}`} style={{ color: "#00E5FF" }}>
+        <Link href={`/admin/workboards/${moved}`} style={{ color: "#00E5FF" }}>
           view it there
         </Link>
       </p>
@@ -108,7 +108,7 @@ export default function MoveToWorkboardAction({
       ) : boards.length === 0 ? (
         <p style={{ fontSize: 12, color: "#9C8FD9" }}>
           You don't have any boards yet.{" "}
-          <Link href="/workboards" style={{ color: "#00E5FF" }}>
+          <Link href="/admin/workboards" style={{ color: "#00E5FF" }}>
             Create one first
           </Link>
           .

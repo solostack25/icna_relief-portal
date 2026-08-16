@@ -98,7 +98,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "Help Desk",
       items: [
-        access.canManageTickets && { href: "/helpdesk/manage", label: "Manage Tickets", icon: "tickets", external: true },
+        access.canManageTickets && { href: "/admin/helpdesk/manage", label: "Manage Tickets", icon: "tickets" },
         access.isAdmin && { href: "/admin/helpdesk", label: "Help Desk Workload", icon: "workload" },
       ].filter(Boolean) as NavItem[],
     },
@@ -111,15 +111,15 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "Marketing & Content",
       items: [
-        access.canManageFliers && { href: "/marketing/fliers/builder", label: "Flier Templates", icon: "fliers", external: true },
-        access.canManageFliers && { href: "/marketing/fliers/images", label: "Content Library", icon: "library", external: true },
+        access.canManageFliers && { href: "/admin/fliers/builder", label: "Flier Templates", icon: "fliers" },
+        access.canManageFliers && { href: "/admin/fliers/images", label: "Content Library", icon: "library" },
         access.isAdmin && { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders" },
       ].filter(Boolean) as NavItem[],
     },
     {
       title: "Programs",
       items: [
-        access.canInkind && { href: "/inkind-admin", label: "InKind Admin", icon: "inkind", external: true },
+        access.canInkind && { href: "/admin/inkind", label: "InKind Admin", icon: "inkind" },
         access.canReview && { href: "/admin/review", label: "Review Submissions", icon: "review" },
       ].filter(Boolean) as NavItem[],
     },
@@ -145,7 +145,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     },
     {
       title: "General",
-      items: [{ href: "/workboards", label: "Workboards", icon: "workboards", external: true }],
+      items: [{ href: "/admin/workboards", label: "Workboards", icon: "workboards" }],
     },
   ].filter((s) => s.items.length > 0);
 
