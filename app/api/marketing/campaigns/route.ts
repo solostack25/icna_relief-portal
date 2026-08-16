@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!access.ok) return NextResponse.json({ error: "Not authorized" }, { status: access.status });
 
   const body = await req.json();
-  const { name, subject, bodyHtml, segmentId, scheduledSendAt } = body;
+  const { name, subject, bodyHtml, bodyBlocks, segmentId, scheduledSendAt } = body;
 
   if (!name?.trim() || !subject?.trim() || !bodyHtml?.trim() || !segmentId) {
     return NextResponse.json({ error: "name, subject, bodyHtml, and segmentId are all required" }, { status: 400 });
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       name: name.trim(),
       subject: subject.trim(),
       body_html: bodyHtml,
+      body_blocks: bodyBlocks ?? null,
       segment_id: segmentId,
       status: scheduledSendAt ? "scheduled" : "draft",
       scheduled_send_at: scheduledSendAt || null,

@@ -30,6 +30,14 @@ export default async function AdminConnectorsPage() {
         immediately — no deploy needed.
       </p>
 
+      <ConnectorSection
+        title="AI Assist (Copilot Studio)"
+        description="Powers 'AI Assist' features across the portal (e.g. the email builder) — per ICNA policy, this calls Copilot rather than another AI model. Set up an HTTP-triggered flow in Copilot Studio (or a Power Automate flow wrapping a Copilot Studio agent) that accepts {prompt, context} and returns generated text, then paste its URL here."
+      >
+        <ConnectorKeyField settingKey="copilot_studio_endpoint_url" label="Flow URL" placeholder="https://prod-00.westus.logic.azure.com/..." />
+        <ConnectorKeyField settingKey="copilot_studio_api_key" label="API Key / Shared Secret (optional)" placeholder="If your flow requires an auth header" />
+      </ConnectorSection>
+
       <ConnectorSection title="Dropbox" description="Powers Upload Content and the Flier Builder's image library.">
         <DropboxSettingsClient />
       </ConnectorSection>

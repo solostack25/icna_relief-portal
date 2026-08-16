@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import EmailBuilderClient from "./EmailBuilderClient";
+import { renderBlocksToHtml, type EmailBlock } from "@/lib/emailBlocks";
 
 type Segment = { id: string; name: string; memberCount: number };
 
@@ -10,7 +12,7 @@ export default function NewCampaignPage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
-  const [bodyHtml, setBodyHtml] = useState("");
+  const [blocks, setBlocks] = useState<EmailBlock[]>([]);
   const [segmentId, setSegmentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -24,8 +26,8 @@ export default function NewCampaignPage() {
   }, []);
 
   const createDraft = async (): Promise<string | null> => {
-    if (!name.trim() || !subject.trim() || !bodyHtml.trim() || !segmentId) {
-      setError("Name, subject, body, and a segment are all required.");
+    if (!name.trim() || !subject.trim() || blocks.length === 0 || !segmentId) {
+      setError("Name, subject, at least one content block, and a segment are all required.");
       return null;
     }
     setSaving(true);
@@ -33,7 +35,7 @@ export default function NewCampaignPage() {
     const res = await fetch("/api/marketing/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, subject, bodyHtml, segmentId }),
+      body: JSON.stringify({ name, subject, bodyHtml: renderBlocksToHtml(blocks), bodyBlocks: blocks, segmentId }),
     });
     const data = await res.json();
     setSaving(false);
@@ -113,13 +115,13 @@ export default function NewCampaignPage() {
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
         />
-        <textarea
-          className="border rounded px-3 py-2 w-full text-sm font-mono"
-          rows={10}
-          placeholder="Email body (HTML)"
-          value={bodyHtml}
-          onChange={(e) => setBodyHtml(e.target.value)}
-        />
+      </div>
+
+      <div className="border rounded p-4 mb-4">
+        <EmailBuilderClient blocks={blocks} onChange={setBlocks} />
+      </div>
+
+      <div className="space-y-3 mb-4">
         <select className="border rounded px-3 py-2 w-full text-sm" value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
           <option value="">Select a segment...</option>
           {segments.map((s) => (
