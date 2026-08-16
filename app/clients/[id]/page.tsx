@@ -8,6 +8,7 @@ import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
 import LogServiceButton from "./LogServiceButton";
 import ProgramSection from "./ProgramSection";
+import CallTextButtons from "../../components/CallTextButtons";
 
 export default async function ClientProfilePage({
   params,
@@ -114,6 +115,12 @@ export default async function ClientProfilePage({
               {clientRecord.client_number}
             </p>
           </div>
+          <CallTextButtons
+            phone={clientRecord.phone}
+            targetName={`${clientRecord.first_name} ${clientRecord.last_name}`}
+            targetType="client"
+            targetId={clientRecord.id}
+          />
         </div>
 
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
