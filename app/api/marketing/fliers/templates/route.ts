@@ -14,11 +14,14 @@ export async function GET() {
   if (!access.ok) return NextResponse.json({ error: "Not authorized" }, { status: access.status });
 
   const supabase = await createClient();
-  const { data: templates, error } = await supabase
-    .from("flier_templates")
-    .select("id, name, category, canvas_width, canvas_height, canvas_data")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: templates, error }, { data: guidelines }] = await Promise.all([
+    supabase
+      .from("flier_templates")
+      .select("id, name, category, canvas_width, canvas_height, canvas_data")
+      .eq("is_active", true)
+      .order("name"),
+    supabase.from("brand_guidelines").select("colors, fonts, logo_usage_notes, voice_tone, dos, donts").eq("id", "00000000-0000-0000-0000-000000000001").single(),
+  ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -37,5 +40,10 @@ export async function GET() {
       .map((el) => ({ elementId: el.id, type: el.type, label: el.editableLabel ?? el.id })),
   }));
 
-  return NextResponse.json({ templates: summarized });
+  // brandGuidelines rides along here so a caller building a flier from
+  // a request (e.g. a future Copilot action) gets its boundaries and
+  // its template menu in a single call - colors/fonts/logo rules/voice
+  // are the constraints; images still come only from the separate
+  // approved-image search endpoint, never from this response.
+  return NextResponse.json({ templates: summarized, brandGuidelines: guidelines ?? null });
 }

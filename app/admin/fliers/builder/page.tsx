@@ -20,6 +20,9 @@ export default async function FlierBuilderListPage() {
             Flier Templates
           </h1>
           <div className="flex items-center gap-4">
+            <Link href="/admin/fliers/brand-guidelines" className="text-sm" style={{ color: "var(--portal-emerald)" }}>
+              Brand Guidelines →
+            </Link>
             <Link href="/admin/fliers/images" className="text-sm" style={{ color: "var(--portal-emerald)" }}>
               Content Library →
             </Link>
