@@ -48,7 +48,7 @@ export default function SequencesPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Drip Sequences</h1>
-          <p className="text-sm text-gray-500">Multi-step email + SMS campaigns, run automatically every 15 minutes</p>
+          <p className="text-sm text-gray-500">Multi-step email + SMS campaigns, run automatically once a day</p>
         </div>
         <Link href="/marketing/sequences/new" className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium">
           New Sequence

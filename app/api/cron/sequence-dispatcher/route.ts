@@ -4,9 +4,17 @@ import { getResendClient } from "@/lib/resendClient";
 import { getSkyetelCreds, sendSkyetelSms, sleep } from "@/lib/skyetel";
 import { ORG_NAME, ORG_MAILING_ADDRESS, ORG_APP_BASE_URL } from "@/lib/orgConfig";
 
-// Runs every 15 min (see vercel.json). For every active enrollment
-// whose next_step_due_at has passed, sends that step and advances
-// the enrollment - or marks it completed if there's no next step.
+// Runs once daily (see vercel.json) — Vercel's Hobby plan caps cron
+// jobs at once/day; a sub-daily schedule fails deployment entirely.
+// This can move back to every 15 min (the original design) once the
+// Vercel project is on a Pro plan. In the meantime, sends are just
+// delayed up to 24h rather than lost — next_step_due_at is still
+// checked with <=, so a daily run catches everything that came due
+// since the last run.
+//
+// For every active enrollment whose next_step_due_at has passed,
+// sends that step and advances the enrollment - or marks it
+// completed if there's no next step.
 //
 // Batch-capped per run (BATCH_LIMIT) so this stays well inside a
 // serverless timeout; anything left over just gets picked up on the

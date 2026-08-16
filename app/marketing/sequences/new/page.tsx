@@ -78,7 +78,7 @@ export default function NewSequencePage() {
           <div>
             <p className="text-sm mb-4">
               Enrolled <span className="font-medium text-emerald-600">{enrolled.toLocaleString()}</span> contacts. The
-              first step will send on the next dispatcher run (within 15 minutes) for anyone with no delay before it.
+              dispatcher runs once a day, so the first step will send within 24 hours for anyone with no delay before it.
             </p>
             <button className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium" onClick={() => router.push("/marketing/sequences")}>
               Back to Sequences
