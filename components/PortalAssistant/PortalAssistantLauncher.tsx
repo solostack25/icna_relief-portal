@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import PortalAssistantBoundary from "./PortalAssistantBoundary";
 
@@ -21,6 +21,15 @@ type Props = {
 
 export default function PortalAssistantLauncher({ loginHint }: Props) {
   const [open, setOpen] = useState(false);
+
+  // Sign-in navigates away and comes back to this page. Reopen the panel so the
+  // user lands where they left off instead of on a closed assistant.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("portalAssistant.redirecting") === "1") {
+      setOpen(true);
+    }
+  }, []);
 
   return (
     <>
