@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import PortalAssistantBoundary from "./PortalAssistantBoundary";
 
 /**
  * botframework-webchat touches `window` at import time, so it can never be
@@ -25,10 +26,12 @@ export default function PortalAssistantLauncher({ loginHint }: Props) {
     <>
       {open && (
         <div className="pa-dock">
-          <PortalAssistantPanel
-            loginHint={loginHint}
-            onClose={() => setOpen(false)}
-          />
+          <PortalAssistantBoundary onClose={() => setOpen(false)}>
+            <PortalAssistantPanel
+              loginHint={loginHint}
+              onClose={() => setOpen(false)}
+            />
+          </PortalAssistantBoundary>
         </div>
       )}
 
