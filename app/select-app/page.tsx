@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import PortalHeader from "@/app/PortalHeader";
 import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import { getCoursesWithStatus } from "@/lib/lms";
+import PortalAssistantLauncher from "@/components/PortalAssistant/PortalAssistantLauncher";
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -362,6 +363,7 @@ export default async function SelectAppPage() {
           </Link>
         )}
       </div>
+      <PortalAssistantLauncher loginHint={employee.email} />
     </main>
   );
 }
