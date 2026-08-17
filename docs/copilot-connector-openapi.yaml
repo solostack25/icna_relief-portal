@@ -76,6 +76,101 @@ paths:
           description: requesterEmail did not match any employee
       security:
         - apiKeyHeader: []
+  /calling/click-to-call:
+    post:
+      summary: Call a contact, client, or phone number
+      description: Initiates a call from the requester's 3CX extension to a target. Provide either toNumber directly, or targetName to look up a contact/client by name. Always confirm who they want to call before calling this. If the response is an ambiguous_target error, ask the requester to clarify which person they meant and call again with the exact full name.
+      operationId: ClickToCall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requesterEmail]
+              properties:
+                requesterEmail:
+                  type: string
+                  description: Email of the employee placing the call. Use the calling user's own email.
+                toNumber:
+                  type: string
+                  description: Phone number to call directly, if already known.
+                targetName:
+                  type: string
+                  description: Full name of the contact or client to call, e.g. "Syed Rahman". Used to look up a phone number when toNumber isn't provided.
+      responses:
+        "200":
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Missing fields, or requester has no 3CX extension / calling not connected
+        "401":
+          description: Invalid or missing API key
+        "404":
+          description: requesterEmail or targetName did not match any record
+        "409":
+          description: targetName matched more than one contact/client - ask the requester to clarify
+        "502":
+          description: 3CX call failed to initiate
+      security:
+        - apiKeyHeader: []
+  /calling/quick-sms:
+    post:
+      summary: Text a contact, client, or phone number
+      description: Sends an SMS via Skyetel. Provide either toNumber directly, or targetName to look up a contact/client by name. Always confirm the message content and recipient before calling this. If the response is an ambiguous_target error, ask the requester to clarify which person they meant and call again with the exact full name.
+      operationId: QuickSms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requesterEmail, text]
+              properties:
+                requesterEmail:
+                  type: string
+                  description: Email of the employee sending the text. Use the calling user's own email.
+                toNumber:
+                  type: string
+                  description: Phone number to text directly, if already known.
+                targetName:
+                  type: string
+                  description: Full name of the contact or client to text, e.g. "Fatima Khan". Used to look up a phone number when toNumber isn't provided.
+                text:
+                  type: string
+                  description: Message body, max 1024 characters.
+      responses:
+        "200":
+          description: Text sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Missing fields, text too long, or texting not connected
+        "401":
+          description: Invalid or missing API key
+        "404":
+          description: requesterEmail or targetName did not match any record
+        "409":
+          description: targetName matched more than one contact/client - ask the requester to clarify
+        "502":
+          description: SMS failed to send
+      security:
+        - apiKeyHeader: []
 components:
   securitySchemes:
     apiKeyHeader:
