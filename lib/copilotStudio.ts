@@ -42,7 +42,7 @@ export async function callCopilotStudio(
     // raw string body or a JSON object - accept either shape here so
     // Travis doesn't have to fight the flow's output format to match
     // this exactly.
-    const result = typeof data === "string" ? data : data.result ?? data.text ?? data.output ?? JSON.stringify(data);
+    const result = typeof data === "string" ? data : data.reply ?? data.result ?? data.text ?? data.output ?? JSON.stringify(data);
     return { ok: true, result };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error calling Copilot Studio" };
