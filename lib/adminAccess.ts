@@ -7,6 +7,7 @@ export type AdminAccess = {
   canManageFinance: boolean;
   canInkind: boolean;
   canManageFliers: boolean;
+  canManageMarketing: boolean;
   canReview: boolean;
   hasAnyAccess: boolean;
 };
@@ -47,13 +48,25 @@ export async function getAdminAccess(
         .maybeSingle();
   const canManageFliers = isAdmin || !!flierAccess;
 
+  const { data: marketingAccess } = isAdmin
+    ? { data: null }
+    : await supabase
+        .from("employee_program_access")
+        .select("program_slug")
+        .eq("employee_id", employeeId)
+        .eq("program_slug", "marketing-contacts")
+        .maybeSingle();
+  const canManageMarketing = isAdmin || !!marketingAccess;
+
   return {
     isAdmin,
     canManageTickets,
     canManageFinance,
     canInkind,
     canManageFliers,
+    canManageMarketing,
     canReview,
-    hasAnyAccess: isAdmin || canManageTickets || canManageFinance || canInkind || canManageFliers || canReview,
+    hasAnyAccess:
+      isAdmin || canManageTickets || canManageFinance || canInkind || canManageFliers || canManageMarketing || canReview,
   };
 }

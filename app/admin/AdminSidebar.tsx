@@ -86,6 +86,38 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M9 3v18M15 3v18" />
     </svg>
   ),
+  contacts: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+    </svg>
+  ),
+  segments: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="8" cy="12" r="5" />
+      <circle cx="15" cy="12" r="5" />
+    </svg>
+  ),
+  campaigns: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4l16 8-16 8V4z" />
+    </svg>
+  ),
+  sms: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" />
+    </svg>
+  ),
+  sequences: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h18M3 12h18M3 18h12" />
+    </svg>
+  ),
+  donorCalling: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .3 2 .6 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.5 2.9.6a2 2 0 011.7 2.1z" />
+    </svg>
+  ),
 };
 
 type NavItem = { href: string; label: string; icon: keyof typeof ICONS; external?: boolean };
@@ -111,6 +143,12 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "Marketing & Content",
       items: [
+        access.canManageMarketing && { href: "/marketing/contacts", label: "Contacts", icon: "contacts" },
+        access.canManageMarketing && { href: "/marketing/segments", label: "Segments", icon: "segments" },
+        access.canManageMarketing && { href: "/marketing/campaigns", label: "Email Campaigns", icon: "campaigns" },
+        access.canManageMarketing && { href: "/marketing/sms-campaigns", label: "SMS Campaigns", icon: "sms" },
+        access.canManageMarketing && { href: "/marketing/sequences", label: "Sequences", icon: "sequences" },
+        access.canManageMarketing && { href: "/marketing/donor-calling", label: "Donor Calling", icon: "donorCalling" },
         access.canManageFliers && { href: "/admin/fliers/builder", label: "Flier Templates", icon: "fliers" },
         access.canManageFliers && { href: "/admin/fliers/images", label: "Content Library", icon: "library" },
         access.isAdmin && { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders" },
