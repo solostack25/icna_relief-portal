@@ -38,6 +38,13 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="copilot_studio_api_key" label="API Key / Shared Secret (optional)" placeholder="If your flow requires an auth header" />
       </ConnectorSection>
 
+      <ConnectorSection
+        title="Copilot Agent Actions"
+        description="Separate from AI Assist above — this key authenticates the Portal Assistant agent's ability to actually DO things in the portal (create tickets, place calls, send messages), via the /api/copilot/* endpoints registered as a custom connector in Power Platform. Generate any random secure string and paste it both here and into the custom connector's security settings."
+      >
+        <ConnectorKeyField settingKey="copilot_api_key" label="Copilot Actions API Key" placeholder="Generate a long random string" />
+      </ConnectorSection>
+
       <ConnectorSection title="Dropbox" description="Powers Upload Content and the Flier Builder's image library.">
         <DropboxSettingsClient />
       </ConnectorSection>

@@ -1,0 +1,84 @@
+# OpenAPI spec for the ICNA Portal's Copilot Studio custom connector.
+#
+# HOW TO USE:
+# 1. In Power Platform (make.powerautomate.com or make.powerapps.com),
+#    go to Data > Custom connectors > New custom connector > Import an
+#    OpenAPI file, and upload/paste this file.
+# 2. Replace YOUR-PORTAL-DOMAIN below with the real portal domain.
+# 3. Under Security, choose "API Key", header name "X-Copilot-Api-Key",
+#    and use the same value stored in Admin > Connectors > "Copilot
+#    Agent Actions" > Copilot Actions API Key.
+# 4. Once created, this connector's actions become available to add
+#    inside Copilot Studio Topics (Build > Topic > Add an action).
+#
+# New capabilities get added here as new `paths` entries as each one
+# is built on the portal side - re-import this file into the same
+# custom connector to pick up new actions without starting over.
+
+openapi: 3.0.0
+info:
+  title: ICNA Portal Actions
+  description: Actions the Portal Assistant agent can take in the ICNA Staff Portal.
+  version: 1.0.0
+servers:
+  - url: https://YOUR-PORTAL-DOMAIN/api/copilot
+paths:
+  /helpdesk/create-ticket:
+    post:
+      summary: Create a helpdesk ticket
+      description: Creates a new helpdesk ticket routed to the given department (IT, HR, Marketing, or Finance). Always confirm the details with the requester before calling this.
+      operationId: CreateHelpdeskTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requesterEmail, title, department]
+              properties:
+                requesterEmail:
+                  type: string
+                  description: Email of the employee this ticket is being submitted for. Use the calling user's own email unless they specify someone else.
+                title:
+                  type: string
+                  description: Short summary of the issue or request, e.g. "New laptop needed - current one won't power on"
+                description:
+                  type: string
+                  description: Additional detail beyond the title, if the requester provided any.
+                department:
+                  type: string
+                  enum: [it, hr, marketing, finance]
+                  description: Which department this ticket should route to.
+                priority:
+                  type: string
+                  enum: [low, normal, high, urgent]
+                  description: Defaults to normal if not specified.
+                category:
+                  type: string
+                  description: Optional free-text category, e.g. "Hardware", "Access Request".
+      responses:
+        "200":
+          description: Ticket created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticketId:
+                    type: string
+                  message:
+                    type: string
+        "400":
+          description: Missing or invalid fields
+        "401":
+          description: Invalid or missing API key
+        "404":
+          description: requesterEmail did not match any employee
+      security:
+        - apiKeyHeader: []
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-Copilot-Api-Key
