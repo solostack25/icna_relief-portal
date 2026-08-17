@@ -1,31 +1,44 @@
 import {
   PublicClientApplication,
   InteractionRequiredAuthError,
+  BrowserAuthError,
   type AccountInfo,
+  type AuthenticationResult,
 } from "@azure/msal-browser";
 import { CopilotStudioClient } from "@microsoft/agents-copilotstudio-client";
 import { getCopilotSettings, getMsalConfig, COPILOT_INVOKE_SCOPE } from "./config";
 
-let msalInstance: PublicClientApplication | null = null;
-
 /**
- * MSAL must be initialized exactly once before any token call. Next.js will re-run
- * module code on fast refresh, so this is memoized rather than run at module scope.
+ * Redirect-based auth, not popup.
+ *
+ * A popup only survives if it opens synchronously from the user's click. Here
+ * the interactive step is reached after two awaited calls (acquireTokenSilent,
+ * then ssoSilent), by which point the browser no longer treats it as
+ * user-initiated and blocks it — MSAL surfaces that as popup_window_error.
+ *
+ * Redirect has no window to block. The page navigates to Entra and returns to
+ * the same URL, where handleRedirectPromise() completes the flow.
  */
+
+let msalInstance: PublicClientApplication | null = null;
+let redirectResult: AuthenticationResult | null = null;
+
+const REDIRECT_FLAG = "portalAssistant.redirecting";
+
 async function getMsal(): Promise<PublicClientApplication> {
   if (!msalInstance) {
     msalInstance = new PublicClientApplication(getMsalConfig());
     await msalInstance.initialize();
-    await msalInstance.handleRedirectPromise();
+    // Completes a sign-in we started earlier. Returns null on a normal load.
+    redirectResult = await msalInstance.handleRedirectPromise();
+    if (redirectResult?.account) {
+      msalInstance.setActiveAccount(redirectResult.account);
+      sessionStorage.removeItem(REDIRECT_FLAG);
+    }
   }
   return msalInstance;
 }
 
-/**
- * Prefer the SDK's own scope derivation so this keeps working if Microsoft changes
- * the resource URI. Falls back to the documented constant if the helper isn't exported
- * in the installed version.
- */
 function resolveScopes(): string[] {
   const helper = (
     CopilotStudioClient as unknown as {
@@ -37,28 +50,30 @@ function resolveScopes(): string[] {
     try {
       return [helper(getCopilotSettings())];
     } catch {
-      // fall through
+      // fall through to the documented constant
     }
   }
   return [COPILOT_INVOKE_SCOPE];
 }
 
-export type TokenResult = {
-  token: string;
-  account: AccountInfo;
-};
+export type TokenResult = { token: string; account: AccountInfo };
+
+/**
+ * True when we just came back from Entra, so the panel can reopen itself.
+ */
+export function returnedFromRedirect(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(REDIRECT_FLAG) === "1" || redirectResult !== null;
+}
 
 /**
  * Acquire a delegated token for Copilot Studio.
  *
- * Order of attempts:
- *   1. acquireTokenSilent against an already-cached account (instant, no UI)
- *   2. ssoSilent using the existing Entra session (no UI — this is the path that
- *      should hit for staff already signed into the portal via Azure AD SSO)
- *   3. loginPopup (visible, only when the first two can't work)
- *
- * `allowInteractive: false` stops before step 3, which is useful on first paint so
- * the assistant doesn't throw a popup at someone who never opened it.
+ * 1. Token already in the MSAL cache — instant, no network.
+ * 2. ssoSilent against the existing Entra session — no UI. This is the path
+ *    that should hit for staff already signed into the portal.
+ * 3. If allowInteractive, navigate to Entra. This does not return; the page
+ *    reloads and getMsal() completes the flow on the way back.
  */
 export async function acquireCopilotToken(
   opts: { allowInteractive?: boolean; loginHint?: string } = {}
@@ -67,14 +82,16 @@ export async function acquireCopilotToken(
   const msal = await getMsal();
   const scopes = resolveScopes();
 
-  const cached = msal.getAllAccounts();
-  if (cached.length > 0) {
+  if (redirectResult?.accessToken && redirectResult.account) {
+    return { token: redirectResult.accessToken, account: redirectResult.account };
+  }
+
+  const account = msal.getActiveAccount() ?? msal.getAllAccounts()[0];
+
+  if (account) {
     try {
-      const result = await msal.acquireTokenSilent({
-        scopes,
-        account: cached[0],
-      });
-      return { token: result.accessToken, account: result.account! };
+      const result = await msal.acquireTokenSilent({ scopes, account });
+      return { token: result.accessToken, account: result.account ?? account };
     } catch (error) {
       if (!(error instanceof InteractionRequiredAuthError)) throw error;
     }
@@ -82,24 +99,23 @@ export async function acquireCopilotToken(
 
   try {
     const result = await msal.ssoSilent({ scopes, loginHint });
+    if (result.account) msal.setActiveAccount(result.account);
     return { token: result.accessToken, account: result.account! };
   } catch (error) {
-    if (!allowInteractive) throw error;
-    if (!(error instanceof InteractionRequiredAuthError)) {
-      // ssoSilent also fails when there are zero or multiple sessions, which is
-      // recoverable by falling through to the popup.
-      if (!(error instanceof Error)) throw error;
-    }
+    const recoverable =
+      error instanceof InteractionRequiredAuthError ||
+      error instanceof BrowserAuthError;
+    if (!allowInteractive || !recoverable) throw error;
   }
 
-  const result = await msal.loginPopup({ scopes, loginHint });
-  return { token: result.accessToken, account: result.account! };
+  // Leaves the page. Nothing after this runs.
+  sessionStorage.setItem(REDIRECT_FLAG, "1");
+  await msal.acquireTokenRedirect({ scopes, loginHint, account: account ?? undefined });
+  throw new Error("Redirecting to sign in…");
 }
 
 export async function signOutCopilot(): Promise<void> {
   const msal = await getMsal();
-  const account = msal.getAllAccounts()[0];
-  if (account) {
-    await msal.clearCache({ account });
-  }
+  const account = msal.getActiveAccount() ?? msal.getAllAccounts()[0];
+  if (account) await msal.clearCache({ account });
 }
