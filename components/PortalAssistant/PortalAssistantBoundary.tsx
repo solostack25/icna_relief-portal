@@ -7,8 +7,9 @@ type State = { message: string | null };
 
 /**
  * Keeps an assistant failure contained. Without this, anything thrown while the
- * WebChat bundle mounts unmounts the whole React tree and /select-app renders as
- * "Application error: a client-side exception has occurred".
+ * panel or its API call errors could unmount the whole React tree and
+ * /select-app renders as "Application error: a client-side exception has
+ * occurred" instead of just the assistant panel showing an error.
  */
 export default class PortalAssistantBoundary extends React.Component<Props, State> {
   state: State = { message: null };

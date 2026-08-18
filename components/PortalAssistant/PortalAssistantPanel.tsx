@@ -1,166 +1,68 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  CopilotStudioClient,
-  CopilotStudioWebChat,
-} from "@microsoft/agents-copilotstudio-client";
-import { acquireCopilotToken } from "@/lib/portalAssistant/auth";
-import { getCopilotSettings } from "@/lib/portalAssistant/config";
 
 /**
- * WebChat is loaded from Microsoft's CDN rather than the npm package.
+ * Plain chat UI, no external chat-widget dependency.
  *
- * The npm `botframework-webchat` dist is already bundled and minified; running
- * it through Next's minifier corrupts embedded JSON string literals, which
- * surfaces at runtime as "Bad control character in string literal in JSON"
- * from inside the WebChat chunk. The CDN build is prebuilt and never touches
- * our bundler, so there is nothing to corrupt.
- *
- * If the portal ever gets a Content-Security-Policy, cdn.botframework.com must
- * be allowed in script-src or this will fail to load.
+ * The previous version of this panel loaded botframework-webchat from
+ * Microsoft's CDN and used MSAL to acquire a delegated Copilot Studio
+ * token. Both are gone: identity now comes for free from the portal's
+ * own logged-in session (this panel just calls /api/ai/portal-assistant,
+ * which reads the Supabase session server-side), and there's no
+ * Copilot Studio connection to authenticate to at all anymore.
  */
-const WEBCHAT_CDN =
-  "https://cdn.botframework.com/botframework-webchat/latest/webchat.js";
 
-declare global {
-  interface Window {
-    WebChat?: {
-      renderWebChat: (props: Record<string, unknown>, element: HTMLElement) => void;
-    };
-  }
-}
-
-let scriptPromise: Promise<void> | null = null;
-
-function loadWebChat(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.WebChat) return Promise.resolve();
-  if (scriptPromise) return scriptPromise;
-
-  scriptPromise = new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = WEBCHAT_CDN;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => resolve();
-    script.onerror = () => {
-      scriptPromise = null;
-      reject(new Error("Could not load the chat library from Microsoft's CDN."));
-    };
-    document.head.appendChild(script);
-  });
-
-  return scriptPromise;
-}
-
-type Status = "connecting" | "ready" | "signin-required" | "error";
+type ChatMessage = { role: "user" | "assistant"; content: string };
 
 type Props = {
-  /** The signed-in employee's UPN, so MSAL can skip the account picker. */
-  loginHint?: string;
   onClose?: () => void;
 };
 
-export default function PortalAssistantPanel({ loginHint, onClose }: Props) {
-  const [status, setStatus] = useState<Status>("connecting");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const cancelled = useRef(false);
-  const rendered = useRef(false);
+export default function PortalAssistantPanel({ onClose }: Props) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: "assistant", content: "Hi! I can create helpdesk tickets, place calls, or send texts — what do you need?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    cancelled.current = false;
-    connect({ allowInteractive: false });
-    return () => {
-      cancelled.current = true;
-      if (containerRef.current) containerRef.current.innerHTML = "";
-      rendered.current = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, sending]);
 
-  async function connect({ allowInteractive }: { allowInteractive: boolean }) {
-    setStatus("connecting");
-    setErrorMessage(null);
+  async function send() {
+    const text = input.trim();
+    if (!text || sending) return;
+
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
+    setMessages(nextMessages);
+    setInput("");
+    setSending(true);
+    setError(null);
 
     try {
-      await loadWebChat();
-      if (cancelled.current) return;
-
-      const { token } = await acquireCopilotToken({ allowInteractive, loginHint });
-      if (cancelled.current) return;
-
-      const client = new CopilotStudioClient(getCopilotSettings(), token);
-      const directLine = CopilotStudioWebChat.createConnection(client, {
-        showTyping: true,
+      const res = await fetch("/api/ai/portal-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: nextMessages }),
       });
-      if (cancelled.current) return;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "The assistant couldn't respond.");
 
-      setStatus("ready");
+      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSending(false);
+    }
+  }
 
-      // The container only exists once status is "ready", so wait a tick for
-      // React to commit it before handing the node to WebChat.
-      requestAnimationFrame(() => {
-        if (cancelled.current || rendered.current) return;
-        const el = containerRef.current;
-        if (!el || !window.WebChat) return;
-
-        window.WebChat.renderWebChat(
-          {
-            directLine,
-            locale: "en-US",
-            styleOptions: {
-              rootHeight: "100%",
-              rootWidth: "100%",
-              backgroundColor: "transparent",
-              paddingRegular: 12,
-              bubbleBorderRadius: 14,
-              bubbleFromUserBorderRadius: 14,
-              bubbleMaxWidth: 420,
-
-              // Portal emerald/gold. Literal hex rather than CSS vars — these
-              // are consumed by WebChat's own JS, not always as inline styles.
-              bubbleBackground: "#FBF7EF",
-              bubbleTextColor: "#16302B",
-              bubbleFromUserBackground: "#1F6F54",
-              bubbleFromUserTextColor: "#FFFFFF",
-              sendBoxBackground: "#FFFFFF",
-              sendBoxTextColor: "#16302B",
-              sendBoxBorderTop: "1px solid rgba(22,48,43,0.12)",
-              suggestedActionBackgroundColor: "transparent",
-              suggestedActionBorderColor: "#1F6F54",
-              suggestedActionTextColor: "#1F6F54",
-              suggestedActionBorderRadius: 999,
-              accent: "#1F6F54",
-
-              primaryFont:
-                "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
-
-              hideUploadButton: true,
-              botAvatarInitials: "IR",
-              userAvatarInitials: "",
-              avatarSize: 28,
-            },
-          },
-          el
-        );
-
-        rendered.current = true;
-      });
-    } catch (error) {
-      if (cancelled.current) return;
-
-      if (!allowInteractive) {
-        // A failed silent attempt is expected, not an error — offer the button.
-        setStatus("signin-required");
-        return;
-      }
-
-      setErrorMessage(
-        error instanceof Error ? error.message : "Could not reach the assistant."
-      );
-      setStatus("error");
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
     }
   }
 
@@ -169,60 +71,52 @@ export default function PortalAssistantPanel({ loginHint, onClose }: Props) {
       <header className="pa-header">
         <div>
           <p className="pa-title">Portal Assistant</p>
-          <p className="pa-subtitle">
-            Tickets, calls, and texts — ask in plain language
-          </p>
+          <p className="pa-subtitle">Tickets, calls, and texts — ask in plain language</p>
         </div>
         {onClose && (
-          <button
-            type="button"
-            className="pa-close"
-            onClick={onClose}
-            aria-label="Close assistant"
-          >
+          <button type="button" className="pa-close" onClick={onClose} aria-label="Close assistant">
             ×
           </button>
         )}
       </header>
 
-      <div className="pa-body">
-        {status === "connecting" && <p className="pa-state">Connecting…</p>}
-
-        {status === "signin-required" && (
-          <div className="pa-state">
-            <p>Sign in to start a conversation.</p>
-            <button
-              type="button"
-              className="pa-action"
-              onClick={() => connect({ allowInteractive: true })}
-            >
-              Sign in
-            </button>
+      <div className="pa-body" ref={bodyRef}>
+        {messages.map((m, i) => (
+          <div key={i} className={`pa-bubble-row ${m.role === "user" ? "pa-row-user" : "pa-row-bot"}`}>
+            <div className={`pa-bubble ${m.role === "user" ? "pa-bubble-user" : "pa-bubble-bot"}`}>{m.content}</div>
+          </div>
+        ))}
+        {sending && (
+          <div className="pa-bubble-row pa-row-bot">
+            <div className="pa-bubble pa-bubble-bot pa-typing">Thinking…</div>
           </div>
         )}
+        {error && <p className="pa-error">{error}</p>}
+      </div>
 
-        {status === "error" && (
-          <div className="pa-state">
-            <p className="pa-error">{errorMessage}</p>
-            <button
-              type="button"
-              className="pa-action"
-              onClick={() => connect({ allowInteractive: true })}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        <div
-          ref={containerRef}
-          className="pa-webchat"
-          style={{ display: status === "ready" ? "block" : "none" }}
+      <div className="pa-sendbox">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask the assistant…"
+          rows={1}
+          disabled={sending}
         />
+        <button type="button" onClick={send} disabled={sending || !input.trim()} aria-label="Send">
+          Send
+        </button>
       </div>
 
       <style jsx>{`
         .pa-panel {
+          --pa-accent: var(--portal-emerald, #1f6f54);
+          --pa-heading: var(--portal-ink, #16302b);
+          --pa-bot-bubble: var(--portal-sand, #fbf7ef);
+          --pa-bot-text: var(--portal-ink, #16302b);
+          --pa-user-bubble: var(--portal-emerald, #1f6f54);
+          --pa-user-text: #ffffff;
+
           display: flex;
           flex-direction: column;
           height: 100%;
@@ -244,7 +138,7 @@ export default function PortalAssistantPanel({ loginHint, onClose }: Props) {
           margin: 0;
           font-size: 0.95rem;
           font-weight: 600;
-          color: var(--portal-ink, #16302b);
+          color: var(--pa-heading);
         }
         .pa-subtitle {
           margin: 2px 0 0;
@@ -252,50 +146,87 @@ export default function PortalAssistantPanel({ loginHint, onClose }: Props) {
           color: rgba(22, 48, 43, 0.55);
         }
         .pa-close {
-          border: 0;
+          border: none;
           background: transparent;
-          font-size: 1.4rem;
+          font-size: 20px;
           line-height: 1;
           cursor: pointer;
-          color: rgba(22, 48, 43, 0.55);
+          color: rgba(22, 48, 43, 0.5);
           padding: 2px 6px;
-          border-radius: 6px;
-        }
-        .pa-close:focus-visible,
-        .pa-action:focus-visible {
-          outline: 2px solid var(--portal-emerald, #1f6f54);
-          outline-offset: 2px;
         }
         .pa-body {
           flex: 1;
-          min-height: 0;
-          position: relative;
-        }
-        .pa-webchat {
-          height: 100%;
-          width: 100%;
-        }
-        .pa-state {
+          overflow-y: auto;
+          padding: 14px 16px;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
           gap: 10px;
-          padding: 20px 16px;
-          font-size: 0.85rem;
-          color: rgba(22, 48, 43, 0.55);
+        }
+        .pa-bubble-row {
+          display: flex;
+        }
+        .pa-row-user {
+          justify-content: flex-end;
+        }
+        .pa-row-bot {
+          justify-content: flex-start;
+        }
+        .pa-bubble {
+          max-width: 85%;
+          padding: 10px 14px;
+          border-radius: 14px;
+          font-size: 0.88rem;
+          line-height: 1.45;
+          white-space: pre-wrap;
+        }
+        .pa-bubble-bot {
+          background: var(--pa-bot-bubble);
+          color: var(--pa-bot-text);
+          border-bottom-left-radius: 4px;
+        }
+        .pa-bubble-user {
+          background: var(--pa-user-bubble);
+          color: var(--pa-user-text);
+          border-bottom-right-radius: 4px;
+        }
+        .pa-typing {
+          font-style: italic;
+          opacity: 0.7;
         }
         .pa-error {
-          margin: 0;
           color: #a4262c;
+          font-size: 0.8rem;
+          margin: 4px 0 0;
         }
-        .pa-action {
-          border: 1px solid var(--portal-emerald, #1f6f54);
-          background: transparent;
-          color: var(--portal-emerald, #1f6f54);
-          border-radius: 999px;
-          padding: 6px 16px;
+        .pa-sendbox {
+          display: flex;
+          gap: 8px;
+          padding: 10px 12px;
+          border-top: 1px solid var(--portal-line, rgba(22, 48, 43, 0.12));
+        }
+        .pa-sendbox textarea {
+          flex: 1;
+          resize: none;
+          border: 1px solid var(--portal-line, rgba(22, 48, 43, 0.15));
+          border-radius: 10px;
+          padding: 8px 10px;
+          font-size: 0.85rem;
+          font-family: inherit;
+          max-height: 90px;
+        }
+        .pa-sendbox button {
+          border: none;
+          border-radius: 10px;
+          padding: 0 16px;
+          background: var(--pa-accent);
+          color: #fff;
+          font-weight: 600;
           font-size: 0.82rem;
           cursor: pointer;
+        }
+        .pa-sendbox button:disabled {
+          opacity: 0.5;
+          cursor: default;
         }
       `}</style>
     </div>

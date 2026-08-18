@@ -32,15 +32,25 @@ export default async function AdminConnectorsPage() {
 
       <ConnectorSection
         title="AI Assist (Copilot Studio)"
-        description="Powers 'AI Assist' features across the portal (e.g. the email builder) — per ICNA policy, this calls Copilot rather than another AI model. Set up an HTTP-triggered flow in Copilot Studio (or a Power Automate flow wrapping a Copilot Studio agent) that accepts {prompt, context} and returns generated text, then paste its URL here."
+        description="Powers 'AI Assist' features across the portal (e.g. the email builder) — calls an HTTP-triggered Copilot Studio flow. Unrelated to the Portal Assistant below; this can stay on Copilot Studio or move to Azure OpenAI later, they're independent."
       >
         <ConnectorKeyField settingKey="copilot_studio_endpoint_url" label="Flow URL" placeholder="https://prod-00.westus.logic.azure.com/..." />
         <ConnectorKeyField settingKey="copilot_studio_api_key" label="API Key / Shared Secret (optional)" placeholder="If your flow requires an auth header" />
       </ConnectorSection>
 
       <ConnectorSection
+        title="Portal Assistant (Azure OpenAI)"
+        description="Powers the Portal Assistant chat panel on /select-app — creating helpdesk tickets, placing calls, sending texts. Runs directly on Azure OpenAI rather than Copilot Studio, since Copilot Studio's tool-calling orchestrator requires an Agent 365 license this tenant doesn't have. Create a resource in Azure OpenAI Studio, deploy a chat model (e.g. gpt-4o), and paste its details here. The image deployment is optional and only needed for AI-generated flier images."
+      >
+        <ConnectorKeyField settingKey="azure_openai_endpoint" label="Endpoint" placeholder="https://your-resource.openai.azure.com" />
+        <ConnectorKeyField settingKey="azure_openai_api_key" label="API Key" placeholder="From Azure OpenAI Studio > Keys and Endpoint" />
+        <ConnectorKeyField settingKey="azure_openai_deployment" label="Chat Deployment Name" placeholder="e.g. gpt-4o" />
+        <ConnectorKeyField settingKey="azure_openai_image_deployment" label="Image Deployment Name (optional)" placeholder="e.g. dall-e-3" />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Copilot Agent Actions"
-        description="Separate from AI Assist above — this key authenticates the Portal Assistant agent's ability to actually DO things in the portal (create tickets, place calls, send messages), via the /api/copilot/* endpoints registered as a custom connector in Power Platform. Generate any random secure string and paste it both here and into the custom connector's security settings."
+        description="Authenticates the Portal Assistant's ability to actually DO things in the portal (create tickets, place calls, send messages) via the /api/copilot/* endpoints — called directly by the Portal Assistant above. Generate any random secure string and paste it here."
       >
         <ConnectorKeyField settingKey="copilot_api_key" label="Copilot Actions API Key" placeholder="Generate a long random string" />
       </ConnectorSection>

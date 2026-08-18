@@ -1,11 +1,14 @@
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 
-// ICNA's policy is Copilot-only for AI - so "AI Assist" features in
-// the portal don't call Claude/OpenAI/etc. Instead they call an
-// HTTP-triggered Copilot Studio flow (or a Power Automate flow that
-// wraps a Copilot Studio agent), configured once in Admin > Connectors.
-// The flow takes a prompt + context and returns generated content -
-// what it does with that (which model, which grounding) is entirely
+// This still powers the "AI Assist" text-generation features (e.g.
+// the email builder) via an HTTP-triggered Copilot Studio flow,
+// configured in Admin > Connectors. It's a separate, independent
+// integration from the Portal Assistant (see lib/ai/), which moved
+// to calling Azure OpenAI directly after Copilot Studio's tool-calling
+// orchestrator turned out to require an Agent 365 license this tenant
+// doesn't have. Nothing wrong with AI Assist staying on Copilot Studio
+// — it doesn't need tool-calling, just text generation, so it never
+// hit that wall. What the flow does with the prompt (which model,
 // Copilot Studio's business, kept outside this codebase on purpose.
 
 export async function getCopilotStudioEndpoint(): Promise<{ url: string; apiKey: string | null } | null> {

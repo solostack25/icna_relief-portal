@@ -363,7 +363,7 @@ export default async function SelectAppPage() {
           </Link>
         )}
       </div>
-      <PortalAssistantLauncher loginHint={employee.email} />
+      <PortalAssistantLauncher />
     </main>
   );
 }
