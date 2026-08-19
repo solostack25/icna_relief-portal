@@ -47,12 +47,16 @@ export default async function ClientProfilePage({
 
   if (!clientRecord) redirect("/clients");
 
-  // separate queries, merged in memory — no relational joins
-  const { data: members } = await supabase
-    .from("household_members")
-    .select("id, first_name, last_name, dob, relationship, gender")
-    .eq("client_id", id)
-    .order("dob");
+  // separate queries, merged in memory — no relational joins.
+  // Legacy household_members only applies to pre-household_key clients —
+  // new-intake clients always have 0 rows here, so skip the query for them.
+  const { data: members } = clientRecord.household_key
+    ? { data: [] }
+    : await supabase
+        .from("household_members")
+        .select("id, first_name, last_name, dob, relationship, gender")
+        .eq("client_id", id)
+        .order("dob");
 
   // New-model household members: full independent client records sharing
   // household_key, distinct from the legacy `household_members` shallow
@@ -204,32 +208,34 @@ export default async function ClientProfilePage({
           </dl>
         </section>
 
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
-          <h2 className="text-sm font-medium mb-4">
-            Household Members ({members?.length ?? 0})
-          </h2>
-          {members && members.length > 0 ? (
-            <div className="space-y-2">
-              {members.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
-                >
-                  <span>
-                    {m.first_name} {m.last_name ?? ""}
-                  </span>
-                  <span className="text-[var(--color-text-dim)]">
-                    {m.relationship} · Age {calcAge(m.dob)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--color-text-dim)]">
-              No household members recorded.
-            </p>
-          )}
-        </section>
+        {!clientRecord.household_key && (
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
+            <h2 className="text-sm font-medium mb-4">
+              Household Members ({members?.length ?? 0})
+            </h2>
+            {members && members.length > 0 ? (
+              <div className="space-y-2">
+                {members.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+                  >
+                    <span>
+                      {m.first_name} {m.last_name ?? ""}
+                    </span>
+                    <span className="text-[var(--color-text-dim)]">
+                      {m.relationship} · Age {calcAge(m.dob)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-text-dim)]">
+                No household members recorded.
+              </p>
+            )}
+          </section>
+        )}
 
         {clientRecord.household_key && (
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
