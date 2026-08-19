@@ -11,6 +11,7 @@ type Member = {
   first_name: string;
   dob: string;
   gender: "male" | "female" | null;
+  source: "legacy" | "household";
 };
 
 type Office = { id: string; region: string; field_office: string };
@@ -86,6 +87,7 @@ export default function DistributeBackpackButton({
     first_name: string;
     dob: string;
     gender: "male" | "female" | null;
+    source: "legacy" | "household";
     age: number;
     level: "elementary" | "middle" | "high";
   }[];
@@ -157,16 +159,26 @@ export default function DistributeBackpackButton({
       counts[key] += 1;
     }
 
-    // persist gender back onto the household record so it's known going forward
+    // persist gender back onto the household record so it's known going forward —
+    // legacy dependents live in household_members (lowercase "male"/"female"),
+    // new-intake household members are their own rows in clients (capitalized
+    // "Male"/"Female" to match the intake form's dropdown convention).
     await Promise.all(
       chosen
         .filter((c) => !c.gender)
-        .map((c) =>
-          supabase
+        .map((c) => {
+          const gender = selections[c.id].gender;
+          if (c.source === "household") {
+            return supabase
+              .from("clients")
+              .update({ gender: gender === "male" ? "Male" : "Female" })
+              .eq("id", c.id);
+          }
+          return supabase
             .from("household_members")
-            .update({ gender: selections[c.id].gender })
-            .eq("id", c.id)
-        )
+            .update({ gender })
+            .eq("id", c.id);
+        })
     );
 
     const now = new Date();

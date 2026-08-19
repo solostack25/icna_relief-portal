@@ -11,6 +11,18 @@ import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
 import IntakeInfoEditor from "./IntakeInfoEditor";
 
+// The two household data sources store gender differently: legacy
+// household_members uses lowercase "male"/"female" (or null), the new
+// household-intake clients table stores capitalized dropdown values
+// ("Male", "Female", "Prefer not to answer", etc). Normalize both to
+// what DistributeBackpackButton expects.
+function normalizeGender(raw: string | null): "male" | "female" | null {
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower === "male" || lower === "female") return lower;
+  return null;
+}
+
 export default async function ClientProfilePage({
   params,
   searchParams,
@@ -48,7 +60,7 @@ export default async function ClientProfilePage({
   const { data: householdClients } = clientRecord.household_key
     ? await supabase
         .from("clients")
-        .select("id, client_number, first_name, last_name, dob, relationship_to_main_client")
+        .select("id, client_number, first_name, last_name, dob, gender, relationship_to_main_client")
         .eq("household_key", clientRecord.household_key)
         .neq("id", id)
         .order("client_number")
@@ -262,12 +274,22 @@ export default async function ClientProfilePage({
           action={
             <DistributeBackpackButton
               clientId={id}
-              members={(members ?? []).map((m) => ({
-                id: m.id,
-                first_name: m.first_name,
-                dob: m.dob,
-                gender: m.gender,
-              }))}
+              members={[
+                ...(members ?? []).map((m) => ({
+                  id: m.id,
+                  first_name: m.first_name,
+                  dob: m.dob,
+                  gender: normalizeGender(m.gender),
+                  source: "legacy" as const,
+                })),
+                ...(householdClients ?? []).map((m) => ({
+                  id: m.id,
+                  first_name: m.first_name,
+                  dob: m.dob,
+                  gender: normalizeGender(m.gender),
+                  source: "household" as const,
+                })),
+              ]}
             />
           }
         >
