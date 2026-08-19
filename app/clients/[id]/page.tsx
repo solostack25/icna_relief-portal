@@ -150,19 +150,45 @@ export default async function ClientProfilePage({
             <dt className="text-[var(--color-text-dim)]">Address</dt>
             <dd>
               {clientRecord.address_line1
-                ? `${clientRecord.address_line1}, ${clientRecord.city ?? ""} ${clientRecord.state ?? ""} ${clientRecord.zip ?? ""}`
+                ? `${clientRecord.address_line1}${clientRecord.apt_unit_no ? ` #${clientRecord.apt_unit_no}` : ""}, ${clientRecord.city ?? ""} ${clientRecord.state ?? ""} ${clientRecord.zip ?? ""}`
                 : "—"}
             </dd>
+            <dt className="text-[var(--color-text-dim)]">Gender</dt>
+            <dd>{clientRecord.gender ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Marital Status</dt>
+            <dd>{clientRecord.marital_status ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Country of Birth</dt>
+            <dd>{clientRecord.country_of_birth ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Country of Citizenship</dt>
+            <dd>{clientRecord.country_of_citizenship ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Residency Status</dt>
+            <dd>{clientRecord.residency_status ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Race &amp; Ethnicity</dt>
+            <dd>{clientRecord.race_ethnicity ?? "—"}</dd>
             <dt className="text-[var(--color-text-dim)]">Monthly Income</dt>
-            <dd>{clientRecord.monthly_income ?? "—"}</dd>
-            <dt className="text-[var(--color-text-dim)]">Food Stamps</dt>
-            <dd>{clientRecord.food_stamps_amount ?? "—"}</dd>
+            <dd>{clientRecord.monthly_income_range ?? clientRecord.monthly_income ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Vehicles in Household</dt>
+            <dd>{clientRecord.household_vehicle_count ?? "—"}</dd>
+            <dt className="text-[var(--color-text-dim)]">Employed</dt>
+            <dd>
+              {clientRecord.employed
+                ? clientRecord.employment_type && clientRecord.employment_type !== "NA"
+                  ? `Yes (${clientRecord.employment_type})`
+                  : "Yes"
+                : "No"}
+            </dd>
+            <dt className="text-[var(--color-text-dim)]">Benefits</dt>
+            <dd>
+              {[
+                clientRecord.snap ? "SNAP" : null,
+                clientRecord.wic ? "WIC" : null,
+                clientRecord.chip ? "CHIP" : null,
+              ]
+                .filter(Boolean)
+                .join(", ") || "None"}
+            </dd>
             <dt className="text-[var(--color-text-dim)]">Dietary Pref.</dt>
             <dd>{clientRecord.dietary_preference ?? "—"}</dd>
-            <dt className="text-[var(--color-text-dim)]">Ethnicity</dt>
-            <dd>{clientRecord.ethnicity ?? "—"}</dd>
-            <dt className="text-[var(--color-text-dim)]">Country of Origin</dt>
-            <dd>{clientRecord.country_of_origin ?? "—"}</dd>
           </dl>
         </section>
 
