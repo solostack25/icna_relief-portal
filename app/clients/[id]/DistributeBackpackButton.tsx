@@ -182,6 +182,12 @@ export default function DistributeBackpackButton({
     );
 
     const now = new Date();
+    // School year runs roughly Aug–Jul; before August, the "current" school
+    // year started the previous calendar year.
+    const schoolYear =
+      now.getMonth() >= 7 // getMonth() is 0-indexed; 7 = August
+        ? `${now.getFullYear()}-${now.getFullYear() + 1}`
+        : `${now.getFullYear() - 1}-${now.getFullYear()}`;
 
     const { error: insertError } = await supabase.from("b2s_submissions").insert({
       client_id: clientId,
@@ -206,6 +212,24 @@ export default function DistributeBackpackButton({
     if (insertError) {
       setError(insertError.message);
       return;
+    }
+
+    // Separate per-client record — b2s_submissions above is the office-level
+    // program rollup used for B2S reporting; this table is what the client's
+    // own profile history and client-level search/filtering read from.
+    // Not blocking on this: the office-level submission above is the
+    // system of record for grant reporting, so a failure here shouldn't
+    // undo that or block the success message the staff member sees.
+    const { error: clientDistError } = await supabase.from("b2s_client_distributions").insert({
+      client_id: clientId,
+      employee_id: me?.id,
+      school_year: schoolYear,
+      eligible_children_count: eligible.length,
+      backpacks_distributed: chosen.length,
+      distributed_at: now.toISOString(),
+    });
+    if (clientDistError) {
+      console.error("Failed to log per-client backpack distribution:", clientDistError.message);
     }
 
     setSuccessMessage(getBackpackKindMessage(chosen.length));

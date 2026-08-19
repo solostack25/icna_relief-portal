@@ -3,64 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-
-type ClientRow = {
-  id: string;
-  client_number: string;
-  first_name: string;
-  last_name: string;
-  dob: string | null;
-  phone: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-  household_key: string | null;
-};
+import {
+  type ClientFilter,
+  type ClientRow,
+  CLIENT_LIST_COLUMNS,
+  FILTER_LABELS,
+  buildTextSearchFilter,
+  detectFilterFromQuery,
+  fetchFilteredClientIds,
+} from "@/lib/clientSearch";
+import { ClientTable } from "./ClientTable";
 
 const PAGE_SIZE = 25;
-
-// Same term-sniffing approach as the intake search: DOB and zip need exact
-// matches (an ilike on a date or a 5-digit number either misses real
-// matches or over-matches), everything else is free text across the
-// fields people actually search by.
-function buildSearchFilter(rawTerm: string): string {
-  const term = rawTerm.trim();
-
-  const isoDate = term.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const usDate = term.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (isoDate) return `dob.eq.${term}`;
-  if (usDate) {
-    const [, mm, dd, yyyy] = usDate;
-    return `dob.eq.${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
-  }
-
-  if (/^\d{5}$/.test(term)) return `zip.eq.${term}`;
-
-  return [
-    `first_name.ilike.%${term}%`,
-    `last_name.ilike.%${term}%`,
-    `phone.ilike.%${term}%`,
-    `client_number.ilike.%${term}%`,
-    `household_key.ilike.%${term}%`,
-    `city.ilike.%${term}%`,
-    `state.ilike.%${term}%`,
-  ].join(",");
-}
-
-function formatDob(dob: string | null): string {
-  if (!dob) return "—";
-  const [y, m, d] = dob.split("-");
-  return `${m}/${d}/${y}`;
-}
 
 export default function ClientDirectoryPage() {
   const supabase = createClient();
 
   const [query, setQuery] = useState("");
+  const [manualFilter, setManualFilter] = useState<ClientFilter>("all");
   const [results, setResults] = useState<ClientRow[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const detectedFilter = detectFilterFromQuery(query);
+  const activeFilter: ClientFilter = manualFilter !== "all" ? manualFilter : detectedFilter ?? "all";
 
   // Guards against a slow earlier request clobbering a faster later one
   // when responses arrive out of order.
@@ -69,31 +36,44 @@ export default function ClientDirectoryPage() {
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
     debounceTimer.current = setTimeout(() => {
-      runSearch(query);
+      runSearch(query, activeFilter);
     }, 250);
-
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, manualFilter]);
 
-  async function runSearch(term: string) {
+  async function runSearch(term: string, filter: ClientFilter) {
     const thisRequest = ++requestId.current;
     setLoading(true);
     setErrorMsg(null);
 
-    let builder = supabase
-      .from("clients")
-      .select(
-        "id, client_number, first_name, last_name, dob, phone, city, state, zip, household_key",
-        { count: "exact" }
-      );
+    let idScope: string[] | null = null;
+    if (filter !== "all") {
+      idScope = await fetchFilteredClientIds(supabase, filter);
+      if (thisRequest !== requestId.current) return;
+      if (!idScope || idScope.length === 0) {
+        setResults([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
+    }
 
-    if (term.trim().length > 0) {
-      builder = builder.or(buildSearchFilter(term));
+    let builder = supabase.from("clients").select(CLIENT_LIST_COLUMNS, { count: "exact" });
+
+    if (idScope) builder = builder.in("id", idScope);
+
+    // If the free-text query itself was what triggered the filter (e.g.
+    // typing "transitional housing"), don't also try to ilike-match that
+    // sentence against name/address columns — it was already consumed by
+    // the filter above.
+    const textConsumedByFilter = manualFilter === "all" && detectFilterFromQuery(term) !== null;
+    if (term.trim() && !textConsumedByFilter) {
+      const orFilter = buildTextSearchFilter(term);
+      if (orFilter) builder = builder.or(orFilter);
     }
 
     const { data, count, error } = await builder
@@ -101,7 +81,7 @@ export default function ClientDirectoryPage() {
       .order("first_name")
       .limit(PAGE_SIZE);
 
-    if (thisRequest !== requestId.current) return; // stale response, ignore
+    if (thisRequest !== requestId.current) return;
 
     if (error) {
       setErrorMsg(error.message);
@@ -113,6 +93,8 @@ export default function ClientDirectoryPage() {
     }
     setLoading(false);
   }
+
+  const fullListHref = `/clients/search?q=${encodeURIComponent(query)}&filter=${activeFilter}`;
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -139,12 +121,12 @@ export default function ClientDirectoryPage() {
           + New Household Intake
         </Link>
 
-        <div className="relative mb-4">
+        <div className="relative mb-3">
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Start typing to search..."
+            placeholder="Name, phone, Client ID, address, DOB, zip, or a question like 'in transitional housing'..."
             className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
           {loading && (
@@ -154,15 +136,40 @@ export default function ClientDirectoryPage() {
           )}
         </div>
 
-        <div className="text-xs text-[var(--color-text-dim)] mb-3">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(["all", "housing", "backpacks"] as ClientFilter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setManualFilter(f)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                activeFilter === f
+                  ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-accent)]"
+              }`}
+            >
+              {FILTER_LABELS[f]}
+            </button>
+          ))}
+          {manualFilter === "all" && detectedFilter && (
+            <span className="text-xs px-3 py-1.5 text-[var(--color-text-dim)]">
+              Detected from your search — showing {FILTER_LABELS[detectedFilter]}
+            </span>
+          )}
+        </div>
+
+        <div className="text-xs text-[var(--color-text-dim)] mb-3 flex items-center justify-between">
           {errorMsg
             ? null
             : totalCount !== null && (
                 <span>
                   Showing {results.length} of {totalCount.toLocaleString()}
-                  {totalCount > PAGE_SIZE ? ` — refine your search to narrow results` : ""}
                 </span>
               )}
+          {totalCount !== null && totalCount > PAGE_SIZE && (
+            <Link href={fullListHref} className="text-[var(--color-accent)] hover:underline">
+              View all {totalCount.toLocaleString()} results →
+            </Link>
+          )}
         </div>
 
         {errorMsg && (
@@ -171,49 +178,7 @@ export default function ClientDirectoryPage() {
           </div>
         )}
 
-        <div className="rounded-lg border border-[var(--color-border)] bg-white overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-text-dim)] uppercase tracking-wide">
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Client ID</th>
-                <th className="px-4 py-2.5 font-medium">DOB</th>
-                <th className="px-4 py-2.5 font-medium">Phone</th>
-                <th className="px-4 py-2.5 font-medium">Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.length === 0 && !loading && !errorMsg && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-text-dim)]">
-                    {query.trim() ? "No clients match that search" : "No clients found"}
-                  </td>
-                </tr>
-              )}
-              {results.map((c) => (
-                <tr
-                  key={c.id}
-                  className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors"
-                >
-                  <td className="px-4 py-2.5">
-                    <Link
-                      href={`/clients/${c.id}`}
-                      className="font-medium text-[var(--color-accent)] hover:underline"
-                    >
-                      {c.last_name}, {c.first_name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-dim)]">{c.client_number}</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-dim)]">{formatDob(c.dob)}</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-dim)]">{c.phone ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-dim)]">
-                    {[c.city, c.state].filter(Boolean).join(", ") || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ClientTable results={results} loading={loading} errorMsg={errorMsg} query={query} />
       </div>
     </main>
   );
