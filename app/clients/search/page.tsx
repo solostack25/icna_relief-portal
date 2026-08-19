@@ -12,6 +12,7 @@ import {
   buildTextSearchFilter,
   detectFilterFromQuery,
   fetchFilteredClientIds,
+  fetchOfficeNames,
 } from "@/lib/clientSearch";
 import { ClientTable } from "../ClientTable";
 
@@ -38,6 +39,7 @@ function FullClientResultsContent() {
   const supabase = createClient();
 
   const [results, setResults] = useState<ClientRow[]>([]);
+  const [officeNames, setOfficeNames] = useState<Map<string, string>>(new Map());
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -98,6 +100,9 @@ function FullClientResultsContent() {
     } else {
       setResults(data ?? []);
       setTotalCount(count ?? null);
+      fetchOfficeNames(supabase, (data ?? []).map((c) => c.office_id)).then((names) => {
+        if (thisRequest === requestId.current) setOfficeNames(names);
+      });
     }
     setLoading(false);
   }
@@ -136,7 +141,7 @@ function FullClientResultsContent() {
           </div>
         )}
 
-        <ClientTable results={results} loading={loading} errorMsg={errorMsg} query={query} />
+        <ClientTable results={results} loading={loading} errorMsg={errorMsg} query={query} officeNames={officeNames} />
 
         {totalPages !== null && totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">

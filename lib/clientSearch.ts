@@ -88,7 +88,7 @@ export async function fetchFilteredClientIds(
 }
 
 export const CLIENT_LIST_COLUMNS =
-  "id, client_number, first_name, last_name, dob, phone, city, state, zip, household_key";
+  "id, client_number, first_name, last_name, dob, phone, city, state, zip, household_key, office_id";
 
 export type ClientRow = {
   id: string;
@@ -101,7 +101,21 @@ export type ClientRow = {
   state: string | null;
   zip: string | null;
   household_key: string | null;
+  office_id: string | null;
 };
+
+// Office names for a batch of client rows — separate fetch + in-memory
+// merge, same pattern as the rest of this app (relational embeds are
+// unreliable with the sb_publishable_ key format used here).
+export async function fetchOfficeNames(
+  supabase: SupabaseClient,
+  officeIds: (string | null)[]
+): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(officeIds.filter((id): id is string => !!id)));
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase.from("b2s_offices").select("id, field_office").in("id", ids);
+  return new Map((data ?? []).map((o: { id: string; field_office: string }) => [o.id, o.field_office]));
+}
 
 export function formatDob(dob: string | null): string {
   if (!dob) return "—";

@@ -11,6 +11,7 @@ import {
   buildTextSearchFilter,
   detectFilterFromQuery,
   fetchFilteredClientIds,
+  fetchOfficeNames,
 } from "@/lib/clientSearch";
 import { ClientTable } from "./ClientTable";
 
@@ -22,6 +23,7 @@ export default function ClientDirectoryPage() {
   const [query, setQuery] = useState("");
   const [manualFilter, setManualFilter] = useState<ClientFilter>("all");
   const [results, setResults] = useState<ClientRow[]>([]);
+  const [officeNames, setOfficeNames] = useState<Map<string, string>>(new Map());
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -90,6 +92,9 @@ export default function ClientDirectoryPage() {
     } else {
       setResults(data ?? []);
       setTotalCount(count ?? null);
+      fetchOfficeNames(supabase, (data ?? []).map((c) => c.office_id)).then((names) => {
+        if (thisRequest === requestId.current) setOfficeNames(names);
+      });
     }
     setLoading(false);
   }
@@ -178,7 +183,7 @@ export default function ClientDirectoryPage() {
           </div>
         )}
 
-        <ClientTable results={results} loading={loading} errorMsg={errorMsg} query={query} />
+        <ClientTable results={results} loading={loading} errorMsg={errorMsg} query={query} officeNames={officeNames} />
       </div>
     </main>
   );

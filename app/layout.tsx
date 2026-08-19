@@ -1,5 +1,6 @@
 import "./globals.css";
 import HadithBanner from "./HadithBanner";
+import ClockReminderWatcher from "@/components/ClockReminderWatcher";
 
 export const metadata = {
   title: "ICNA Relief Portal",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <HadithBanner />
+        <ClockReminderWatcher />
         {children}
       </body>
     </html>

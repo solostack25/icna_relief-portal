@@ -6,6 +6,7 @@ import PortalHeader from "@/app/PortalHeader";
 import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import { getCoursesWithStatus } from "@/lib/lms";
 import PortalAssistantLauncher from "@/components/PortalAssistant/PortalAssistantLauncher";
+import ClockControl from "./ClockControl";
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -37,6 +38,15 @@ export default async function SelectAppPage() {
       </main>
     );
   }
+
+  const { data: openClockEntry } = await supabase
+    .from("time_clock_entries")
+    .select("id, clock_in_at")
+    .eq("employee_id", employee.id)
+    .is("clock_out_at", null)
+    .order("clock_in_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const { data: access } = await supabase
     .from("employee_program_access")
@@ -178,6 +188,9 @@ export default async function SelectAppPage() {
               <p className="text-sm max-w-md" style={{ color: "rgba(251,247,239,0.78)" }}>
                 Here&apos;s what&apos;s on your plate today.
               </p>
+              <div className="mt-4">
+                <ClockControl employeeId={employee.id} initialOpenEntry={openClockEntry ?? null} />
+              </div>
             </div>
 
             <div
