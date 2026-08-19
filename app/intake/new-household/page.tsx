@@ -150,7 +150,7 @@ export default function NewHouseholdIntakePage() {
               Every household member gets their own full record and Client ID
             </p>
           </div>
-          <Link href="/intake" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
+          <Link href="/clients" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
             ← Back to search
           </Link>
         </div>

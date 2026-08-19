@@ -199,8 +199,8 @@ export default async function SelectAppPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
           {showClientIntake && (
             <QuickCard
-              href="/intake"
-              title="Client Intake"
+              href="/clients"
+              title="Clients"
               desc="Search existing clients or register a new one"
               tint="#EAF3EF"
               iconColor="var(--portal-emerald)"

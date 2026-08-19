@@ -75,8 +75,8 @@ export default async function B2SPage() {
 
         <div className="rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3 text-sm mb-8">
           Backpacks are distributed from a client's profile — go to{" "}
-          <Link href="/intake" className="text-[var(--color-accent)] underline">
-            Client Intake
+          <Link href="/clients" className="text-[var(--color-accent)] underline">
+            Clients
           </Link>{" "}
           to search for or create a client, then use "Distribute Backpack" there.
         </div>

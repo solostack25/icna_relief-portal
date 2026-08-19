@@ -146,7 +146,7 @@ export default function NewIntakePage() {
             </p>
           </div>
           <Link
-            href="/intake"
+            href="/clients"
             className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
           >
             ← Back to search

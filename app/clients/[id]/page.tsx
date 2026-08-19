@@ -33,7 +33,7 @@ export default async function ClientProfilePage({
     .eq("id", id)
     .single();
 
-  if (!clientRecord) redirect("/intake");
+  if (!clientRecord) redirect("/clients");
 
   // separate queries, merged in memory — no relational joins
   const { data: members } = await supabase
@@ -107,7 +107,7 @@ export default async function ClientProfilePage({
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-2xl mx-auto">
         <Link
-          href="/intake"
+          href="/clients"
           className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
         >
           ← Back to search

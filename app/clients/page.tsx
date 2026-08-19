@@ -121,7 +121,7 @@ export default function ClientDirectoryPage() {
           <div>
             <h1 className="text-xl font-semibold">Clients</h1>
             <p className="text-sm text-[var(--color-text-dim)]">
-              Search by name, phone, Client ID, city, state, DOB, or zip
+              Search existing clients or register a new household
             </p>
           </div>
           <Link
@@ -131,6 +131,13 @@ export default function ClientDirectoryPage() {
             ← Back
           </Link>
         </div>
+
+        <Link
+          href="/intake/new-household"
+          className="block text-center rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] text-sm font-medium py-3 mb-6 hover:border-[var(--color-accent)]"
+        >
+          + New Household Intake
+        </Link>
 
         <div className="relative mb-4">
           <input
