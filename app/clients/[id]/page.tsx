@@ -9,6 +9,7 @@ import AdmitToHousingButton from "./AdmitToHousingButton";
 import LogServiceButton from "./LogServiceButton";
 import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
+import IntakeInfoEditor from "./IntakeInfoEditor";
 
 export default async function ClientProfilePage({
   params,
@@ -40,6 +41,18 @@ export default async function ClientProfilePage({
     .select("id, first_name, last_name, dob, relationship, gender")
     .eq("client_id", id)
     .order("dob");
+
+  // New-model household members: full independent client records sharing
+  // household_key, distinct from the legacy `household_members` shallow
+  // sub-table above. Null on legacy clients that predate this schema.
+  const { data: householdClients } = clientRecord.household_key
+    ? await supabase
+        .from("clients")
+        .select("id, client_number, first_name, last_name, dob, relationship_to_main_client")
+        .eq("household_key", clientRecord.household_key)
+        .neq("id", id)
+        .order("client_number")
+    : { data: [] };
 
   const { data: cards } = await supabase
     .from("client_id_cards")
@@ -123,6 +136,8 @@ export default async function ClientProfilePage({
           />
         </div>
 
+        <IntakeInfoEditor client={clientRecord} />
+
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
           <h2 className="text-sm font-medium mb-4">Client Info</h2>
           <dl className="grid grid-cols-2 gap-y-3 text-sm">
@@ -177,6 +192,37 @@ export default async function ClientProfilePage({
             </p>
           )}
         </section>
+
+        {clientRecord.household_key && (
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 mb-6">
+            <h2 className="text-sm font-medium mb-4">
+              Household ({(householdClients?.length ?? 0) + 1} member{(householdClients?.length ?? 0) === 0 ? "" : "s"})
+            </h2>
+            <p className="text-xs text-[var(--color-text-dim)] mb-3">
+              Household key: {clientRecord.household_key}
+            </p>
+            {householdClients && householdClients.length > 0 ? (
+              <div className="space-y-2">
+                {householdClients.map((m) => (
+                  <Link
+                    key={m.id}
+                    href={`/clients/${m.id}`}
+                    className="flex justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0 hover:text-[var(--color-accent)]"
+                  >
+                    <span>{m.first_name} {m.last_name ?? ""}</span>
+                    <span className="text-[var(--color-text-dim)]">
+                      {m.relationship_to_main_client ?? "—"} · {m.client_number}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-text-dim)]">
+                No other household members on record.
+              </p>
+            )}
+          </section>
+        )}
 
         <ProgramSection
           title="Back to School"

@@ -12,7 +12,47 @@ type ClientResult = {
   last_name: string;
   dob: string | null;
   phone: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
 };
+
+// Detects what kind of thing the search term looks like, so a single
+// box can search name/phone/Client ID as free text, but DOB and zip as
+// exact matches — an ilike on a date or a 5-digit zip would either miss
+// real matches or over-match unrelated numbers.
+function buildSearchFilter(rawTerm: string): string {
+  const term = rawTerm.trim();
+
+  // DOB: accept YYYY-MM-DD or MM/DD/YYYY, normalize to the DB's format
+  const isoDate = term.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const usDate = term.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (isoDate) {
+    return `dob.eq.${term}`;
+  }
+  if (usDate) {
+    const [, mm, dd, yyyy] = usDate;
+    const normalized = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    return `dob.eq.${normalized}`;
+  }
+
+  // Zip: 5-digit numeric term
+  if (/^\d{5}$/.test(term)) {
+    return `zip.eq.${term}`;
+  }
+
+  // Otherwise: free text across name, phone, Client ID, city, and state —
+  // client_number.ilike also covers the household_key prefix, so
+  // searching a partial Client ID (with or without the -N suffix) works.
+  return [
+    `first_name.ilike.%${term}%`,
+    `last_name.ilike.%${term}%`,
+    `phone.ilike.%${term}%`,
+    `client_number.ilike.%${term}%`,
+    `city.ilike.%${term}%`,
+    `state.ilike.%${term}%`,
+  ].join(",");
+}
 
 export default function IntakeSearchPage() {
   const supabase = createClient();
@@ -26,17 +66,10 @@ export default function IntakeSearchPage() {
     e.preventDefault();
     setSearching(true);
 
-    const term = query.trim();
-
-    // search across name, phone, and client_number — client_number lookup
-    // covers the "scan/enter ID card" case since staff can type it manually
-    // if a scanner feeds the card_number/client_number into this same field
     const { data } = await supabase
       .from("clients")
-      .select("id, client_number, first_name, last_name, dob, phone")
-      .or(
-        `first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,client_number.ilike.%${term}%`
-      )
+      .select("id, client_number, first_name, last_name, dob, phone, city, state, zip")
+      .or(buildSearchFilter(query))
       .limit(20);
 
     setResults(data ?? []);
@@ -66,7 +99,7 @@ export default function IntakeSearchPage() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name, phone, or client ID (ICNA-000123)"
+            placeholder="Name, phone, Client ID, city, state, zip, or DOB (MM/DD/YYYY)"
             className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-accent)]"
           />
           <button
@@ -99,6 +132,9 @@ export default function IntakeSearchPage() {
                       {c.client_number}
                       {c.dob ? ` · DOB ${c.dob}` : ""}
                       {c.phone ? ` · ${c.phone}` : ""}
+                      {c.city || c.state || c.zip
+                        ? ` · ${[c.city, c.state, c.zip].filter(Boolean).join(", ")}`
+                        : ""}
                     </div>
                   </div>
                   <span className="text-[var(--color-accent)] text-sm">
@@ -111,10 +147,10 @@ export default function IntakeSearchPage() {
         )}
 
         <Link
-          href="/intake/new"
+          href="/intake/new-household"
           className="block text-center rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] text-sm font-medium py-3 hover:border-[var(--color-accent)]"
         >
-          + New Client Intake
+          + New Household Intake
         </Link>
       </div>
     </main>
