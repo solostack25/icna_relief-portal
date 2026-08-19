@@ -47,6 +47,14 @@ export default async function ClientProfilePage({
 
   if (!clientRecord) redirect("/clients");
 
+  const { data: office } = clientRecord.office_id
+    ? await supabase
+        .from("b2s_offices")
+        .select("field_office, region")
+        .eq("id", clientRecord.office_id)
+        .single()
+    : { data: null };
+
   // separate queries, merged in memory — no relational joins.
   // Legacy household_members only applies to pre-household_key clients —
   // new-intake clients always have 0 rows here, so skip the query for them.
@@ -140,8 +148,13 @@ export default async function ClientProfilePage({
             <h1 className="text-xl font-semibold">
               {clientRecord.first_name} {clientRecord.last_name}
             </h1>
-            <p className="text-sm text-[var(--color-text-dim)]">
-              {clientRecord.client_number}
+            <p className="text-sm text-[var(--color-text-dim)] flex items-center gap-2">
+              <span>{clientRecord.client_number}</span>
+              {office && (
+                <span className="inline-flex items-center rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-medium px-2 py-0.5">
+                  {office.field_office}
+                </span>
+              )}
             </p>
           </div>
           <CallTextButtons
