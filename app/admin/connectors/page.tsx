@@ -86,6 +86,22 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        title="Donations (CharityStack)"
+        description="Powers the Fundraisers module — creating a fundraiser in the portal calls CharityStack's API to create the matching donation form and pulls back an embed snippet for the office's WordPress page. Donor identity and payment data are never stored here; only dollar amounts and fund/status metadata flow back in via the webhook below. Get your API key from your CharityStack account administrator (cs_live_ prefix). Fundraisers created before a key is set here are saved as drafts and sync automatically once you paste one in."
+      >
+        <ConnectorKeyField settingKey="charitystack_api_key" label="API Key" placeholder="cs_live_..." />
+        <p className="text-xs mt-2" style={{ color: "rgba(22,48,43,0.5)" }}>
+          Webhook endpoint (register this in CharityStack, subscribed to donation.created,
+          donation.updated, subscription.created, subscription.updated, subscription.cancelled):
+          <br />
+          <code className="text-[11px]">{"{portal-url}"}/api/webhooks/charitystack</code>
+        </p>
+        <div className="mt-2">
+          <ConnectorKeyField settingKey="charitystack_webhook_secret" label="Webhook Signing Secret" placeholder="Shown once when the webhook is created in CharityStack" />
+        </div>
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Calling & Texting (3CX / Skyetel)"
         description="Powers bulk SMS, donor calling campaigns, and click-to-call across the portal. Skyetel is the SIP trunk provider (SMS/MMS API); 3CX Call Control API handles call origination from an employee's extension. For inbound SMS/STOP handling, set your Skyetel SMS-enabled number's callback URL (in the Skyetel portal, on that number's SMS tab) to this app's /api/marketing/sms/inbound."
       >
