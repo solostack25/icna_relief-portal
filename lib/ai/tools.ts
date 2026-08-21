@@ -106,6 +106,29 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "create_flier_from_scratch",
+      description:
+        "Creates a brand-new flier with no existing template needed - builds a clean layout automatically using the brand colors/fonts/logo, and you supply the text content. Use this when the employee doesn't want to use one of the existing templates (create_flier_draft), or when nothing suitable exists. Write the title/subheadline/bodyText yourself, following the brand voice and terminology guidelines exactly. Always confirm the wording and which format (square/vertical/landscape/story) with the employee before calling this. Returns a reviewUrl where they can see it and make further adjustments in the builder.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "The flier's main headline." },
+          subheadline: { type: "string", description: "Optional one-line date/time/location, e.g. \"Saturday, June 6 · 1-4 PM · NRG Center, Houston\"." },
+          bodyText: { type: "string", description: "Optional supporting paragraph text." },
+          footerText: { type: "string", description: "Optional footer/contact line - defaults to ICNA Relief's standard contact info if omitted." },
+          format: {
+            type: "string",
+            enum: ["square", "vertical", "landscape", "story"],
+            description: "Aspect ratio/format. Defaults to vertical (good for print and Instagram/Facebook posts) if not specified.",
+          },
+        },
+        required: ["title"],
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -113,6 +136,7 @@ const TOOL_ROUTES: Record<string, string> = {
   click_to_call: "/api/copilot/calling/click-to-call",
   quick_sms: "/api/copilot/calling/quick-sms",
   create_flier_draft: "/api/copilot/marketing/create-flier-draft",
+  create_flier_from_scratch: "/api/copilot/marketing/create-flier-from-scratch",
 };
 
 /**

@@ -87,6 +87,13 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        title="Brand Assets"
+        description="A hosted URL for the ICNA Relief logo, used when the Portal Assistant creates a flier from scratch (no template) — it's placed on the flier automatically, never invented or approximated. Upload the logo anywhere with a stable public URL (e.g. WordPress media library, or the Content Library/Dropbox) and paste that URL here. Without this set, AI-generated fliers are created without a logo and staff are told to add one manually before publishing."
+      >
+        <ConnectorKeyField settingKey="brand_logo_url" label="Logo Image URL" placeholder="https://icnarelief.org/wp-content/uploads/logo.png" />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Fundraiser Approvers"
         description="Fundraisers created under Fundraisers stay pending until one of these people (or a Portal Admin) approves them — approval is what activates the CharityStack donation form and publishes the WordPress page. Add by email; the person must already exist as an employee in the portal."
       >
