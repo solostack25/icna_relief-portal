@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type FundraiserUpdate = { id: string; posted_at: string; message: string };
+
 type Fundraiser = {
   id: string;
   title: string;
@@ -15,14 +17,54 @@ type Fundraiser = {
   raised_amount: number;
   donation_count: number;
   goal: number | null;
+  wp_page_id: number | null;
+  wp_page_url: string | null;
+  wp_sync_status: "not_created" | "created" | "error";
+  wp_sync_error: string | null;
+  updates: FundraiserUpdate[];
 };
 
 export default function FundraiserManager({ fundraiser, officeName }: { fundraiser: Fundraiser; officeName: string }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [creatingPage, setCreatingPage] = useState(false);
+  const [postingUpdate, setPostingUpdate] = useState(false);
+  const [updateText, setUpdateText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  async function handleCreatePage() {
+    setCreatingPage(true);
+    setError(null);
+    const res = await fetch(`/api/fundraisers/${fundraiser.id}/publish-page`, { method: "POST" });
+    const body = await res.json();
+    setCreatingPage(false);
+    if (!res.ok) {
+      setError(body.error ?? "Failed to create the page.");
+      return;
+    }
+    router.refresh();
+  }
+
+  async function handlePostUpdate() {
+    if (!updateText.trim()) return;
+    setPostingUpdate(true);
+    setError(null);
+    const res = await fetch(`/api/fundraisers/${fundraiser.id}/updates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: updateText.trim() }),
+    });
+    const body = await res.json();
+    setPostingUpdate(false);
+    if (!res.ok) {
+      setError(body.error ?? "Failed to post the update.");
+      return;
+    }
+    setUpdateText("");
+    router.refresh();
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -112,8 +154,82 @@ export default function FundraiserManager({ fundraiser, officeName }: { fundrais
 
       {fundraiser.sync_status === "synced" && (
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium">Fundraiser Page (GoFundMe-style)</h2>
+            <span
+              className={
+                "text-xs px-2 py-1 rounded-full " +
+                (fundraiser.wp_sync_status === "created"
+                  ? "bg-green-500/10 text-green-700"
+                  : fundraiser.wp_sync_status === "error"
+                  ? "bg-red-500/10 text-red-700"
+                  : "bg-[var(--color-text-dim)]/10 text-[var(--color-text-dim)]")
+              }
+            >
+              {fundraiser.wp_sync_status === "created" ? "Live" : fundraiser.wp_sync_status === "error" ? "Error" : "Not created"}
+            </span>
+          </div>
+          <p className="text-sm text-[var(--color-text-dim)] mb-3">
+            Creates a real, standalone page on the WordPress site — hero image, story, live progress bar and donate
+            button, and any updates below — no manual WordPress work needed. Requires the WordPress connector to be
+            set up under Admin → Connectors.
+          </p>
+          {fundraiser.wp_sync_status === "error" && <p className="text-sm text-red-600 mb-3">{fundraiser.wp_sync_error}</p>}
+          {fundraiser.wp_page_url && (
+            <p className="text-sm text-[var(--color-text-dim)] mb-3">
+              Live at{" "}
+              <a href={fundraiser.wp_page_url} target="_blank" rel="noreferrer" className="underline">
+                {fundraiser.wp_page_url}
+              </a>
+            </p>
+          )}
+          <button
+            onClick={handleCreatePage}
+            disabled={creatingPage}
+            className="text-sm rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 disabled:opacity-50"
+          >
+            {creatingPage ? "Publishing..." : fundraiser.wp_page_id ? "Regenerate Page" : "Create Page"}
+          </button>
+
+          {fundraiser.wp_page_id && (
+            <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
+              <h3 className="text-sm font-medium mb-2">Post an Update</h3>
+              <textarea
+                value={updateText}
+                onChange={(e) => setUpdateText(e.target.value)}
+                rows={3}
+                placeholder="e.g. Thanks to your generosity we've reached 75% of our goal!"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] mb-2"
+              />
+              <button
+                onClick={handlePostUpdate}
+                disabled={postingUpdate || !updateText.trim()}
+                className="text-sm rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] px-4 py-2 hover:border-[var(--color-accent)] disabled:opacity-50"
+              >
+                {postingUpdate ? "Posting..." : "Post Update"}
+              </button>
+
+              {fundraiser.updates.length > 0 && (
+                <ul className="mt-4 space-y-2">
+                  {fundraiser.updates.map((u) => (
+                    <li key={u.id} className="text-sm">
+                      <span className="text-xs text-[var(--color-text-dim)]">
+                        {new Date(u.posted_at).toLocaleDateString()}
+                      </span>
+                      <p>{u.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {fundraiser.sync_status === "synced" && (
+        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium">Publish</h2>
+            <h2 className="text-sm font-medium">Also Embed On An Existing Page (optional)</h2>
             <span
               className={
                 "text-xs px-2 py-1 rounded-full " +

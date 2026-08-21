@@ -55,6 +55,11 @@ export default async function FundraiserDetailPage({ params }: { params: Promise
             raised_amount: totals?.raised_amount ?? 0,
             donation_count: totals?.donation_count ?? 0,
             goal: fundraiser.goal,
+            wp_page_id: fundraiser.wp_page_id,
+            wp_page_url: fundraiser.wp_page_url,
+            wp_sync_status: fundraiser.wp_sync_status,
+            wp_sync_error: fundraiser.wp_sync_error,
+            updates: fundraiser.updates ?? [],
           }}
           officeName={office?.field_office ?? "this office"}
         />

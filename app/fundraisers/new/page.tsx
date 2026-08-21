@@ -26,6 +26,8 @@ export default function NewFundraiserPage() {
     funds: "", // comma-separated in the UI, split on submit
     frequencies: ["ONE_TIME"] as string[],
     color: "#10B981",
+    header_image: "",
+    story: "",
     goal: "",
     event_date: "",
     start_time: "",
@@ -107,6 +109,8 @@ export default function NewFundraiserPage() {
         funds,
         frequencies: form.form_type === "event" ? ["ONE_TIME"] : form.frequencies,
         color: form.color,
+        header_image: form.header_image || null,
+        story: form.story || null,
         goal: form.goal ? Number(form.goal) : null,
         event_date: form.form_type === "event" ? form.event_date || null : null,
         start_time: form.form_type === "event" ? form.start_time || null : null,
@@ -197,7 +201,28 @@ export default function NewFundraiserPage() {
                 onChange={(e) => update("description", e.target.value)}
                 rows={3}
                 className={inputClass}
-                placeholder="Shown below the title on the donation form"
+                placeholder="Short one-liner — shown on the donation form itself"
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Hero Image URL</label>
+              <input
+                value={form.header_image}
+                onChange={(e) => update("header_image", e.target.value)}
+                className={inputClass}
+                placeholder="Shown at the top of the fundraiser page"
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Story</label>
+              <textarea
+                value={form.story}
+                onChange={(e) => update("story", e.target.value)}
+                rows={6}
+                className={inputClass}
+                placeholder="The full 'why' — this becomes the Our Story section on the fundraiser's page. Separate paragraphs with a blank line."
               />
             </div>
 
