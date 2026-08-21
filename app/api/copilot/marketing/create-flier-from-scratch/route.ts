@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requireCopilotAuth, lookupEmployeeByEmail } from "@/lib/copilotAuth";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 import { ORG_APP_BASE_URL } from "@/lib/orgConfig";
-import { buildScratchFlierCanvas, type FlierFormat } from "@/lib/flierScratchLayout";
+import { buildScratchFlierCanvas, buildPosterFlierCanvas, type FlierFormat, type InfoBlock } from "@/lib/flierScratchLayout";
+import { searchStockPhotos } from "@/lib/pexels";
 
 const VALID_FORMATS: FlierFormat[] = ["square", "vertical", "landscape", "story"];
 
@@ -12,13 +13,26 @@ export async function POST(req: Request) {
   if (authError) return authError;
 
   const body = await req.json();
-  const { requesterEmail, title, subheadline, bodyText, footerText, format } = body as {
+  const {
+    requesterEmail,
+    title,
+    subheadline,
+    bodyText,
+    footerText,
+    format,
+    style,
+    infoBlocks,
+    backgroundPhotoQuery,
+  } = body as {
     requesterEmail: string;
     title: string;
     subheadline?: string;
     bodyText?: string;
     footerText?: string;
     format?: string;
+    style?: string;
+    infoBlocks?: InfoBlock[];
+    backgroundPhotoQuery?: string;
   };
 
   if (!requesterEmail?.trim() || !title?.trim()) {
@@ -45,24 +59,57 @@ export async function POST(req: Request) {
   const fonts: { role: string; family: string }[] = guidelines?.fonts ?? [];
   const primaryFont = fonts.find((f) => /primary/i.test(f.role))?.family ?? "Avenir";
 
-  // Never fabricated - if no logo asset is configured, the flier is
-  // generated without one and the response says so explicitly, rather
-  // than inventing a placeholder image.
   const logoUrl = await getIntegrationSetting("brand_logo_url");
-
   const resolvedFormat = VALID_FORMATS.includes(format as FlierFormat) ? (format as FlierFormat) : "vertical";
+  const resolvedStyle = style === "poster" ? "poster" : "simple";
 
-  const layout = buildScratchFlierCanvas({
-    title: title.trim(),
-    subheadline,
-    bodyText,
-    footerText,
-    format: resolvedFormat,
-    primaryColorHex,
-    accentColorHex,
-    fontFamily: primaryFont,
-    logoUrl: logoUrl ?? undefined,
-  });
+  let warning: string | undefined;
+  if (!logoUrl) {
+    warning = "No logo asset is configured (Admin → Connectors → Brand Assets), so this flier was created without one. Add it in the builder before publishing.";
+  }
+
+  let layout;
+
+  if (resolvedStyle === "poster") {
+    let backgroundImageUrl: string | undefined;
+    if (backgroundPhotoQuery?.trim()) {
+      try {
+        const photos = await searchStockPhotos(backgroundPhotoQuery.trim());
+        backgroundImageUrl = photos?.[0]?.fullUrl;
+      } catch {
+        // Pexels not configured or no results - falls back to a solid
+        // brand-color background instead, handled inside buildPosterFlierCanvas.
+      }
+    }
+    if (backgroundPhotoQuery?.trim() && !backgroundImageUrl) {
+      warning = `${warning ? warning + " " : ""}No stock photo was found for "${backgroundPhotoQuery}", so this poster uses a solid brand-color background instead.`;
+    }
+
+    layout = buildPosterFlierCanvas({
+      title: title.trim(),
+      subtitle: subheadline,
+      infoBlocks: infoBlocks ?? [],
+      footerText,
+      format: resolvedFormat,
+      backgroundImageUrl,
+      primaryColorHex,
+      accentColorHex,
+      fontFamily: primaryFont,
+      logoUrl: logoUrl ?? undefined,
+    });
+  } else {
+    layout = buildScratchFlierCanvas({
+      title: title.trim(),
+      subheadline,
+      bodyText,
+      footerText,
+      format: resolvedFormat,
+      primaryColorHex,
+      accentColorHex,
+      fontFamily: primaryFont,
+      logoUrl: logoUrl ?? undefined,
+    });
+  }
 
   const { data: created, error } = await admin
     .from("flier_templates")
@@ -87,8 +134,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     templateId: created.id,
     reviewUrl: `${ORG_APP_BASE_URL}/fliers/${created.id}`,
-    ...(logoUrl
-      ? {}
-      : { warning: "No logo asset is configured (Admin → Connectors → Brand Assets), so this flier was created without one. Add it in the builder before publishing." }),
+    ...(warning ? { warning } : {}),
   });
 }

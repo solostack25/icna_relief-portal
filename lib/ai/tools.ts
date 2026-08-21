@@ -111,13 +111,34 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "create_flier_from_scratch",
       description:
-        "Creates a brand-new flier with no existing template needed - builds a clean layout automatically using the brand colors/fonts/logo, and you supply the text content. Use this when the employee doesn't want to use one of the existing templates (create_flier_draft), or when nothing suitable exists. Write the title/subheadline/bodyText yourself, following the brand voice and terminology guidelines exactly. Always confirm the wording and which format (square/vertical/landscape/story) with the employee before calling this. Returns a reviewUrl where they can see it and make further adjustments in the builder.",
+        "Creates a brand-new flier with no existing template needed - builds a clean layout automatically using the brand colors/fonts/logo, and you supply the text content. Use this when the employee doesn't want to use one of the existing templates (create_flier_draft), or when nothing suitable exists. Two visual styles: 'simple' (white background, headline + body paragraph - good for text-heavy fliers) and 'poster' (full-bleed background photo or brand-color wash, bold title, stacked colored info badges like Time & Date / Location / Contact - good for event fliers, closer to a professionally designed poster). Write all text content yourself, following the brand voice and terminology guidelines exactly. Always confirm the wording, style, and format with the employee before calling this. Returns a reviewUrl where they can see it and make further adjustments in the builder.",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string", description: "The flier's main headline." },
-          subheadline: { type: "string", description: "Optional one-line date/time/location, e.g. \"Saturday, June 6 · 1-4 PM · NRG Center, Houston\"." },
-          bodyText: { type: "string", description: "Optional supporting paragraph text." },
+          style: {
+            type: "string",
+            enum: ["simple", "poster"],
+            description: "Visual style. 'poster' looks much closer to a real designed event flier; 'simple' is a plain text-forward layout. Ask the employee which they'd prefer, or default to 'poster' for event fliers.",
+          },
+          subheadline: { type: "string", description: "For 'simple' style: a one-line date/time/location. For 'poster' style: a short subtitle line under the headline (e.g. \"Backpack & Supplies Pick Up\")." },
+          bodyText: { type: "string", description: "Supporting paragraph text. Only used in 'simple' style." },
+          infoBlocks: {
+            type: "array",
+            description: "Only used in 'poster' style: up to 4 labeled info badges, e.g. [{\"label\": \"Time & Date\", \"value\": \"Saturday, Aug 22 · 1-4 PM\"}, {\"label\": \"Location\", \"value\": \"NRG Center, Houston\"}, {\"label\": \"Contact\", \"value\": \"(866) 354-0102\"}].",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string" },
+                value: { type: "string" },
+              },
+              required: ["label", "value"],
+            },
+          },
+          backgroundPhotoQuery: {
+            type: "string",
+            description: "Only used in 'poster' style: a short stock-photo search phrase for the full-bleed background, e.g. \"backpacks school supplies donation\". If omitted or no photo is found, a solid brand-color background is used instead.",
+          },
           footerText: { type: "string", description: "Optional footer/contact line - defaults to ICNA Relief's standard contact info if omitted." },
           format: {
             type: "string",
