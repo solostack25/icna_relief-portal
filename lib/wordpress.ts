@@ -20,10 +20,41 @@ export class WordPressApiError extends Error {
   status: number;
   body: unknown;
   constructor(status: number, body: unknown) {
-    super(`WordPress API error (${status}): ${JSON.stringify(body)}`);
+    super(`WordPress API error (${status}): ${describeWpErrorBody(body)}`);
     this.name = "WordPressApiError";
     this.status = status;
     this.body = body;
+  }
+}
+
+// If the response isn't valid JSON, res.json() silently gives us null and
+// the real reason gets lost. That "null" case almost always means
+// something *other* than WordPress itself intercepted the request - a
+// security plugin, a host-level WAF, or Authorization headers getting
+// stripped before PHP ever sees them (a very common Apache/PHP-FPM issue
+// with Application Passwords) - so surface the raw text instead of just
+// swallowing it as null.
+function describeWpErrorBody(body: unknown): string {
+  if (body && typeof body === "object") {
+    const b = body as any;
+    if (b.message) return `${b.message}${b.code ? ` (${b.code})` : ""}`;
+    return JSON.stringify(body);
+  }
+  if (typeof body === "string" && body.trim()) {
+    // Likely an HTML error page from a WAF/security plugin/host - trim to
+    // something readable rather than dumping a full page of markup.
+    const stripped = body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return stripped.slice(0, 300) || "(empty response body)";
+  }
+  return "(no response body - likely blocked before reaching WordPress, e.g. by a security plugin/WAF or a stripped Authorization header)";
+}
+
+async function parseWpResponse(res: Response): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
 }
 
@@ -50,7 +81,7 @@ async function wpRequest<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
 
-  const body = await res.json().catch(() => null);
+  const body = await parseWpResponse(res);
   if (!res.ok) throw new WordPressApiError(res.status, body);
   return body as T;
 }
@@ -90,9 +121,9 @@ export async function uploadMedia(fileBuffer: Buffer, filename: string, mimeType
     body: fileBuffer as unknown as BodyInit,
   });
 
-  const body = await res.json().catch(() => null);
+  const body = await parseWpResponse(res);
   if (!res.ok) throw new WordPressApiError(res.status, body);
-  return { id: body.id, source_url: body.source_url };
+  return { id: (body as any).id, source_url: (body as any).source_url };
 }
 
 export async function isConfigured(): Promise<boolean> {
