@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import FundraiserPreview from "./FundraiserPreview";
 
 type Office = { id: string; region: string; field_office: string };
 
@@ -15,8 +16,12 @@ export default function NewFundraiserPage() {
 
   const [offices, setOffices] = useState<Office[]>([]);
   const [assignedOffice, setAssignedOffice] = useState<Office | null>(null);
+  const [organizerName, setOrganizerName] = useState("You");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [useManualUrl, setUseManualUrl] = useState(false);
 
   const [form, setForm] = useState({
     office_id: "",
@@ -51,9 +56,11 @@ export default function NewFundraiserPage() {
 
       const { data: me } = await supabase
         .from("employees")
-        .select("assigned_office_id")
+        .select("assigned_office_id, full_name")
         .eq("auth_user_id", user.id)
         .single();
+
+      if (me?.full_name) setOrganizerName(me.full_name);
 
       if (me?.assigned_office_id) {
         const { data: office } = await supabase
@@ -82,6 +89,25 @@ export default function NewFundraiserPage() {
         ? f.frequencies.filter((x) => x !== freq)
         : [...f.frequencies, freq],
     }));
+  }
+
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageError(null);
+    setUploadingImage(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/fundraisers/media", { method: "POST", body: formData });
+    const body = await res.json();
+    setUploadingImage(false);
+
+    if (!res.ok) {
+      setImageError(body.error ?? "Upload failed.");
+      return;
+    }
+    update("header_image", body.url);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,7 +162,7 @@ export default function NewFundraiserPage() {
 
   return (
     <main className="min-h-screen px-4 py-12">
-      <div className="max-w-xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-xl font-semibold">New Fundraiser</h1>
           <Link href="/fundraisers" className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)]">
@@ -144,7 +170,8 @@ export default function NewFundraiserPage() {
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid md:grid-cols-2 gap-8 items-start">
+          <form onSubmit={handleSubmit} className="space-y-6">
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
             <h2 className="text-sm font-medium">Details</h2>
 
@@ -206,13 +233,41 @@ export default function NewFundraiserPage() {
             </div>
 
             <div>
-              <label className={labelClass}>Hero Image URL</label>
-              <input
-                value={form.header_image}
-                onChange={(e) => update("header_image", e.target.value)}
-                className={inputClass}
-                placeholder="Shown at the top of the fundraiser page"
-              />
+              <label className={labelClass}>Hero Image</label>
+              {form.header_image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.header_image} alt="" className="w-full h-32 object-cover rounded-lg mb-2" />
+              )}
+              {!useManualUrl ? (
+                <>
+                  <input type="file" accept="image/*" onChange={handleImageSelect} className={inputClass} />
+                  {uploadingImage && <p className="text-xs text-[var(--color-text-dim)] mt-1">Uploading...</p>}
+                  {imageError && <p className="text-xs text-red-600 mt-1">{imageError}</p>}
+                  <button
+                    type="button"
+                    onClick={() => setUseManualUrl(true)}
+                    className="text-xs text-[var(--color-text-dim)] underline mt-1"
+                  >
+                    or paste an image URL instead
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    value={form.header_image}
+                    onChange={(e) => update("header_image", e.target.value)}
+                    className={inputClass}
+                    placeholder="https://..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setUseManualUrl(false)}
+                    className="text-xs text-[var(--color-text-dim)] underline mt-1"
+                  >
+                    or upload an image instead
+                  </button>
+                </>
+              )}
             </div>
 
             <div>
@@ -326,8 +381,9 @@ export default function NewFundraiserPage() {
           </section>
 
           <p className="text-xs text-[var(--color-text-dim)]">
-            If a CharityStack API key hasn't been added yet (Admin → Connectors), this saves as a draft and
-            can be synced later with no re-entry needed.
+            This is submitted for CIO approval before it goes live anywhere — nothing is publicly visible
+            (no active donation form, no WordPress page) until approved. If a CharityStack API key hasn't
+            been added yet, this still saves and can be synced automatically at approval time.
           </p>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -337,9 +393,28 @@ export default function NewFundraiserPage() {
             disabled={saving}
             className="w-full rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium py-3 disabled:opacity-50"
           >
-            {saving ? "Creating..." : "Create Fundraiser"}
+            {saving ? "Submitting..." : "Submit for Approval"}
           </button>
         </form>
+
+        <div className="md:sticky md:top-8">
+          <p className="text-xs mb-2 text-[var(--color-text-dim)]">Live preview — updates as you type</p>
+          <FundraiserPreview
+            title={form.title}
+            organizerName={organizerName}
+            officeName={assignedOffice?.field_office ?? offices.find((o) => o.id === form.office_id)?.field_office ?? ""}
+            headerImage={form.header_image}
+            description={form.description}
+            story={form.story}
+            goal={form.goal}
+            color={form.color}
+            eventDate={form.event_date}
+            startTime={form.start_time}
+            location={form.location}
+            formType={form.form_type}
+          />
+        </div>
+        </div>
       </div>
     </main>
   );

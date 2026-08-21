@@ -9,7 +9,7 @@ async function requireAccess(supabase: Awaited<ReturnType<typeof createClient>>,
 
   const { data: me } = await supabase
     .from("employees")
-    .select("id, role, assigned_office_id")
+    .select("id, role, assigned_office_id, is_cio")
     .eq("auth_user_id", user.id)
     .single();
   if (!me) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
@@ -47,14 +47,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   });
 }
 
-// Publish/unpublish and simple field edits. Does NOT re-call CharityStack
-// (title/funds/etc. changes after creation go through the sync route below,
-// since those need a PATCH /v1/forms/{id} call, not just a local update).
+// Publish/unpublish and simple field edits. Restricted to admin/CIO since
+// is_published is now controlled by the approval workflow, not staff.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const result = await requireAccess(supabase, id);
   if ("error" in result) return result.error;
+
+  if (!(result.me.role === "admin" || (result.me as any).is_cio)) {
+    return NextResponse.json({ error: "Only a designated approver can change publish status" }, { status: 403 });
+  }
 
   const body = await request.json();
   const allowed = ["is_published"] as const;
@@ -63,11 +66,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (key in body) update[key] = body[key];
   }
 
-  if (update.is_published === true && result.fundraiser.sync_status !== "synced") {
-    return NextResponse.json(
-      { error: "Can't publish a fundraiser that hasn't synced to CharityStack yet. Add an API key under Admin → Connectors, then retry sync." },
-      { status: 400 }
-    );
+  if (update.is_published === true && result.fundraiser.approval_status !== "approved") {
+    return NextResponse.json({ error: "Can't publish a fundraiser that hasn't been approved yet." }, { status: 400 });
   }
 
   const { error } = await supabase.from("fundraisers").update(update).eq("id", id);
@@ -81,6 +81,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const supabase = await createClient();
   const result = await requireAccess(supabase, id);
   if ("error" in result) return result.error;
+
+  if (!(result.me.role === "admin" || (result.me as any).is_cio)) {
+    return NextResponse.json({ error: "Only a designated approver can unpublish a live fundraiser" }, { status: 403 });
+  }
 
   // Soft-delete pattern to match CharityStack's own "Returns 410 Gone"
   // behavior — unpublish rather than hard-delete, so historical

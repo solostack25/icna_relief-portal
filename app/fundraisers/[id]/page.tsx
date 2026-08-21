@@ -12,6 +12,9 @@ export default async function FundraiserDetailPage({ params }: { params: Promise
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
+  const { data: me } = await supabase.from("employees").select("role, is_cio").eq("auth_user_id", user.id).single();
+  const canApprove = me?.role === "admin" || !!me?.is_cio;
+
   const { data: fundraiser } = await supabase.from("fundraisers").select("*").eq("id", id).single();
   if (!fundraiser) notFound();
 
@@ -49,6 +52,8 @@ export default async function FundraiserDetailPage({ params }: { params: Promise
             slug: fundraiser.slug,
             sync_status: fundraiser.sync_status,
             sync_error: fundraiser.sync_error,
+            approval_status: fundraiser.approval_status,
+            rejection_reason: fundraiser.rejection_reason,
             is_published: fundraiser.is_published,
             charitystack_form_url: fundraiser.charitystack_form_url,
             charitystack_embed_html: fundraiser.charitystack_embed_html,
@@ -62,6 +67,7 @@ export default async function FundraiserDetailPage({ params }: { params: Promise
             updates: fundraiser.updates ?? [],
           }}
           officeName={office?.field_office ?? "this office"}
+          canApprove={canApprove}
         />
       </div>
     </main>

@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
       startTime: (record.start_time as string) ?? undefined,
       endTime: (record.end_time as string) ?? undefined,
       location: (record.location as string) ?? undefined,
+      active: false, // stays inactive on CharityStack's side until a CIO approves
     });
 
     record.charitystack_form_id = csResponse.formID;

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import DropboxSettingsClient from "../dropbox/DropboxSettingsClient";
 import PexelsSettingsClient from "../pexels/PexelsSettingsClient";
 import ConnectorKeyField from "./ConnectorKeyField";
+import CioApproversManager from "./CioApproversManager";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -83,6 +84,13 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="salesforce_username" label="Integration User Username" placeholder="integration@icnarelief.org" />
         <ConnectorKeyField settingKey="salesforce_password_token" label="Password + Security Token" placeholder="password + token, concatenated" />
         <ConnectorKeyField settingKey="salesforce_instance_url" label="Instance URL" placeholder="https://icnarelief.my.salesforce.com" />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="Fundraiser Approvers"
+        description="Fundraisers created under Fundraisers stay pending until one of these people (or a Portal Admin) approves them — approval is what activates the CharityStack donation form and publishes the WordPress page. Add by email; the person must already exist as an employee in the portal."
+      >
+        <CioApproversManager />
       </ConnectorSection>
 
       <ConnectorSection

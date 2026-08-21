@@ -2,12 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-const STATUS_STYLES: Record<string, string> = {
-  draft: "bg-[var(--color-text-dim)]/10 text-[var(--color-text-dim)]",
-  synced: "bg-green-500/10 text-green-700",
-  error: "bg-red-500/10 text-red-700",
-};
-
 export default async function FundraisersPage() {
   const supabase = await createClient();
 
@@ -18,7 +12,7 @@ export default async function FundraisersPage() {
 
   const { data: fundraisers } = await supabase
     .from("fundraisers")
-    .select("id, office_id, title, slug, goal, sync_status, is_published, created_at")
+    .select("id, office_id, title, slug, goal, sync_status, approval_status, is_published, created_at")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -85,18 +79,17 @@ export default async function FundraisersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={"text-xs px-2 py-1 rounded-full " + (STATUS_STYLES[f.sync_status] ?? "")}>
-                      {f.sync_status === "draft" ? "Not synced" : f.sync_status === "error" ? "Sync error" : "Synced"}
-                    </span>
                     <span
                       className={
                         "text-xs px-2 py-1 rounded-full " +
-                        (f.is_published
+                        (f.approval_status === "approved"
                           ? "bg-green-500/10 text-green-700"
-                          : "bg-[var(--color-text-dim)]/10 text-[var(--color-text-dim)]")
+                          : f.approval_status === "rejected"
+                          ? "bg-red-500/10 text-red-700"
+                          : "bg-amber-500/10 text-amber-700")
                       }
                     >
-                      {f.is_published ? "Published" : "Draft"}
+                      {f.approval_status === "approved" ? "Approved" : f.approval_status === "rejected" ? "Rejected" : "Pending review"}
                     </span>
                   </div>
                 </Link>

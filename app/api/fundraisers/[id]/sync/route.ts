@@ -49,6 +49,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       startTime: fundraiser.start_time ?? undefined,
       endTime: fundraiser.end_time ?? undefined,
       location: fundraiser.location ?? undefined,
+      active: fundraiser.approval_status === "approved",
     });
 
     const { data: updated, error } = await supabase

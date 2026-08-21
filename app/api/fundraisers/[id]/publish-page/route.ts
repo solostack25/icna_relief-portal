@@ -18,22 +18,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: me } = await supabase
     .from("employees")
-    .select("id, full_name, role, assigned_office_id")
+    .select("id, full_name, role, assigned_office_id, is_cio")
     .eq("auth_user_id", user.id)
     .single();
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(me.role === "admin" || me.is_cio)) {
+    return NextResponse.json({ error: "Only a designated approver can (re)publish a fundraiser page" }, { status: 403 });
+  }
 
   const { data: fundraiser } = await supabase.from("fundraisers").select("*").eq("id", id).single();
   if (!fundraiser) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (me.role !== "admin" && fundraiser.office_id !== me.assigned_office_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  if (fundraiser.sync_status !== "synced") {
-    return NextResponse.json(
-      { error: "This fundraiser needs to sync to CharityStack first (see the Sync section above) before a page can be created." },
-      { status: 400 }
-    );
+  if (fundraiser.approval_status !== "approved") {
+    return NextResponse.json({ error: "This fundraiser hasn't been approved yet." }, { status: 400 });
   }
 
   const { data: office } = await supabase.from("b2s_offices").select("field_office").eq("id", fundraiser.office_id).single();

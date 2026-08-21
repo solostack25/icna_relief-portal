@@ -76,6 +76,25 @@ export async function updatePage(pageId: number, input: { title?: string; conten
   });
 }
 
+export async function uploadMedia(fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ id: number; source_url: string }> {
+  const { siteUrl, username, appPassword } = await getConfig();
+  const auth = Buffer.from(`${username}:${appPassword}`).toString("base64");
+
+  const res = await fetch(`${siteUrl}/wp-json/wp/v2/media`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": mimeType,
+      "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
+    },
+    body: fileBuffer as unknown as BodyInit,
+  });
+
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new WordPressApiError(res.status, body);
+  return { id: body.id, source_url: body.source_url };
+}
+
 export async function isConfigured(): Promise<boolean> {
   const [siteUrl, username, appPassword] = await Promise.all([
     getIntegrationSetting("wp_site_url"),
