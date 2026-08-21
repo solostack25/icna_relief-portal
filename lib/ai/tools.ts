@@ -83,12 +83,36 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "create_flier_draft",
+      description:
+        "Creates a draft flier from an existing template, filling in only the fields that template marks as editable (brand-locked elements like logo/colors/fonts can't be changed through this tool). Provide templateName to find the right template - if it's ambiguous or not found, you'll get a list of available template names/ids back; ask the employee which one they mean and call again with the exact name. Always confirm the flier's text content with the employee before calling this. Returns a reviewUrl the employee can open to see and finish the draft.",
+      parameters: {
+        type: "object",
+        properties: {
+          templateName: {
+            type: "string",
+            description: 'Name (or partial name) of the flier template to use, e.g. "Ramadan Food Drive".',
+          },
+          textValues: {
+            type: "object",
+            description:
+              'Map of editable field label to the text you\'re filling in, e.g. {"headline": "Ramadan Food Drive 2026", "body": "Join us this Ramadan..."}. Only include fields the employee actually wants filled in - leave others out rather than guessing.',
+          },
+        },
+        required: ["templateName", "textValues"],
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
   create_helpdesk_ticket: "/api/copilot/helpdesk/create-ticket",
   click_to_call: "/api/copilot/calling/click-to-call",
   quick_sms: "/api/copilot/calling/quick-sms",
+  create_flier_draft: "/api/copilot/marketing/create-flier-draft",
 };
 
 /**

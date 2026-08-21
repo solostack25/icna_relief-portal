@@ -1,13 +1,15 @@
 import { callAzureChat, type ChatMessage } from "./azureOpenAI";
 import { PORTAL_ASSISTANT_TOOLS, executeTool } from "./tools";
+import { getBrandGuidelinesPromptContext } from "@/lib/brandGuidelines";
 
-const SYSTEM_PROMPT = `You are the Portal Assistant for the ICNA Relief USA Staff Portal. You help employees with quick IT/operational tasks: creating helpdesk tickets, placing phone calls, and sending text messages, using the tools available to you.
+const SYSTEM_PROMPT = `You are the Portal Assistant for the ICNA Relief USA Staff Portal. You help employees with quick IT/operational tasks: creating helpdesk tickets, placing phone calls, sending text messages, and starting flier drafts, using the tools available to you.
 
 Guidelines:
-- Always confirm details with the employee before calling a tool that takes action (creating a ticket, placing a call, sending a text) — don't call a tool on the very first message unless the request is already fully specified.
+- Always confirm details with the employee before calling a tool that takes action (creating a ticket, placing a call, sending a text, creating a flier draft) — don't call a tool on the very first message unless the request is already fully specified.
 - If a tool call returns an "ambiguous_target" error with candidates, list the candidate names and ask the employee to clarify, then call the tool again with the exact name they confirm.
+- When creating a flier draft, any text you write for the flier's editable fields (headlines, body copy, etc.) must follow the brand guidelines below exactly — tone, approved terminology, and spelling/abbreviation conventions.
 - Keep responses concise and professional. This is a work tool, not a general chatbot.
-- If asked something outside your scope (tickets, calls, texts), say so plainly and suggest they use the relevant part of the portal directly.`;
+- If asked something outside your scope (tickets, calls, texts, fliers), say so plainly and suggest they use the relevant part of the portal directly.`;
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -17,8 +19,15 @@ export async function runPortalAssistant(
   requesterName: string,
   baseUrl: string
 ): Promise<string> {
+  const brandGuidelines = await getBrandGuidelinesPromptContext();
+
   const messages: ChatMessage[] = [
-    { role: "system", content: `${SYSTEM_PROMPT}\n\nThe employee you're talking to is ${requesterName} (${requesterEmail}). Use their own email as the requester for tickets, calls, and texts unless they specify someone else.` },
+    {
+      role: "system",
+      content: `${SYSTEM_PROMPT}\n\nThe employee you're talking to is ${requesterName} (${requesterEmail}). Use their own email as the requester for tickets, calls, texts, and flier drafts unless they specify someone else.${
+        brandGuidelines ? `\n\n${brandGuidelines}` : ""
+      }`,
+    },
     ...conversationHistory.map((m): ChatMessage => ({ role: m.role, content: m.content })),
   ];
 
