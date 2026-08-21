@@ -56,7 +56,7 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="copilot_api_key" label="Copilot Actions API Key" placeholder="Generate a long random string" />
       </ConnectorSection>
 
-      <ConnectorSection title="Dropbox" description="Powers Upload Content, the Flier Builder's image library, and hero image uploads in the Fundraisers builder.">
+      <ConnectorSection title="Dropbox" description="Powers Upload Content and the Flier Builder's image library.">
         <DropboxSettingsClient />
       </ConnectorSection>
 
@@ -111,7 +111,7 @@ export default async function AdminConnectorsPage() {
 
       <ConnectorSection
         title="WordPress Site"
-        description="Lets fundraisers created in the portal automatically publish as full standalone GoFundMe-style pages on the live site (story, progress bar, updates, donate button) once approved — no one has to touch WordPress by hand. Hero images are uploaded via the Dropbox connector above, not through here. Create an Application Password for a WordPress user with page-editing rights: WP Admin → Users → your profile → Application Passwords → add a name like 'ICNA Portal' → copy the generated password (spaces and all) here. That user's normal login password is never used or stored."
+        description="Lets fundraisers created in the portal automatically publish as full standalone GoFundMe-style pages on the live site (hero image, story, progress bar, updates, donate button) once approved — no one has to touch WordPress by hand. Create an Application Password for a WordPress user with page-editing rights: WP Admin → Users → your profile → Application Passwords → add a name like 'ICNA Portal' → copy the generated password (spaces and all) here. That user's normal login password is never used or stored."
       >
         <ConnectorKeyField settingKey="wp_site_url" label="Site URL" placeholder="https://icnarelief.org (no trailing slash)" />
         <ConnectorKeyField settingKey="wp_username" label="WordPress Username" placeholder="e.g. portal-bot" />

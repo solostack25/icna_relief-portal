@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { uploadFundraiserHeroImage } from "@/lib/dropbox";
+import { uploadMedia, WordPressNotConfiguredError, WordPressApiError } from "@/lib/wordpress";
 
-// Hero image upload for the fundraiser builder. Uploads to a dedicated
-// Dropbox folder (using the portal's shared Dropbox connection - same
-// pattern as Content Library / Flier Builder uploads) and returns a
-// permanent, hotlinkable share URL. No requester needs their own Dropbox
-// or WordPress login for this.
+// Hero image upload for the fundraiser builder. Uploads to the WordPress
+// media library via the portal's own WP connector credential (see
+// admin/connectors) so the resulting URL is permanent and lives on the
+// same site the page will be published to. No requester needs their own
+// WordPress login for this.
+//
+// (Previously tried routing this through Dropbox instead, since that's
+// where the rest of the portal's images live - but the portal's Dropbox
+// app doesn't have the sharing.write scope needed to create shareable
+// links, and re-authorizing would mean generating a new refresh token.
+// Reverted back to WP media, which was already working.)
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -25,10 +31,17 @@ export async function POST(request: Request) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const url = await uploadFundraiserHeroImage(buffer, file.name);
-    return NextResponse.json({ url });
+    const media = await uploadMedia(buffer, file.name, file.type);
+    return NextResponse.json({ url: media.source_url });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Upload failed";
+    const message =
+      e instanceof WordPressNotConfiguredError
+        ? e.message
+        : e instanceof WordPressApiError
+        ? e.message
+        : e instanceof Error
+        ? e.message
+        : "Upload failed";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
