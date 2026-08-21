@@ -101,6 +101,18 @@ function toDirectViewUrl(shareUrl: string): string {
   return url.toString();
 }
 
+function dropboxErrorDetail(err: any): string {
+  // The dropbox SDK's own thrown Error just says "Response failed with a
+  // ___ code" - the actual reason lives in err.error (either a string or
+  // an object with error_summary). Surface that instead so failures are
+  // diagnosable from the UI rather than a dead-end generic message.
+  const detail =
+    typeof err?.error === "string"
+      ? err.error
+      : err?.error?.error_summary ?? err?.error?.error?.[".tag"] ?? null;
+  return detail ? `${err.message ?? "Dropbox error"}: ${detail}` : err?.message ?? "Unknown Dropbox error";
+}
+
 // Uploads a fundraiser hero image to a dedicated Dropbox folder and
 // returns a permanent, hotlinkable URL - used instead of the WordPress
 // media library so every image asset for the portal lives in one place
@@ -110,27 +122,51 @@ export async function uploadFundraiserHeroImage(fileBuffer: Buffer, fileName: st
   const dbx = await getDropboxClient();
   const path = `/${FUNDRAISER_HERO_FOLDER}/${fileName}`;
 
-  const uploadRes = await dbx.filesUpload({
-    path,
-    contents: fileBuffer,
-    mode: { ".tag": "add" },
-    autorename: true,
-  });
-  const finalPath = uploadRes.result.path_display ?? path;
+  let finalPath: string;
+  try {
+    const uploadRes = await dbx.filesUpload({
+      path,
+      contents: fileBuffer,
+      mode: { ".tag": "add" },
+      autorename: true,
+    });
+    finalPath = uploadRes.result.path_display ?? path;
+  } catch (err: any) {
+    throw new Error(`Dropbox upload failed - ${dropboxErrorDetail(err)}`);
+  }
 
   try {
     const linkRes = await dbx.sharingCreateSharedLinkWithSettings({ path: finalPath });
     return toDirectViewUrl(linkRes.result.url);
   } catch (err: any) {
-    // Dropbox throws shared_link_already_exists if one was already created
-    // for this exact path (shouldn't normally happen right after a fresh
-    // upload with autorename, but handle it defensively) - fetch the
-    // existing link instead of failing the whole upload.
-    if (err?.error?.error?.[".tag"] === "shared_link_already_exists") {
+    const tag = err?.error?.error?.[".tag"] ?? err?.error?.[".tag"];
+
+    if (tag === "shared_link_already_exists") {
       const existing = await dbx.sharingListSharedLinks({ path: finalPath, direct_only: true });
       const link = existing.result.links[0];
       if (link) return toDirectViewUrl(link.url);
     }
-    throw err;
+
+    // Some Dropbox Business/Team accounts restrict the default shared-link
+    // audience via team policy, which 400s a plain create-link call - retry
+    // once explicitly asking for team-visible rather than public, before
+    // giving up and surfacing the real error.
+    if (tag === "settings_error" || tag === "not_authorized") {
+      try {
+        const retryRes = await dbx.sharingCreateSharedLinkWithSettings({
+          path: finalPath,
+          settings: { requested_visibility: { ".tag": "team_only" } as any },
+        });
+        return toDirectViewUrl(retryRes.result.url);
+      } catch (retryErr: any) {
+        throw new Error(
+          `The file uploaded to Dropbox, but creating a shareable link failed - ${dropboxErrorDetail(
+            retryErr
+          )}. This usually means your Dropbox team's policy restricts link sharing; an admin may need to allow it for this app's folder.`
+        );
+      }
+    }
+
+    throw new Error(`The file uploaded to Dropbox, but creating a shareable link failed - ${dropboxErrorDetail(err)}`);
   }
 }
