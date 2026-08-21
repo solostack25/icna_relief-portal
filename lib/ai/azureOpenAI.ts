@@ -200,3 +200,29 @@ export async function generateImage(prompt: string, size: "1024x1024" | "1792x10
   // Azure returns either a URL (short-lived) or b64_json depending on config.
   return { url: item.url as string | undefined, b64: item.b64_json as string | undefined };
 }
+
+/**
+ * Generates a flier background illustration and returns it as a
+ * self-contained data: URI rather than a hosted link. Azure's image URLs
+ * are short-lived (fine for a one-off download, not for something saved
+ * permanently onto a flier record), so if only a URL comes back, this
+ * downloads the bytes immediately and inlines them as base64 - avoiding
+ * any dependency on external hosting (Dropbox/WordPress) for this asset.
+ */
+export async function generateFlierBackgroundDataUri(
+  prompt: string,
+  size: "1024x1024" | "1792x1024" | "1024x1792" = "1024x1024"
+): Promise<string> {
+  const { url, b64 } = await generateImage(prompt, size);
+
+  if (b64) return `data:image/png;base64,${b64}`;
+
+  if (url) {
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) throw new Error(`Could not download the generated image (${imgRes.status})`);
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    return `data:image/png;base64,${buffer.toString("base64")}`;
+  }
+
+  throw new Error("Image generation returned neither a URL nor image data.");
+}

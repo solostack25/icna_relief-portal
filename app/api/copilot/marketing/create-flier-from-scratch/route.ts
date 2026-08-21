@@ -5,6 +5,7 @@ import { getIntegrationSetting } from "@/lib/integrationSettings";
 import { ORG_APP_BASE_URL } from "@/lib/orgConfig";
 import { buildScratchFlierCanvas, buildPosterFlierCanvas, type FlierFormat, type InfoBlock } from "@/lib/flierScratchLayout";
 import { searchStockPhotos } from "@/lib/pexels";
+import { generateFlierBackgroundDataUri } from "@/lib/ai/azureOpenAI";
 
 const VALID_FORMATS: FlierFormat[] = ["square", "vertical", "landscape", "story"];
 
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     style,
     infoBlocks,
     backgroundPhotoQuery,
+    illustrationPrompt,
   } = body as {
     requesterEmail: string;
     title: string;
@@ -33,6 +35,7 @@ export async function POST(req: Request) {
     style?: string;
     infoBlocks?: InfoBlock[];
     backgroundPhotoQuery?: string;
+    illustrationPrompt?: string;
   };
 
   if (!requesterEmail?.trim() || !title?.trim()) {
@@ -72,7 +75,26 @@ export async function POST(req: Request) {
 
   if (resolvedStyle === "poster") {
     let backgroundImageUrl: string | undefined;
-    if (backgroundPhotoQuery?.trim()) {
+
+    // AI-illustrated background takes priority over a stock photo when
+    // requested — deliberately instructed to never render any text or
+    // words: text accuracy in generated images is unreliable, and every
+    // real word on this flier (title, dates, contact info) is added
+    // afterward by the deterministic layout, not by this image. This is
+    // the "learn our style" piece — the prompt is built from the actual
+    // brand colors/voice, not left to the model's own assumptions.
+    if (illustrationPrompt?.trim()) {
+      try {
+        const brandPrompt = `Flat vector illustration background for a nonprofit event flier, decorative only. Subject: ${illustrationPrompt.trim()}. Color palette: primarily ${primaryColorHex} and ${accentColorHex}, plus soft neutral tones. Clean, warm, modern nonprofit/community-service aesthetic — simple shapes, no photorealism, no clutter. CRITICAL: absolutely no text, no letters, no words, no numbers, no logos of any kind anywhere in the image — this is a background layer only, all text is added separately.`;
+        backgroundImageUrl = await generateFlierBackgroundDataUri(brandPrompt, resolvedFormat === "landscape" ? "1792x1024" : "1024x1792");
+      } catch (e) {
+        warning = `${warning ? warning + " " : ""}Couldn't generate an AI background (${
+          e instanceof Error ? e.message : "unknown error"
+        }) — falling back to a stock photo or solid color instead.`;
+      }
+    }
+
+    if (!backgroundImageUrl && backgroundPhotoQuery?.trim()) {
       try {
         const photos = await searchStockPhotos(backgroundPhotoQuery.trim());
         backgroundImageUrl = photos?.[0]?.fullUrl;
@@ -80,9 +102,9 @@ export async function POST(req: Request) {
         // Pexels not configured or no results - falls back to a solid
         // brand-color background instead, handled inside buildPosterFlierCanvas.
       }
-    }
-    if (backgroundPhotoQuery?.trim() && !backgroundImageUrl) {
-      warning = `${warning ? warning + " " : ""}No stock photo was found for "${backgroundPhotoQuery}", so this poster uses a solid brand-color background instead.`;
+      if (!backgroundImageUrl) {
+        warning = `${warning ? warning + " " : ""}No stock photo was found for "${backgroundPhotoQuery}", so this poster uses a solid brand-color background instead.`;
+      }
     }
 
     layout = buildPosterFlierCanvas({

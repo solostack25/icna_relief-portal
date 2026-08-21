@@ -137,7 +137,11 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
           },
           backgroundPhotoQuery: {
             type: "string",
-            description: "Only used in 'poster' style: a short stock-photo search phrase for the full-bleed background, e.g. \"backpacks school supplies donation\". If omitted or no photo is found, a solid brand-color background is used instead.",
+            description: "Only used in 'poster' style: a short stock-photo search phrase for the full-bleed background, e.g. \"backpacks school supplies donation\". Ignored if illustrationPrompt is also provided. If neither is given or nothing is found, a solid brand-color background is used instead.",
+          },
+          illustrationPrompt: {
+            type: "string",
+            description: "Only used in 'poster' style, and only works if an image-generation model is configured (Admin → Connectors → Portal Assistant → Image Deployment). Describe the SUBJECT of a custom AI-illustrated background, e.g. \"backpacks and school supplies, community donation drive\" — this generates a real custom flat-illustration graphic in the brand colors instead of a stock photo. Never include any text/words you want rendered in the image itself; describe imagery only, since generated text in images is unreliable — all real text on the flier is added separately by the layout. If this isn't configured or fails, falls back to backgroundPhotoQuery or a solid color automatically.",
           },
           footerText: { type: "string", description: "Optional footer/contact line - defaults to ICNA Relief's standard contact info if omitted." },
           format: {
