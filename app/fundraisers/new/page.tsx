@@ -22,6 +22,10 @@ export default function NewFundraiserPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [useManualUrl, setUseManualUrl] = useState(false);
+  const [siteUrl, setSiteUrl] = useState<string | null>(null);
+  // Stable per-session suffix so the predicted URL doesn't jump around as
+  // the title is edited - mirrors the shape slugify() produces server-side.
+  const [slugSuffix] = useState(() => Math.random().toString(36).slice(2, 6));
 
   const [form, setForm] = useState({
     office_id: "",
@@ -39,6 +43,13 @@ export default function NewFundraiserPage() {
     end_time: "",
     location: "",
   });
+
+  useEffect(() => {
+    fetch("/api/fundraisers/site-info")
+      .then((r) => r.json())
+      .then((body) => setSiteUrl(body.siteUrl ?? null))
+      .catch(() => setSiteUrl(null));
+  }, []);
 
   useEffect(() => {
     supabase
@@ -91,6 +102,14 @@ export default function NewFundraiserPage() {
     }));
   }
 
+  const slugBase = form.title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  const predictedSlug = `${slugBase || "fundraiser"}-${slugSuffix}`;
+  const predictedUrl = siteUrl ? `${siteUrl.replace(/\/$/, "")}/${predictedSlug}/` : null;
+
   async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -130,6 +149,7 @@ export default function NewFundraiserPage() {
       body: JSON.stringify({
         office_id: form.office_id,
         title: form.title.trim(),
+        slug: predictedSlug,
         description: form.description || null,
         form_type: form.form_type,
         funds,
@@ -219,6 +239,13 @@ export default function NewFundraiserPage() {
                 className={inputClass}
                 placeholder="e.g. Houston Ramadan Food Drive 2026"
               />
+              <p className="text-xs mt-1 text-[var(--color-text-dim)]">
+                {predictedUrl ? (
+                  <>This will be live at: <span className="font-mono">{predictedUrl}</span> if approved.</>
+                ) : (
+                  <>URL preview needs the WordPress connector set up under Admin → Connectors.</>
+                )}
+              </p>
             </div>
 
             <div>
@@ -399,6 +426,11 @@ export default function NewFundraiserPage() {
 
         <div className="md:sticky md:top-8">
           <p className="text-xs mb-2 text-[var(--color-text-dim)]">Live preview — updates as you type</p>
+          {predictedUrl && (
+            <p className="text-xs mb-3 text-[var(--color-text-dim)]">
+              URL if approved: <span className="font-mono">{predictedUrl}</span>
+            </p>
+          )}
           <FundraiserPreview
             title={form.title}
             organizerName={organizerName}

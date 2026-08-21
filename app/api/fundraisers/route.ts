@@ -91,6 +91,11 @@ function slugify(title: string) {
   return `${base || "fundraiser"}-${suffix}`;
 }
 
+function isValidClientSlug(slug: string) {
+  // Same shape slugify() produces - lowercase, hyphenated, no leading/trailing hyphen.
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length <= 200;
+}
+
 // ---------- POST: staff-authenticated create. Always saves the portal-side
 // record; only calls out to CharityStack if a key is configured — see the
 // draft/synced/error sync_status states in the migration. ----------
@@ -130,7 +135,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "At least one fund is required" }, { status: 400 });
   }
 
-  const slug = slugify(body.title);
+  const slug = body.slug && isValidClientSlug(body.slug) ? body.slug : slugify(body.title);
 
   const record: Record<string, unknown> = {
     office_id,
@@ -197,11 +202,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data, error: insertError } = await supabase
+  let { data, error: insertError } = await supabase
     .from("fundraisers")
     .insert(record)
     .select("id, sync_status, sync_error")
     .single();
+
+  // Extremely unlikely (slug includes a random suffix), but if the
+  // client-predicted slug did collide with something created in the
+  // meantime, retry once with a freshly generated one rather than
+  // failing the whole submission.
+  if (insertError?.code === "23505" && insertError.message.includes("slug")) {
+    record.slug = slugify(record.title as string);
+    ({ data, error: insertError } = await supabase
+      .from("fundraisers")
+      .insert(record)
+      .select("id, sync_status, sync_error")
+      .single());
+  }
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });

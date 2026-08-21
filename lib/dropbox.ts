@@ -85,3 +85,52 @@ export async function getTemporaryImageLink(path: string): Promise<string> {
   const res = await dbx.filesGetTemporaryLink({ path });
   return res.result.link;
 }
+
+// ---- Permanent public links (for hero images embedded on live pages) ----
+
+const FUNDRAISER_HERO_FOLDER = "Fundraiser Hero Images";
+
+function toDirectViewUrl(shareUrl: string): string {
+  // Dropbox share links default to a preview/landing page (?dl=0). Swapping
+  // in raw=1 returns the actual image bytes, which is what an <img src>
+  // or a WordPress page's hero image needs - and unlike filesGetTemporaryLink,
+  // this URL doesn't expire, so it's safe to store permanently on a fundraiser.
+  const url = new URL(shareUrl);
+  url.searchParams.set("raw", "1");
+  url.searchParams.delete("dl");
+  return url.toString();
+}
+
+// Uploads a fundraiser hero image to a dedicated Dropbox folder and
+// returns a permanent, hotlinkable URL - used instead of the WordPress
+// media library so every image asset for the portal lives in one place
+// (Dropbox), consistent with how the rest of the portal's content/flier
+// images are already stored.
+export async function uploadFundraiserHeroImage(fileBuffer: Buffer, fileName: string): Promise<string> {
+  const dbx = await getDropboxClient();
+  const path = `/${FUNDRAISER_HERO_FOLDER}/${fileName}`;
+
+  const uploadRes = await dbx.filesUpload({
+    path,
+    contents: fileBuffer,
+    mode: { ".tag": "add" },
+    autorename: true,
+  });
+  const finalPath = uploadRes.result.path_display ?? path;
+
+  try {
+    const linkRes = await dbx.sharingCreateSharedLinkWithSettings({ path: finalPath });
+    return toDirectViewUrl(linkRes.result.url);
+  } catch (err: any) {
+    // Dropbox throws shared_link_already_exists if one was already created
+    // for this exact path (shouldn't normally happen right after a fresh
+    // upload with autorename, but handle it defensively) - fetch the
+    // existing link instead of failing the whole upload.
+    if (err?.error?.error?.[".tag"] === "shared_link_already_exists") {
+      const existing = await dbx.sharingListSharedLinks({ path: finalPath, direct_only: true });
+      const link = existing.result.links[0];
+      if (link) return toDirectViewUrl(link.url);
+    }
+    throw err;
+  }
+}

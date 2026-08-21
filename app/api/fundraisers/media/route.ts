@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { uploadMedia, WordPressNotConfiguredError, WordPressApiError } from "@/lib/wordpress";
+import { uploadFundraiserHeroImage } from "@/lib/dropbox";
 
-// Hero image upload for the fundraiser builder. Uploads to the WordPress
-// media library via the portal's own WP connector credential (see
-// admin/connectors) so the resulting URL is permanent and lives on the
-// same site the page will be published to — no requester needs their
-// own WordPress login, and this is the only WP-facing action available
-// to non-approvers (it never creates or edits a page, just an image).
+// Hero image upload for the fundraiser builder. Uploads to a dedicated
+// Dropbox folder (using the portal's shared Dropbox connection - same
+// pattern as Content Library / Flier Builder uploads) and returns a
+// permanent, hotlinkable share URL. No requester needs their own Dropbox
+// or WordPress login for this.
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -26,17 +25,10 @@ export async function POST(request: Request) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const media = await uploadMedia(buffer, file.name, file.type);
-    return NextResponse.json({ url: media.source_url });
+    const url = await uploadFundraiserHeroImage(buffer, file.name);
+    return NextResponse.json({ url });
   } catch (e) {
-    const message =
-      e instanceof WordPressNotConfiguredError
-        ? e.message
-        : e instanceof WordPressApiError
-        ? e.message
-        : e instanceof Error
-        ? e.message
-        : "Upload failed";
+    const message = e instanceof Error ? e.message : "Upload failed";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
