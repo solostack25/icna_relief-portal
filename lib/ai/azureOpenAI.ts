@@ -56,6 +56,48 @@ async function getAzureConfig(): Promise<AzureConfig | null> {
   return { endpoint: endpoint.replace(/\/+$/, ""), apiKey, deployment, apiVersion };
 }
 
+export class AzureContentFilterError extends Error {
+  categories: string[];
+  constructor(categories: string[]) {
+    super(
+      categories.length > 0
+        ? `Azure's content safety filter blocked this message under: ${categories.join(", ")}.`
+        : "Azure's content safety filter blocked this message."
+    );
+    this.name = "AzureContentFilterError";
+    this.categories = categories;
+  }
+}
+
+// Azure OpenAI's built-in Responsible AI content filter runs BEFORE the
+// model ever sees the prompt, and it's known to false-positive on
+// entirely benign nonprofit-operations language - "blood drive" reliably
+// trips the violence category, for example. This is Azure's filter, not
+// a portal bug or the model's own judgment, and it can't be worked around
+// in code; fixing it for good requires either avoiding trigger words or
+// an org admin requesting Azure's "modified content filter" for this
+// resource (a Microsoft-side application, for exactly this kind of
+// false-positive-prone legitimate use case).
+function parseContentFilterError(status: number, body: string): AzureContentFilterError | null {
+  if (status !== 400) return null;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+
+  const code = parsed?.error?.code ?? parsed?.error?.innererror?.code;
+  if (code !== "content_filter" && code !== "ResponsibleAIPolicyViolation") return null;
+
+  const filterResult = parsed?.error?.innererror?.content_filter_result ?? parsed?.error?.content_filter_result ?? {};
+  const flaggedCategories = Object.entries(filterResult)
+    .filter(([, v]: [string, any]) => v?.filtered)
+    .map(([category]) => category);
+
+  return new AzureContentFilterError(flaggedCategories);
+}
+
 export type ChatCompletionResult = {
   message: ChatMessage & { role: "assistant" };
   finishReason: string;
@@ -95,6 +137,8 @@ export async function callAzureChat(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
+    const contentFilterError = parseContentFilterError(res.status, errText);
+    if (contentFilterError) throw contentFilterError;
     throw new Error(`Azure OpenAI request failed (${res.status}): ${errText || res.statusText}`);
   }
 

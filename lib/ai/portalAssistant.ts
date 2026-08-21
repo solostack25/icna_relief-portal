@@ -1,4 +1,4 @@
-import { callAzureChat, type ChatMessage } from "./azureOpenAI";
+import { callAzureChat, type ChatMessage, AzureContentFilterError } from "./azureOpenAI";
 import { PORTAL_ASSISTANT_TOOLS, executeTool } from "./tools";
 import { getBrandGuidelinesPromptContext } from "@/lib/brandGuidelines";
 
@@ -32,7 +32,22 @@ export async function runPortalAssistant(
   ];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const { message } = await callAzureChat(messages, PORTAL_ASSISTANT_TOOLS);
+    let message: ChatMessage & { role: "assistant" };
+    try {
+      ({ message } = await callAzureChat(messages, PORTAL_ASSISTANT_TOOLS));
+    } catch (err) {
+      if (err instanceof AzureContentFilterError) {
+        // This is Azure's Responsible AI content filter, not the model's
+        // own judgment - it runs before the model sees anything and is
+        // known to false-positive on entirely benign phrases (e.g.
+        // "blood drive" reliably trips the violence category). Give the
+        // employee something actionable rather than a raw error dump.
+        return `Azure's content filter blocked that message${
+          err.categories.length > 0 ? ` (flagged under: ${err.categories.join(", ")})` : ""
+        } — this is usually a false positive on ordinary nonprofit-operations language (e.g. "blood drive" often trips it). Try rephrasing without that exact word — e.g. "blood donation drive" or just "donation drive" — and I'll try again. If it keeps happening on legitimate requests, an admin can request a modified content filter for this Azure OpenAI resource.`;
+      }
+      throw err;
+    }
 
     if (!message.tool_calls || message.tool_calls.length === 0) {
       return message.content ?? "I wasn't able to come up with a response — try rephrasing that.";
