@@ -34,10 +34,11 @@ type MatchedRow = AdpRow & {
 const inputStyle: React.CSSProperties = {
   border: "1px solid rgba(22,48,43,0.15)",
   borderRadius: 6,
-  padding: "4px 8px",
-  fontSize: 13,
+  padding: "8px 10px",
+  fontSize: 14,
   background: "#fff",
   width: "100%",
+  minWidth: 140,
 };
 
 // Drops middle initials/single-letter tokens and sorts so word order
@@ -232,6 +233,13 @@ export default function EntraDirectoryClient() {
     }
   }
 
+  async function saveAllEdited() {
+    const ids = Object.keys(edits);
+    for (const id of ids) {
+      await saveRow(id);
+    }
+  }
+
   const filteredDirectory = (directory ?? []).filter((u) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -358,33 +366,67 @@ export default function EntraDirectoryClient() {
       </div>
 
       {/* Directory table */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Full Directory</h2>
         <input
           type="text"
           placeholder="Search name, email, title…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, width: 260 }}
+          style={{ ...inputStyle, width: 260, minWidth: 0 }}
         />
       </div>
+      <p className="text-xs mb-3" style={{ color: "rgba(22,48,43,0.4)" }}>
+        Typing edits nothing until you click Save on that row — edited rows are highlighted below.
+      </p>
+
+      {Object.keys(edits).length > 0 && (
+        <div
+          className="flex items-center justify-between rounded-lg px-4 py-2.5 mb-3"
+          style={{ background: "#FBF6E9", border: "1px solid #E9D9A0" }}
+        >
+          <span className="text-sm" style={{ color: "#8A6D1E", fontWeight: 600 }}>
+            {Object.keys(edits).length} row{Object.keys(edits).length === 1 ? "" : "s"} with unsaved changes
+          </span>
+          <button
+            onClick={saveAllEdited}
+            disabled={savingId !== null}
+            className="text-sm font-semibold px-4 py-1.5 rounded-lg"
+            style={{ background: "var(--icna-green, #2F6D46)", color: "#fff" }}
+          >
+            Save All
+          </button>
+        </div>
+      )}
 
       {!directory ? (
         <p className="text-sm" style={{ color: "rgba(22,48,43,0.4)" }}>
           Loading Entra directory…
         </p>
       ) : (
-        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(22,48,43,0.1)" }}>
-          <table className="w-full text-sm">
+        <div className="rounded-lg overflow-x-auto" style={{ border: "1px solid rgba(22,48,43,0.1)" }}>
+          <table className="text-sm" style={{ width: "100%", minWidth: 980 }}>
             <thead style={{ background: "#FAF8F2" }}>
               <tr>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Email</th>
-                <th className="px-3 py-2 text-left">Job Title</th>
-                <th className="px-3 py-2 text-left">Department</th>
-                <th className="px-3 py-2 text-left">Office</th>
-                <th className="px-3 py-2 text-left">Manager</th>
-                <th className="px-3 py-2"></th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
+                  Name
+                </th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 220 }}>
+                  Email
+                </th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 200 }}>
+                  Job Title
+                </th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
+                  Department
+                </th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
+                  Office
+                </th>
+                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
+                  Manager
+                </th>
+                <th className="px-3 py-2" style={{ minWidth: 140 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -392,7 +434,13 @@ export default function EntraDirectoryClient() {
                 const edit = edits[u.id] ?? {};
                 const hasEdit = Object.keys(edit).length > 0;
                 return (
-                  <tr key={u.id} style={{ borderTop: "1px solid rgba(22,48,43,0.06)" }}>
+                  <tr
+                    key={u.id}
+                    style={{
+                      borderTop: "1px solid rgba(22,48,43,0.06)",
+                      background: hasEdit ? "#FBF6E9" : "transparent",
+                    }}
+                  >
                     <td className="px-3 py-2" style={{ fontWeight: 600 }}>
                       {u.displayName}
                     </td>
@@ -423,17 +471,37 @@ export default function EntraDirectoryClient() {
                     <td className="px-3 py-2" style={{ color: "rgba(22,48,43,0.5)" }}>
                       {u.managerDisplayName ?? "—"}
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      {hasEdit && (
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        {hasEdit && (
+                          <button
+                            onClick={() =>
+                              setEdits((prev) => {
+                                const next = { ...prev };
+                                delete next[u.id];
+                                return next;
+                              })
+                            }
+                            disabled={savingId === u.id}
+                            className="text-xs font-semibold px-3 py-2 rounded-md"
+                            style={{ background: "transparent", color: "rgba(22,48,43,0.5)", border: "1px solid rgba(22,48,43,0.15)" }}
+                          >
+                            Reset
+                          </button>
+                        )}
                         <button
                           onClick={() => saveRow(u.id)}
-                          disabled={savingId === u.id}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-md"
-                          style={{ background: "var(--icna-green, #2F6D46)", color: "#fff" }}
+                          disabled={!hasEdit || savingId === u.id}
+                          className="text-xs font-semibold px-3 py-2 rounded-md"
+                          style={{
+                            background: hasEdit ? "var(--icna-green, #2F6D46)" : "rgba(22,48,43,0.08)",
+                            color: hasEdit ? "#fff" : "rgba(22,48,43,0.35)",
+                            cursor: hasEdit ? "pointer" : "default",
+                          }}
                         >
                           {savingId === u.id ? "Saving…" : "Save"}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
