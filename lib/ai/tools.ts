@@ -154,6 +154,63 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "find_portal_page",
+      description:
+        "Finds the right page in the portal for a topic (training, volunteer, help desk, transitional housing, fundraisers, client directory, employee directory, fliers, and more), including matching specific training courses by title. Use this whenever the employee asks where something is, how to get to it, or wants to be pointed to a resource. Always return the page name and URL so the employee can click through.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: 'What the employee is looking for, e.g. "MS365 training" or "how do I sign up to volunteer".' },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_my_helpdesk_tickets",
+      description: "Lists the requester's own Help Desk tickets (the ones they submitted), most recent first. Defaults to open tickets only.",
+      parameters: {
+        type: "object",
+        properties: {
+          statusFilter: { type: "string", enum: ["open", "all"], description: "Defaults to 'open' if not specified." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_office_info",
+      description:
+        "Looks up an office's hours and any published info (pantry hours, health clinic hours, holiday schedule, etc.). If no office is given, defaults to the requester's own assigned office. If the office name is ambiguous, you'll get a list of candidates back - ask which one and call again with the exact name.",
+      parameters: {
+        type: "object",
+        properties: {
+          officeName: { type: "string", description: 'Office name, e.g. "Orlando" or "Orlando Office". Omit to use the requester\'s own office.' },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_upcoming_volunteer_events",
+      description:
+        "Lists upcoming published volunteer events with open spots. Defaults to the requester's own office unless they ask for a different office or for events everywhere.",
+      parameters: {
+        type: "object",
+        properties: {
+          officeName: { type: "string", description: "Filter to a specific office. Omit to use the requester's own office." },
+          allOffices: { type: "boolean", description: "Set true if the employee explicitly wants events across every office, not just their own." },
+        },
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -162,6 +219,10 @@ const TOOL_ROUTES: Record<string, string> = {
   quick_sms: "/api/copilot/calling/quick-sms",
   create_flier_draft: "/api/copilot/marketing/create-flier-draft",
   create_flier_from_scratch: "/api/copilot/marketing/create-flier-from-scratch",
+  find_portal_page: "/api/copilot/portal/find-page",
+  list_my_helpdesk_tickets: "/api/copilot/helpdesk/my-tickets",
+  get_office_info: "/api/copilot/office/info",
+  list_upcoming_volunteer_events: "/api/copilot/volunteer/upcoming-events",
 };
 
 /**

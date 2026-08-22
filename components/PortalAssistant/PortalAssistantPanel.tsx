@@ -71,7 +71,7 @@ export default function PortalAssistantPanel({ onClose }: Props) {
       <header className="pa-header">
         <div>
           <p className="pa-title">Portal Assistant</p>
-          <p className="pa-subtitle">Tickets, calls, and texts — ask in plain language</p>
+          <p className="pa-subtitle">Tickets, calls, texts, and finding your way around — ask in plain language</p>
         </div>
         {onClose && (
           <button type="button" className="pa-close" onClick={onClose} aria-label="Close assistant">
