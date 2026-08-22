@@ -362,7 +362,7 @@ export default function NewFundraiserPage() {
 
             {form.form_type === "event" && (
               <>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className={labelClass}>Event Date</label>
                     <input

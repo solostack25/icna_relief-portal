@@ -145,7 +145,7 @@ export default function NewRequestPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium mb-1.5">Department</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(Object.keys(DEPARTMENT_LABELS) as Department[]).map((d) => (
                 <button
                   type="button"
