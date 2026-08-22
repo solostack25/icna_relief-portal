@@ -25,7 +25,8 @@
     "react-barcode": "^1.6.1",
     "react-dom": "^18",
     "react-konva": "^18.2.16",
-    "resend": "^4.8.0"
+    "resend": "^4.8.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

@@ -126,6 +126,14 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M8 3l-2 2M16 3l2 2" />
     </svg>
   ),
+  entraDirectory: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 4v5" />
+      <circle cx="12" cy="14" r="2" />
+      <path d="M9 18c0-1.5 1.3-2.5 3-2.5s3 1 3 2.5" />
+    </svg>
+  ),
 };
 
 type NavItem = { href: string; label: string; icon: keyof typeof ICONS; external?: boolean };
@@ -187,6 +195,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         access.isAdmin && { href: "/admin/employees/new", label: "Add Employee", icon: "addEmployee" },
         access.isAdmin && { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings" },
         access.isAdmin && { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview" },
+        access.isAdmin && { href: "/admin/entra-directory", label: "Entra Directory", icon: "entraDirectory" },
       ].filter(Boolean) as NavItem[],
     },
     {

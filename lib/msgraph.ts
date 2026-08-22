@@ -253,3 +253,72 @@ export async function assignLicense(userId: string, skuId: string): Promise<void
     removeLicenses: [],
   });
 }
+
+// ============================================================
+// Directory read/write — general Entra user editing, independent of
+// portal employee provisioning. Used by /admin/entra-directory.
+// ============================================================
+
+export type EntraUser = {
+  id: string;
+  displayName: string;
+  mail: string | null;
+  userPrincipalName: string;
+  jobTitle: string | null;
+  department: string | null;
+  officeLocation: string | null;
+  managerId: string | null;
+  managerDisplayName: string | null;
+};
+
+// Paged fetch of every user in the tenant, with manager expanded inline
+// via $expand (one call per page instead of a second round-trip per
+// user - 313 individual /manager lookups would be far slower and far
+// more likely to hit throttling). $select keeps each page light since
+// this pulls the whole tenant.
+export async function listAllUsers(): Promise<EntraUser[]> {
+  const select = "id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation";
+  const results = await graphGetAll(`/v1.0/users?$select=${select}&$expand=manager($select=id,displayName)&$top=999`);
+  return results.map((u: any) => ({
+    id: u.id,
+    displayName: u.displayName,
+    mail: u.mail,
+    userPrincipalName: u.userPrincipalName,
+    jobTitle: u.jobTitle ?? null,
+    department: u.department ?? null,
+    officeLocation: u.officeLocation ?? null,
+    managerId: u.manager?.id ?? null,
+    managerDisplayName: u.manager?.displayName ?? null,
+  }));
+}
+
+export type UpdateAdUserParams = {
+  jobTitle?: string | null;
+  department?: string | null;
+  officeLocation?: string | null;
+};
+
+// Only sends fields that are actually being changed (undefined = leave
+// alone). Passing null explicitly clears the field in Entra.
+export async function updateAdUser(userId: string, params: UpdateAdUserParams): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (params.jobTitle !== undefined) body.jobTitle = params.jobTitle;
+  if (params.department !== undefined) body.department = params.department;
+  if (params.officeLocation !== undefined) body.officeLocation = params.officeLocation;
+  if (Object.keys(body).length === 0) return;
+  await graphPatch(`/users/${encodeURIComponent(userId)}`, body);
+}
+
+// Manager is a relationship, not a plain property - Graph requires a
+// separate $ref call rather than a field in the PATCH body above.
+export async function setAdUserManager(userId: string, managerId: string): Promise<void> {
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/manager/$ref`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ "@odata.id": `https://graph.microsoft.com/v1.0/users/${managerId}` }),
+  });
+  if (!res.ok) {
+    throw new Error(`Graph PUT manager/$ref failed: ${res.status} ${await res.text()}`);
+  }
+}
