@@ -172,7 +172,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "Offices",
       items: [
-        access.hasOfficeInfo && { href: "/admin/office-info", label: "Hours & Office Info", icon: "officeInfo" },
+        access.hasOfficeInfo && { href: "/admin/office-info", label: "Office Dashboard", icon: "officeInfo" },
       ].filter(Boolean) as NavItem[],
     },
     {

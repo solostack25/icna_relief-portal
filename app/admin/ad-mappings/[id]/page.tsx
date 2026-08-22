@@ -15,6 +15,7 @@ const ROLE_PRIORITY: Record<string, number> = {
   admin: 100,
   program_director: 75,
   regional_director: 50,
+  area_manager: 25,
   staff: 0,
 };
 
@@ -100,7 +101,7 @@ export default function EditAdMappingPage() {
         ad_group_id: form.ad_group_id,
         ad_group_name: form.ad_group_name,
         portal_role: form.portal_role,
-        assigned_office_id: form.portal_role === "staff" ? form.assigned_office_id || null : null,
+        assigned_office_id: form.portal_role === "staff" || form.portal_role === "area_manager" ? form.assigned_office_id || null : null,
         assigned_region: form.portal_role === "regional_director" ? form.assigned_region || null : null,
         program_slugs: Array.from(selectedApps),
         priority: ROLE_PRIORITY[form.portal_role] ?? 0,
@@ -192,13 +193,14 @@ export default function EditAdMappingPage() {
                 className={inputClass}
               >
                 <option value="staff">Staff</option>
+                <option value="area_manager">Area Manager</option>
                 <option value="regional_director">Regional Director</option>
                 <option value="program_director">Program Director</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
 
-            {form.portal_role === "staff" && (
+            {(form.portal_role === "staff" || form.portal_role === "area_manager") && (
               <div>
                 <label className={labelClass}>Office</label>
                 <select

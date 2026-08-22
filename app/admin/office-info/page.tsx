@@ -17,7 +17,7 @@ export default async function OfficeInfoIndexPage() {
   if (!me) redirect("/select-app");
 
   if (me.role !== "admin") {
-    if (!me.assigned_office_id) redirect("/select-app");
+    if (me.role !== "area_manager" || !me.assigned_office_id) redirect("/select-app");
     redirect(`/admin/office-info/${me.assigned_office_id}`);
   }
 
@@ -29,12 +29,11 @@ export default async function OfficeInfoIndexPage() {
   return (
     <div>
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
-        Office Hours &amp; Info
+        Office Dashboard
       </h1>
       <p className="text-sm mb-8" style={{ color: "rgba(22,48,43,0.55)" }}>
-        Pick an office to manage its hours and any custom categories (pantry, health clinic, holiday schedule,
-        etc.). These publish live to that office&apos;s WordPress page via the <code>[icna_office_info]</code>{" "}
-        shortcode — no deploy needed.
+        Pick an office to see what's happening there — open tickets, volunteer signups, fundraiser totals, client
+        activity, and pending finance approvals — and manage its published hours and info.
       </p>
 
       <div className="grid gap-2" style={{ maxWidth: 520 }}>

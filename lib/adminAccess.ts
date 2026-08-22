@@ -25,12 +25,11 @@ export async function getAdminAccess(
   assignedOfficeId?: string | null
 ): Promise<AdminAccess> {
   const isAdmin = role === "admin";
-  // Admins manage every office's hours/info; staff manage only the one
-  // office they're assigned to (RLS enforces the same boundary on the
-  // office_hours/office_info_notes tables, this just controls nav
-  // visibility) - so anyone with an assigned office gets the link too,
-  // not just admins.
-  const hasOfficeInfo = isAdmin || !!assignedOfficeId;
+  // Area managers get the office dashboard for their one assigned
+  // office; this is a real portal_role from AD (see ad_role_mappings),
+  // not just "has an office" - regular staff assigned to an office
+  // don't get manager-level access to it.
+  const hasOfficeInfo = isAdmin || (role === "area_manager" && !!assignedOfficeId);
   const managedDepartments = await getManagedDepartments(supabase, employeeId, role);
   const canManageTickets = isAdmin || managedDepartments.length > 0;
   const canManageFinance = isAdmin || managedDepartments.includes("finance") || managedDepartments.includes("it");
