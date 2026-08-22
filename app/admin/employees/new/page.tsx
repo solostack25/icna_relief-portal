@@ -29,11 +29,19 @@ export default function NewEmployeePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AdResult | null>(null);
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
+    personalEmail: "",
     role: "staff",
     assignedOfficeId: "",
     assignedRegion: "",
@@ -130,6 +138,45 @@ export default function NewEmployeePage() {
     setTimeout(() => setPasswordCopied(false), 1500);
   }
 
+  function openComposer() {
+    setEmailTo(form.personalEmail);
+    setEmailSubject(`Welcome to ICNA Relief, ${form.firstName} — your new account details`);
+    setEmailBody(
+      `Hi ${form.firstName},\n\n` +
+        `Welcome to ICNA Relief! Your new account has been created.\n\n` +
+        `Email: ${result?.userPrincipalName ?? form.email}\n` +
+        `Temporary password: ${result?.tempPassword ?? "(not available)"}\n\n` +
+        `You'll be asked to set your own password the first time you sign in at https://portal.office.com — please do this before doing anything else.\n\n` +
+        `You should also receive a separate email invite to set up your Staff Portal login — that's a different, separate step from the password above.\n\n` +
+        `If you have any trouble getting in, reach out to IT and we'll get you sorted.\n\n` +
+        `Welcome to the team!`
+    );
+    setEmailSent(false);
+    setEmailError(null);
+    setShowComposer(true);
+  }
+
+  async function sendOnboardingEmail() {
+    if (!emailTo.trim()) {
+      setEmailError("Enter the personal email address to send this to.");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    const res = await fetch("/api/admin/employees/send-onboarding-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toEmail: emailTo, subject: emailSubject, body: emailBody }),
+    });
+    const data = await res.json();
+    setEmailSending(false);
+    if (!res.ok) {
+      setEmailError(data.error ?? "Failed to send.");
+      return;
+    }
+    setEmailSent(true);
+  }
+
   const inputClass =
     "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
   const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
@@ -177,6 +224,74 @@ export default function NewEmployeePage() {
                   shown again — if lost, reset it directly in Entra ID.
                 </p>
               </div>
+
+              {!showComposer && (
+                <button
+                  onClick={openComposer}
+                  className="text-sm rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] px-4 py-2 hover:border-[var(--color-accent)]"
+                >
+                  Email New Employee
+                </button>
+              )}
+
+              {showComposer && (
+                <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
+                  <h3 className="text-sm font-medium">
+                    {emailSent ? "Sent" : "Review before sending — edit anything you'd like"}
+                  </h3>
+
+                  {emailSent ? (
+                    <p className="text-sm text-green-700">Sent to {emailTo}.</p>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-xs mb-1 text-[var(--color-text-dim)]">
+                          To (their personal email — the new work inbox isn't usable until they log in)
+                        </label>
+                        <input
+                          type="email"
+                          value={emailTo}
+                          onChange={(e) => setEmailTo(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs mb-1 text-[var(--color-text-dim)]">Subject</label>
+                        <input
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs mb-1 text-[var(--color-text-dim)]">Body</label>
+                        <textarea
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          rows={12}
+                          className={inputClass + " font-mono text-xs"}
+                        />
+                      </div>
+                      {emailError && <p className="text-sm text-[#B55139]">{emailError}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={sendOnboardingEmail}
+                          disabled={emailSending}
+                          className="text-sm rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 disabled:opacity-50"
+                        >
+                          {emailSending ? "Sending..." : "Send"}
+                        </button>
+                        <button
+                          onClick={() => setShowComposer(false)}
+                          className="text-sm rounded-lg border border-[var(--color-border)] px-4 py-2"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {result.licenseWarnings && result.licenseWarnings.length > 0 && (
                 <div className="rounded-lg border border-[#B55139]/30 bg-[#B55139]/5 p-3">
@@ -246,6 +361,16 @@ export default function NewEmployeePage() {
               <p className="text-xs text-[var(--color-text-dim)] mt-1">
                 They'll get an email invite to set their password.
               </p>
+            </div>
+            <div>
+              <label className={labelClass}>Personal Email</label>
+              <input
+                type="email"
+                value={form.personalEmail}
+                onChange={(e) => setForm((f) => ({ ...f, personalEmail: e.target.value }))}
+                className={inputClass}
+                placeholder="For sending their new account details — they can't check the new work inbox yet"
+              />
             </div>
             <div>
               <label className={labelClass}>Role</label>
