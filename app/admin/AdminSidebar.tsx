@@ -192,7 +192,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "People & Access",
       items: [
-        access.isAdmin && { href: "/admin/employees/new", label: "Add Employee", icon: "addEmployee" },
+        access.isAdmin && { href: "/admin/employees/new", label: "Set Up Portal Access", icon: "addEmployee" },
         access.isAdmin && { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings" },
         access.isAdmin && { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview" },
         access.isAdmin && { href: "/admin/entra-directory", label: "Entra Directory", icon: "entraDirectory" },
