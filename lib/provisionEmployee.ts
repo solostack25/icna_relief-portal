@@ -70,6 +70,43 @@ export async function provisionEmployee(user: User) {
   const firstName = nameParts[0] ?? email;
   const lastName = nameParts.slice(1).join(" ") || "—";
 
+  // For roles tied to a single office (staff, area_manager), the mapping
+  // usually fixes the office directly. But an area_manager AD group can
+  // span multiple offices/states (one company-wide "Area Managers"
+  // group), so when the mapping itself doesn't pin an office, try to
+  // resolve it from this specific person's AD "Office" field
+  // (officeLocation - a default property Graph returns on group members,
+  // no extra $select needed). Best-effort only: officeLocation isn't
+  // populated for everyone, and free-text AD values don't always match
+  // b2s_offices.field_office exactly - if nothing matches, the employee
+  // still gets provisioned with assigned_office_id left null, and an
+  // admin fills it in by hand on their Employee record (see the banner
+  // on /admin for anyone missing one).
+  let resolvedOfficeId: string | null = matched.mapping.assigned_office_id ?? null;
+  const officeLocation: string | undefined = matched.adUser.officeLocation;
+
+  if (!resolvedOfficeId && officeLocation) {
+    const trimmed = officeLocation.trim();
+    if (trimmed) {
+      const { data: exactMatch } = await admin
+        .from("b2s_offices")
+        .select("id")
+        .ilike("field_office", trimmed)
+        .maybeSingle();
+
+      const { data: containsMatch } = exactMatch
+        ? { data: null }
+        : await admin
+            .from("b2s_offices")
+            .select("id")
+            .ilike("field_office", `%${trimmed}%`)
+            .limit(1)
+            .maybeSingle();
+
+      resolvedOfficeId = exactMatch?.id ?? containsMatch?.id ?? null;
+    }
+  }
+
   const { data: newEmployeeRaw, error } = await admin
     .from("employees")
     .insert({
@@ -78,7 +115,7 @@ export async function provisionEmployee(user: User) {
       last_name: lastName,
       email,
       role: matched.mapping.portal_role,
-      assigned_office_id: matched.mapping.assigned_office_id,
+      assigned_office_id: resolvedOfficeId,
       assigned_region: matched.mapping.assigned_region,
       ad_object_id: matched.adUser.id,
     })
@@ -104,6 +141,19 @@ export async function provisionEmployee(user: User) {
     new_value: matched.mapping.portal_role,
     ad_group_id: matched.mapping.ad_group_id,
   });
+
+  // Separate log line specifically for the office-resolution outcome,
+  // since "provisioned with no office" is a state an admin needs to
+  // notice and fix, not just an implementation detail.
+  if (matched.mapping.portal_role === "area_manager" && !matched.mapping.assigned_office_id) {
+    await admin.from("ad_sync_log").insert({
+      employee_id: newEmployee.id,
+      field_changed: "assigned_office_id",
+      old_value: officeLocation ?? null,
+      new_value: resolvedOfficeId,
+      ad_group_id: matched.mapping.ad_group_id,
+    });
+  }
 
   return { ok: true as const, status: "provisioned" as const };
 }

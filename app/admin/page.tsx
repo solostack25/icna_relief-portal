@@ -28,6 +28,15 @@ export default async function AdminPage() {
         .order("last_name")
     : { data: null };
 
+  const { data: unassignedAreaManagers } = access.isAdmin
+    ? await supabase
+        .from("employees")
+        .select("id, first_name, last_name, email")
+        .eq("role", "area_manager")
+        .is("assigned_office_id", null)
+        .order("last_name")
+    : { data: null };
+
   let pendingApprovals: {
     request_id: string;
     amount: number;
@@ -138,6 +147,26 @@ export default async function AdminPage() {
             ))}
           </div>
         </>
+      )}
+
+      {access.isAdmin && (unassignedAreaManagers ?? []).length > 0 && (
+        <div
+          className="rounded-2xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-2 gap-y-1"
+          style={{ background: "#FBF0E6", border: "1px solid #E9C9A6" }}
+        >
+          <span style={{ fontWeight: 700, color: "#8A4A1E" }}>
+            {(unassignedAreaManagers ?? []).length} area manager{(unassignedAreaManagers ?? []).length === 1 ? "" : "s"} need
+            {(unassignedAreaManagers ?? []).length === 1 ? "s" : ""} an office assigned:
+          </span>
+          {(unassignedAreaManagers ?? []).map((e, i) => (
+            <span key={e.id}>
+              <Link href={`/admin/employees/${e.id}`} style={{ color: "#8A4A1E", textDecoration: "underline" }}>
+                {e.first_name} {e.last_name}
+              </Link>
+              {i < (unassignedAreaManagers ?? []).length - 1 ? "," : ""}
+            </span>
+          ))}
+        </div>
       )}
 
       {access.isAdmin && (

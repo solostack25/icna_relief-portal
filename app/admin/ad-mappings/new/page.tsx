@@ -174,6 +174,13 @@ export default function NewAdMappingPage() {
                     </option>
                   ))}
                 </select>
+                {form.portal_role === "area_manager" && (
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-dim)" }}>
+                    Leave blank if this AD group spans managers from multiple offices/states. At first login,
+                    each person's office is auto-matched from their AD profile's Office field when it's set —
+                    for anyone it can't match, you'll assign it by hand afterward on their Employee record.
+                  </p>
+                )}
               </div>
             )}
 
