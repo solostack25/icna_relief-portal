@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PasswordInput from "@/components/PasswordInput";
 
 type FieldStatus = { source: "database" | "env" | "unset"; updatedAt: string | null; updatedBy: string | null };
 type Status = { appKey: FieldStatus; appSecret: FieldStatus; refreshToken: FieldStatus };
@@ -131,28 +132,25 @@ export default function DropboxSettingsClient() {
           for you.
         </p>
         <div className="space-y-2 mb-3">
-          <input
-            type="password"
+          <PasswordInput
             value={oauthValues.appKey}
-            onChange={(e) => setOauthValues({ ...oauthValues, appKey: e.target.value })}
+            onChange={(v) => setOauthValues({ ...oauthValues, appKey: v })}
             placeholder="App Key"
             className="w-full rounded-lg px-3 py-2 text-sm"
             style={{ border: "1px solid var(--portal-line)" }}
             autoComplete="off"
           />
-          <input
-            type="password"
+          <PasswordInput
             value={oauthValues.appSecret}
-            onChange={(e) => setOauthValues({ ...oauthValues, appSecret: e.target.value })}
+            onChange={(v) => setOauthValues({ ...oauthValues, appSecret: v })}
             placeholder="App Secret"
             className="w-full rounded-lg px-3 py-2 text-sm"
             style={{ border: "1px solid var(--portal-line)" }}
             autoComplete="off"
           />
-          <input
-            type="password"
+          <PasswordInput
             value={oauthValues.code}
-            onChange={(e) => setOauthValues({ ...oauthValues, code: e.target.value })}
+            onChange={(v) => setOauthValues({ ...oauthValues, code: v })}
             placeholder="Authorization Code (from the Dropbox authorize page)"
             className="w-full rounded-lg px-3 py-2 text-sm"
             style={{ border: "1px solid var(--portal-line)" }}
@@ -190,10 +188,9 @@ export default function DropboxSettingsClient() {
               <label className="text-sm font-bold">{LABELS[field]}</label>
               <StatusBadge s={status[field]} />
             </div>
-            <input
-              type="password"
+            <PasswordInput
               value={values[field]}
-              onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+              onChange={(v) => setValues({ ...values, [field]: v })}
               placeholder="Leave blank to keep current value"
               className="w-full rounded-lg px-3 py-2 text-sm"
               style={{ border: "1px solid var(--portal-line)" }}

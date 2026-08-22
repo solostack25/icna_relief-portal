@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PasswordInput from "@/components/PasswordInput";
 
 type Status = { source: "database" | "env" | "unset"; updatedAt: string | null; updatedBy: string | null };
 
@@ -73,13 +74,14 @@ export default function ConnectorKeyField({
         {status.source === "unset" && <span className="text-[11px] text-gray-400">Not set</span>}
       </div>
       <div className="flex gap-2">
-        <input
-          type="password"
-          className="border rounded px-3 py-2 text-sm flex-1"
-          placeholder={placeholder ?? "Paste value..."}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
+        <div className="flex-1">
+          <PasswordInput
+            className="border rounded px-3 py-2 text-sm w-full"
+            placeholder={placeholder ?? "Paste value..."}
+            value={value}
+            onChange={setValue}
+          />
+        </div>
         <button
           onClick={save}
           disabled={saving || !value.trim()}

@@ -290,6 +290,18 @@ export default async function SelectAppPage() {
               </svg>
             }
           />
+          <QuickCard
+            href="/fundraisers"
+            title="Fundraisers"
+            desc="Start a fundraiser or event page — goes live once approved"
+            tint="#EAF3EF"
+            iconColor="var(--portal-emerald)"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+              </svg>
+            }
+          />
         </div>
 
         {/* ---------- YOUR PROGRAMS ---------- */}

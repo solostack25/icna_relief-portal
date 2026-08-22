@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PasswordInput from "@/components/PasswordInput";
 
 type Status = { source: "database" | "env" | "unset"; updatedAt: string | null; updatedBy: string | null };
 
@@ -65,10 +66,9 @@ export default function PexelsSettingsClient() {
           </span>
         )}
       </div>
-      <input
-        type="password"
+      <PasswordInput
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={setValue}
         placeholder="Leave blank to keep current value"
         className="w-full rounded-lg px-3 py-2 text-sm mb-3"
         style={{ border: "1px solid var(--portal-line)" }}
