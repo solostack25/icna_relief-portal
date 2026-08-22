@@ -139,8 +139,8 @@ function TiersTab() {
           .sort((a, b) => a.tier_order - b.tier_order)
           .map((t) => (
             <div key={t.id} className="rounded-lg border border-[var(--color-border)] p-4">
-              <div className="grid grid-cols-12 gap-3 items-start">
-                <div className="col-span-1">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                <div className="col-span-1 sm:col-span-1">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">Order</label>
                   <input
                     type="number"
@@ -149,7 +149,7 @@ function TiersTab() {
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-1 sm:col-span-3">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">Name</label>
                   <input
                     type="text"
@@ -158,7 +158,7 @@ function TiersTab() {
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
-                <div className="col-span-5">
+                <div className="col-span-1 sm:col-span-5">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">
                     AD Job Titles (comma-separated)
                   </label>
@@ -176,7 +176,7 @@ function TiersTab() {
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">Max Amount</label>
                   <input
                     type="number"
@@ -187,7 +187,7 @@ function TiersTab() {
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
-                <div className="col-span-1 pt-5">
+                <div className="col-span-1 sm:col-span-1 pt-5">
                   <button
                     onClick={() => deleteTier(t.id)}
                     className="text-xs text-red-600 hover:underline cursor-pointer"
@@ -505,17 +505,17 @@ function RequestsTab() {
         )}
         {filtered.map((r) => (
           <div key={r.id} className="rounded-lg border border-[var(--color-border)] px-4 py-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <a
                 href={`/helpdesk/${r.request_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium hover:underline"
+                className="text-sm font-medium hover:underline min-w-0 truncate"
               >
                 {r.ticket?.title ?? "Untitled"}
               </a>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full ${
+                className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
                   r.status === "approved"
                     ? "bg-green-100 text-green-700"
                     : r.status === "denied"

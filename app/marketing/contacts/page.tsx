@@ -54,11 +54,11 @@ export default function ContactsPage() {
         </Link>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4">
         <input
           type="text"
           placeholder="Search name, email, phone..."
-          className="border rounded px-3 py-2 text-sm flex-1"
+          className="border rounded px-3 py-2 text-sm flex-1 min-w-0"
           value={q}
           onChange={(e) => {
             setPage(1);
@@ -68,7 +68,7 @@ export default function ContactsPage() {
         <input
           type="text"
           placeholder="Filter by tag (e.g. top_donor)"
-          className="border rounded px-3 py-2 text-sm w-64"
+          className="border rounded px-3 py-2 text-sm w-full sm:w-64"
           value={tag}
           onChange={(e) => {
             setPage(1);
@@ -77,8 +77,8 @@ export default function ContactsPage() {
         />
       </div>
 
-      <div className="border rounded overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border rounded overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-3 py-2">Name</th>
