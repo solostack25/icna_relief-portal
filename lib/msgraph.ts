@@ -276,9 +276,37 @@ export type EntraUser = {
 // user - 313 individual /manager lookups would be far slower and far
 // more likely to hit throttling). $select keeps each page light since
 // this pulls the whole tenant.
+//
+// Filtered to real @icnarelief.org accounts with sign-in enabled.
+// Shared mailboxes are still Entra "user" objects (Graph has no
+// isSharedMailbox flag on /users), but Microsoft's own guidance is to
+// disable sign-in on them, so accountEnabled eq true is the best
+// available proxy - it won't catch a shared mailbox that was left
+// enabled. endswith() requires the ConsistencyLevel: eventual header
+// and $count=true (advanced query support), not needed for eq/startswith.
 export async function listAllUsers(): Promise<EntraUser[]> {
   const select = "id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation";
-  const results = await graphGetAll(`/v1.0/users?$select=${select}&$expand=manager($select=id,displayName)&$top=999`);
+  const filter = "accountEnabled eq true and endswith(mail,'@icnarelief.org')";
+  const path = `/v1.0/users?$select=${select}&$expand=manager($select=id,displayName)&$filter=${encodeURIComponent(
+    filter
+  )}&$count=true&$top=999`;
+
+  const token = await getGraphToken();
+  let results: any[] = [];
+  let next: string | null = `https://graph.microsoft.com${path}`;
+
+  while (next) {
+    const res: Response = await fetch(next, {
+      headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" },
+    });
+    if (!res.ok) {
+      throw new Error(`Graph GET ${next} failed: ${res.status} ${await res.text()}`);
+    }
+    const data = await res.json();
+    results = results.concat(data.value ?? []);
+    next = data["@odata.nextLink"] ?? null;
+  }
+
   return results.map((u: any) => ({
     id: u.id,
     displayName: u.displayName,
