@@ -241,7 +241,23 @@ export default function FlierCanvas({
             const common = {
               key: el.id,
               ref: (node: any) => {
-                if (node) shapeRefs.current[el.id] = node;
+                if (node) {
+                  shapeRefs.current[el.id] = node;
+                  // Images swap from a <Rect> placeholder to a real <Group> once
+                  // they finish loading (see ImageWithMask) - that's a totally
+                  // different Konva node, but the Transformer only re-syncs via
+                  // the effect below, which doesn't re-run on that swap since
+                  // selectedId/mode/elements.length are all unchanged. Without
+                  // this, the resize handles stay attached to the now-destroyed
+                  // placeholder: they visibly move when dragged, but nothing
+                  // about the actual (new) node - and therefore the image -
+                  // changes. Re-attaching here the moment the real node mounts
+                  // fixes it immediately regardless of load timing.
+                  if (el.id === selectedId && trRef.current) {
+                    trRef.current.nodes([node]);
+                    trRef.current.getLayer()?.batchDraw();
+                  }
+                }
               },
               draggable: mode === "builder",
               opacity: (el as any).opacity ?? 1,
