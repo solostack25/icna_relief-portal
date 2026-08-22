@@ -194,7 +194,7 @@ export default async function SelectAppPage() {
             </div>
 
             <div
-              className="flex rounded-2xl overflow-hidden"
+              className="flex flex-wrap rounded-2xl overflow-hidden"
               style={{ background: "rgba(251,247,239,0.08)", border: "1px solid rgba(251,247,239,0.18)" }}
             >
               <HeroStat value={openTicketsCount ?? 0} label="Open Tickets" />
@@ -335,7 +335,7 @@ export default async function SelectAppPage() {
         {canSeeAdminPortal && (
           <Link
             href="/admin"
-            className="relative flex items-center justify-between overflow-hidden rounded-2xl px-6 py-5 transition-transform hover:-translate-y-0.5"
+            className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl px-6 py-5 transition-transform hover:-translate-y-0.5"
             style={{ background: "var(--portal-ink)", color: "var(--portal-sand)" }}
           >
             <div

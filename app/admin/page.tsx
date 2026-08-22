@@ -110,13 +110,13 @@ export default async function AdminPage() {
               <Link
                 key={i}
                 href={`/helpdesk/${p.request_id}`}
-                className="flex items-center justify-between px-5 py-3.5 hover:bg-black/[0.02] transition-colors"
+                className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 hover:bg-black/[0.02] transition-colors"
                 style={{
                   borderBottom: i < pendingApprovals.length - 1 ? "1px solid var(--portal-line)" : "none",
                 }}
               >
-                <div>
-                  <div className="text-sm font-bold">{p.title ?? "Untitled request"}</div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold truncate">{p.title ?? "Untitled request"}</div>
                   <div
                     className="text-[11px]"
                     style={{ color: "rgba(22,48,43,0.5)", fontFamily: "'IBM Plex Mono', monospace" }}
