@@ -271,28 +271,28 @@ export type EntraUser = {
   managerDisplayName: string | null;
 };
 
-// Paged fetch of every user in the tenant, with manager expanded inline
-// via $expand (one call per page instead of a second round-trip per
-// user - 313 individual /manager lookups would be far slower and far
-// more likely to hit throttling). $select keeps each page light since
-// this pulls the whole tenant.
+// Paged fetch of every user in the tenant, filtered to real
+// @icnarelief.org accounts with sign-in enabled. Shared mailboxes are
+// still Entra "user" objects (Graph has no isSharedMailbox flag on
+// /users), so accountEnabled eq true is the best available proxy - it
+// won't catch a shared mailbox that was left enabled. endswith()
+// requires the ConsistencyLevel: eventual header and $count=true
+// (advanced query support).
 //
-// Filtered to real @icnarelief.org accounts with sign-in enabled.
-// Shared mailboxes are still Entra "user" objects (Graph has no
-// isSharedMailbox flag on /users), but Microsoft's own guidance is to
-// disable sign-in on them, so accountEnabled eq true is the best
-// available proxy - it won't catch a shared mailbox that was left
-// enabled. endswith() requires the ConsistencyLevel: eventual header
-// and $count=true (advanced query support), not needed for eq/startswith.
+// Manager can't be $expand-ed on the same request as this filter -
+// Graph rejects endswith() combined with $expand=manager unless
+// $levels is set inside the expand, which isn't what we want here. So
+// this fetches the filtered list first, then resolves manager for all
+// of them via Graph's $batch endpoint (up to 20 sub-requests per
+// batch) instead of one request per user - keeps a ~300-person tenant
+// to about 15 extra calls instead of 300.
 export async function listAllUsers(): Promise<EntraUser[]> {
   const select = "id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation";
   const filter = "accountEnabled eq true and endswith(mail,'@icnarelief.org')";
-  const path = `/v1.0/users?$select=${select}&$expand=manager($select=id,displayName)&$filter=${encodeURIComponent(
-    filter
-  )}&$count=true&$top=999`;
+  const path = `/v1.0/users?$select=${select}&$filter=${encodeURIComponent(filter)}&$count=true&$top=999`;
 
   const token = await getGraphToken();
-  let results: any[] = [];
+  let raw: any[] = [];
   let next: string | null = `https://graph.microsoft.com${path}`;
 
   while (next) {
@@ -303,11 +303,13 @@ export async function listAllUsers(): Promise<EntraUser[]> {
       throw new Error(`Graph GET ${next} failed: ${res.status} ${await res.text()}`);
     }
     const data = await res.json();
-    results = results.concat(data.value ?? []);
+    raw = raw.concat(data.value ?? []);
     next = data["@odata.nextLink"] ?? null;
   }
 
-  return results.map((u: any) => ({
+  const managers = await batchGetManagers(raw.map((u) => u.id));
+
+  return raw.map((u: any) => ({
     id: u.id,
     displayName: u.displayName,
     mail: u.mail,
@@ -315,9 +317,43 @@ export async function listAllUsers(): Promise<EntraUser[]> {
     jobTitle: u.jobTitle ?? null,
     department: u.department ?? null,
     officeLocation: u.officeLocation ?? null,
-    managerId: u.manager?.id ?? null,
-    managerDisplayName: u.manager?.displayName ?? null,
+    managerId: managers[u.id]?.id ?? null,
+    managerDisplayName: managers[u.id]?.displayName ?? null,
   }));
+}
+
+// Resolves manager for many users via Graph's $batch endpoint (max 20
+// sub-requests per batch, run sequentially to stay well under
+// throttling limits). A user with no manager set returns 404 on
+// /manager, which is expected and just means "no manager" - not
+// treated as an error.
+async function batchGetManagers(userIds: string[]): Promise<Record<string, { id: string; displayName: string } | null>> {
+  const token = await getGraphToken();
+  const result: Record<string, { id: string; displayName: string } | null> = {};
+
+  for (let i = 0; i < userIds.length; i += 20) {
+    const chunk = userIds.slice(i, i + 20);
+    const res = await fetch("https://graph.microsoft.com/v1.0/$batch", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: chunk.map((id) => ({
+          id,
+          method: "GET",
+          url: `/users/${id}/manager?$select=id,displayName`,
+        })),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Graph $batch manager lookup failed: ${res.status} ${await res.text()}`);
+    }
+    const data = await res.json();
+    for (const r of data.responses ?? []) {
+      result[r.id] = r.status === 200 ? { id: r.body.id, displayName: r.body.displayName } : null;
+    }
+  }
+
+  return result;
 }
 
 export type UpdateAdUserParams = {
