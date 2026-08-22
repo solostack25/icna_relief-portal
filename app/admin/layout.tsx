@@ -19,10 +19,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: me } = await supabase.from("employees").select("id, role").eq("auth_user_id", user.id).single();
+  const { data: me } = await supabase
+    .from("employees")
+    .select("id, role, assigned_office_id")
+    .eq("auth_user_id", user.id)
+    .single();
   if (!me) redirect("/select-app");
 
-  const access = await getAdminAccess(supabase, me.id, me.role);
+  const access = await getAdminAccess(supabase, me.id, me.role, me.assigned_office_id);
   if (!access.hasAnyAccess) redirect("/select-app");
 
   return (

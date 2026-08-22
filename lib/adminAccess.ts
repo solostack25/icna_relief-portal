@@ -9,6 +9,7 @@ export type AdminAccess = {
   canManageFliers: boolean;
   canManageMarketing: boolean;
   canReview: boolean;
+  hasOfficeInfo: boolean;
   hasAnyAccess: boolean;
 };
 
@@ -20,9 +21,16 @@ export type AdminAccess = {
 export async function getAdminAccess(
   supabase: SupabaseClient,
   employeeId: string,
-  role: string
+  role: string,
+  assignedOfficeId?: string | null
 ): Promise<AdminAccess> {
   const isAdmin = role === "admin";
+  // Admins manage every office's hours/info; staff manage only the one
+  // office they're assigned to (RLS enforces the same boundary on the
+  // office_hours/office_info_notes tables, this just controls nav
+  // visibility) - so anyone with an assigned office gets the link too,
+  // not just admins.
+  const hasOfficeInfo = isAdmin || !!assignedOfficeId;
   const managedDepartments = await getManagedDepartments(supabase, employeeId, role);
   const canManageTickets = isAdmin || managedDepartments.length > 0;
   const canManageFinance = isAdmin || managedDepartments.includes("finance") || managedDepartments.includes("it");
@@ -66,7 +74,15 @@ export async function getAdminAccess(
     canManageFliers,
     canManageMarketing,
     canReview,
+    hasOfficeInfo,
     hasAnyAccess:
-      isAdmin || canManageTickets || canManageFinance || canInkind || canManageFliers || canManageMarketing || canReview,
+      isAdmin ||
+      canManageTickets ||
+      canManageFinance ||
+      canInkind ||
+      canManageFliers ||
+      canManageMarketing ||
+      canReview ||
+      hasOfficeInfo,
   };
 }

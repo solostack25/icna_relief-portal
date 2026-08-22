@@ -119,6 +119,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .3 2 .6 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.5 2.9.6a2 2 0 011.7 2.1z" />
     </svg>
   ),
+  officeInfo: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+      <path d="M8 3l-2 2M16 3l2 2" />
+    </svg>
+  ),
 };
 
 type NavItem = { href: string; label: string; icon: keyof typeof ICONS; external?: boolean };
@@ -160,6 +167,12 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         access.canInkind && { href: "/admin/inkind", label: "InKind Admin", icon: "inkind" },
         access.canReview && { href: "/admin/review", label: "Review Submissions", icon: "review" },
+      ].filter(Boolean) as NavItem[],
+    },
+    {
+      title: "Offices",
+      items: [
+        access.hasOfficeInfo && { href: "/admin/office-info", label: "Hours & Office Info", icon: "officeInfo" },
       ].filter(Boolean) as NavItem[],
     },
     {
