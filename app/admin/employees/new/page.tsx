@@ -8,6 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 type Office = { id: string; region: string; field_office: string; state: string | null };
 type App = { slug: string; display_name: string };
 type Region = { region: string; rsn: number };
+type License = { skuId: string; skuPartNumber: string; friendlyName: string; availableUnits: number };
+type AdResult = {
+  created: boolean;
+  tempPassword?: string;
+  userPrincipalName?: string;
+  warning?: string;
+  licenseWarnings?: string[];
+};
 
 export default function NewEmployeePage() {
   const supabase = createClient();
@@ -16,8 +24,11 @@ export default function NewEmployeePage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [apps, setApps] = useState<App[]>([]);
+  const [licenses, setLicenses] = useState<License[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AdResult | null>(null);
+  const [passwordCopied, setPasswordCopied] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -28,6 +39,7 @@ export default function NewEmployeePage() {
     assignedRegion: "",
   });
   const [selectedApps, setSelectedApps] = useState<Set<string>>(new Set());
+  const [selectedLicenses, setSelectedLicenses] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     supabase
@@ -49,6 +61,11 @@ export default function NewEmployeePage() {
       .eq("is_active", true)
       .order("sort_order")
       .then(({ data }) => setApps(data ?? []));
+
+    fetch("/api/admin/graph/licenses")
+      .then((r) => r.json())
+      .then((body) => setLicenses(body.licenses ?? []))
+      .catch(() => setLicenses([]));
   }, []);
 
   function toggleApp(slug: string) {
@@ -56,6 +73,13 @@ export default function NewEmployeePage() {
     if (next.has(slug)) next.delete(slug);
     else next.add(slug);
     setSelectedApps(next);
+  }
+
+  function toggleLicense(skuId: string) {
+    const next = new Set(selectedLicenses);
+    if (next.has(skuId)) next.delete(skuId);
+    else next.add(skuId);
+    setSelectedLicenses(next);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,6 +104,7 @@ export default function NewEmployeePage() {
         assignedOfficeId: form.assignedOfficeId || null,
         assignedRegion: form.assignedRegion || null,
         programSlugs: Array.from(selectedApps),
+        licenseSkuIds: Array.from(selectedLicenses),
       }),
     });
 
@@ -91,12 +116,96 @@ export default function NewEmployeePage() {
       return;
     }
 
-    router.push("/admin");
+    const data = await res.json();
+    // Hold here instead of redirecting immediately if there's a one-time
+    // temp password to show, or a warning the admin needs to see - both
+    // would be lost forever if we navigated away right now.
+    setResult(data.ad);
+  }
+
+  function copyPassword() {
+    if (!result?.tempPassword) return;
+    navigator.clipboard.writeText(result.tempPassword);
+    setPasswordCopied(true);
+    setTimeout(() => setPasswordCopied(false), 1500);
   }
 
   const inputClass =
     "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
   const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
+
+  if (result) {
+    return (
+      <div>
+        <h1 className="text-xl font-semibold mb-8">
+          {form.firstName} {form.lastName} — Created
+        </h1>
+
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+          <div>
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-700">
+              Portal account created — invite email sent
+            </span>
+          </div>
+
+          {result.created ? (
+            <>
+              <div>
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-700">
+                  Active Directory account created
+                </span>
+                <p className="text-sm text-[var(--color-text-dim)] mt-2">{result.userPrincipalName}</p>
+              </div>
+
+              <div className="rounded-lg border border-amber-400/40 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-800 mb-2">
+                  Temporary password — shown once, relay it securely
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm font-mono">
+                    {result.tempPassword}
+                  </code>
+                  <button
+                    onClick={copyPassword}
+                    className="text-sm rounded-lg border border-[var(--color-border)] px-3 py-2 hover:border-[var(--color-accent)] shrink-0"
+                  >
+                    {passwordCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <p className="text-xs text-amber-700 mt-2">
+                  They'll be forced to set their own password at first Microsoft/Outlook login. This won't be
+                  shown again — if lost, reset it directly in Entra ID.
+                </p>
+              </div>
+
+              {result.licenseWarnings && result.licenseWarnings.length > 0 && (
+                <div className="rounded-lg border border-[#B55139]/30 bg-[#B55139]/5 p-3">
+                  <p className="text-sm font-medium text-[#B55139] mb-1">Some licenses didn't assign:</p>
+                  {result.licenseWarnings.map((w, i) => (
+                    <p key={i} className="text-xs text-[#B55139]">
+                      {w}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-[#B55139]/30 bg-[#B55139]/5 p-4">
+              <p className="text-sm font-medium text-[#B55139] mb-1">Active Directory account not created</p>
+              <p className="text-xs text-[#B55139]">{result.warning}</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => router.push("/admin")}
+            className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-3 text-sm mt-2"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -223,6 +332,36 @@ export default function NewEmployeePage() {
                 </label>
               ))}
             </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+            <h2 className="text-sm font-medium">Active Directory Account &amp; Licenses</h2>
+            <p className="text-xs text-[var(--color-text-dim)]">
+              A real Active Directory account is created automatically with a temporary password (shown once
+              after creation — they'll set their own at first login). Choose which Microsoft 365 license(s), if
+              any, to assign now.
+            </p>
+            {licenses.length === 0 ? (
+              <p className="text-xs text-[var(--color-text-dim)] italic">
+                No licenses available to assign — either every license is fully used, or license access hasn't
+                been configured yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {licenses.map((lic) => (
+                  <label key={lic.skuId} className="flex items-center gap-3 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedLicenses.has(lic.skuId)}
+                      onChange={() => toggleLicense(lic.skuId)}
+                      className="accent-[var(--color-accent)]"
+                    />
+                    {lic.friendlyName}
+                    <span className="text-xs text-[var(--color-text-dim)]">({lic.availableUnits} available)</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </section>
 
           {error && <p className="text-sm text-[#B55139]">{error}</p>}

@@ -50,7 +50,33 @@ export async function graphGet(path: string) {
   return res.json();
 }
 
-// Follows @odata.nextLink pagination, returns all pages combined
+export async function graphPost(path: string, body: unknown) {
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Graph POST ${path} failed: ${res.status} ${await res.text()}`);
+  }
+  // Some POSTs (e.g. assignLicense) return a body; user creation does too. A
+  // 204 has none.
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+export async function graphPatch(path: string, body: unknown) {
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Graph PATCH ${path} failed: ${res.status} ${await res.text()}`);
+  }
+}
 export async function graphGetAll(path: string) {
   let results: any[] = [];
   let next: string | null = `https://graph.microsoft.com${path}`;
@@ -104,4 +130,126 @@ export async function sendMailAs(params: {
   if (!res.ok) {
     throw new Error(`Graph sendMail failed: ${res.status} ${await res.text()}`);
   }
+}
+
+// ---------- Employee onboarding: create the real AD/Entra account ----------
+//
+// Requires the "Portal" app registration to have the User.ReadWrite.All
+// (create/update users) and Organization.Read.All (list license SKUs)
+// Application permissions granted + admin-consented in Entra ID — NOT
+// granted as of this writing, same situation sendMailAs was in. Calls
+// here will 403 until that's done.
+
+// AD password complexity requires 3 of: upper, lower, digit, symbol.
+// This always includes all 4 classes and 16 chars total, comfortably over
+// any tenant's minimum-complexity policy. Shown once to the person doing
+// onboarding (forceChangePasswordNextSignIn means the employee sets their
+// own real password at first login regardless).
+export function generateTempPassword(): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, avoids visual ambiguity
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%^&*";
+  const all = upper + lower + digits + symbols;
+
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+  const required = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+  const rest = Array.from({ length: 12 }, () => pick(all));
+  const combined = [...required, ...rest];
+
+  // Shuffle so the required-class characters aren't always in the same
+  // positions (Fisher-Yates).
+  for (let i = combined.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [combined[i], combined[j]] = [combined[j], combined[i]];
+  }
+  return combined.join("");
+}
+
+export type CreateAdUserParams = {
+  firstName: string;
+  lastName: string;
+  email: string; // becomes both userPrincipalName and mail nickname source
+  jobTitle?: string;
+  department?: string;
+  officeLocation?: string;
+  usageLocation?: string; // ISO 3166-1 alpha-2, required before any license can be assigned
+};
+
+export type CreateAdUserResult = { id: string; userPrincipalName: string; tempPassword: string };
+
+export async function createAdUser(params: CreateAdUserParams): Promise<CreateAdUserResult> {
+  const tempPassword = generateTempPassword();
+  const mailNickname = params.email.split("@")[0].replace(/[^a-zA-Z0-9._-]/g, "");
+
+  const body: Record<string, unknown> = {
+    accountEnabled: true,
+    displayName: `${params.firstName} ${params.lastName}`,
+    givenName: params.firstName,
+    surname: params.lastName,
+    mailNickname,
+    userPrincipalName: params.email,
+    usageLocation: params.usageLocation ?? "US",
+    passwordProfile: {
+      password: tempPassword,
+      forceChangePasswordNextSignIn: true,
+    },
+  };
+  if (params.jobTitle) body.jobTitle = params.jobTitle;
+  if (params.department) body.department = params.department;
+  if (params.officeLocation) body.officeLocation = params.officeLocation;
+
+  const created = await graphPost("/users", body);
+  return { id: created.id, userPrincipalName: created.userPrincipalName, tempPassword };
+}
+
+// Human-readable names for common Microsoft 365 SKU part numbers -
+// Graph's /subscribedSkus only returns the raw part number (e.g.
+// "SPE_E3"), not a friendly label. Not exhaustive; falls back to the raw
+// part number for anything not in this map rather than guessing.
+const SKU_FRIENDLY_NAMES: Record<string, string> = {
+  SPE_E3: "Microsoft 365 E3",
+  SPE_E5: "Microsoft 365 E5",
+  SPB: "Microsoft 365 Business Premium",
+  O365_BUSINESS_ESSENTIALS: "Microsoft 365 Business Basic",
+  O365_BUSINESS_PREMIUM: "Microsoft 365 Business Standard",
+  ENTERPRISEPACK: "Office 365 E3",
+  ENTERPRISEPREMIUM: "Office 365 E5",
+  STANDARDPACK: "Office 365 E1",
+  EXCHANGESTANDARD: "Exchange Online (Plan 1)",
+  EXCHANGEENTERPRISE: "Exchange Online (Plan 2)",
+  MCOPSTN1: "Microsoft Teams Domestic Calling Plan",
+  MCOPSTN2: "Microsoft Teams International Calling Plan",
+  TEAMS_COMMERCIAL_TRIAL: "Microsoft Teams (trial)",
+  POWER_BI_STANDARD: "Power BI (free)",
+  POWER_BI_PRO: "Power BI Pro",
+};
+
+export type AvailableLicense = {
+  skuId: string;
+  skuPartNumber: string;
+  friendlyName: string;
+  availableUnits: number;
+};
+
+export async function listAvailableLicenses(): Promise<AvailableLicense[]> {
+  const data = await graphGet("/subscribedSkus");
+  return (data.value ?? [])
+    .map((sku: any) => ({
+      skuId: sku.skuId,
+      skuPartNumber: sku.skuPartNumber,
+      friendlyName: SKU_FRIENDLY_NAMES[sku.skuPartNumber] ?? sku.skuPartNumber,
+      availableUnits: (sku.prepaidUnits?.enabled ?? 0) - (sku.consumedUnits ?? 0),
+    }))
+    // Only show SKUs that actually have a seat free - assigning from an
+    // exhausted SKU would just fail, and cluttering the picker with
+    // unusable options isn't helpful.
+    .filter((s: AvailableLicense) => s.availableUnits > 0);
+}
+
+export async function assignLicense(userId: string, skuId: string): Promise<void> {
+  await graphPost(`/users/${encodeURIComponent(userId)}/assignLicense`, {
+    addLicenses: [{ skuId }],
+    removeLicenses: [],
+  });
 }
