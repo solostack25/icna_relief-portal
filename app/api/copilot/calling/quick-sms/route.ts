@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     targetId = match.targetId;
   }
 
-  const result = await sendSkyetelSms(creds, resolvedNumber!, text);
+  const result = await sendSkyetelSms(creds, resolvedNumber!, text, undefined, requester.sms_number ?? undefined);
 
   const admin = createAdminClient();
   await admin.from("quick_texts").insert({
@@ -89,6 +89,8 @@ export async function POST(req: Request) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
   return NextResponse.json({
     ok: true,
-    message: `Text sent to ${resolvedName ?? resolvedNumber}.`,
+    message: requester.sms_number
+      ? `Text sent to ${resolvedName ?? resolvedNumber} from your number.`
+      : `Text sent to ${resolvedName ?? resolvedNumber} from the shared office line — ${requester.first_name} doesn't have a personal SMS number set yet.`,
   });
 }

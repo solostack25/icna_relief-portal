@@ -9,7 +9,11 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 401 });
 
-  const { data: employee } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id, first_name, sms_number")
+    .eq("auth_user_id", user.id)
+    .single();
   if (!employee) return NextResponse.json({ error: "Not authorized" }, { status: 401 });
 
   const creds = await getSkyetelCreds();
@@ -34,7 +38,7 @@ export async function POST(req: Request) {
   }
   if (text.length > 1024) return NextResponse.json({ error: "Text exceeds 1024 characters" }, { status: 400 });
 
-  const result = await sendSkyetelSms(creds, toNumber.trim(), text);
+  const result = await sendSkyetelSms(creds, toNumber.trim(), text, undefined, employee.sms_number ?? undefined);
 
   const admin = createAdminClient();
   await admin.from("quick_texts").insert({
@@ -49,5 +53,8 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    sentFrom: employee.sms_number ? "personal" : "shared",
+  });
 }

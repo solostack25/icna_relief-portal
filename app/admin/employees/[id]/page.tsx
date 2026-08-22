@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import AccessEditor from "./AccessEditor";
 import OfficeAssignmentEditor from "./OfficeAssignmentEditor";
 import ExtensionEditor from "./ExtensionEditor";
+import SmsNumberEditor from "./SmsNumberEditor";
 
 export default async function EmployeeDetailPage({
   params,
@@ -27,7 +28,7 @@ export default async function EmployeeDetailPage({
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, email, role, is_active, auth_user_id, assigned_office_id, assigned_region, threecx_extension")
+    .select("id, first_name, last_name, email, role, is_active, auth_user_id, assigned_office_id, assigned_region, threecx_extension, sms_number")
     .eq("id", id)
     .single();
 
@@ -92,6 +93,8 @@ export default async function EmployeeDetailPage({
         />
 
         <ExtensionEditor employeeId={employee.id} currentExtension={employee.threecx_extension ?? null} />
+
+        <SmsNumberEditor employeeId={employee.id} currentNumber={employee.sms_number ?? null} />
       </div>
     </div>
   );

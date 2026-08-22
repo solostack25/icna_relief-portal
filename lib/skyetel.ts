@@ -21,13 +21,15 @@ export async function sendSkyetelSms(
   creds: SkyetelCreds,
   to: string,
   text: string,
-  media?: string[]
+  media?: string[],
+  fromOverride?: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const toDigits = to.replace(/\D/g, "");
+  const fromDigits = (fromOverride ?? creds.fromNumber).replace(/\D/g, "");
   const auth = Buffer.from(`${creds.sid}:${creds.secret}`).toString("base64");
 
   try {
-    const res = await fetch(`https://sms.skyetel.com/v1/out?from=${creds.fromNumber}`, {
+    const res = await fetch(`https://sms.skyetel.com/v1/out?from=${fromDigits}`, {
       method: "POST",
       headers: {
         "Content-type": "application/json",

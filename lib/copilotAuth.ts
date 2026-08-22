@@ -39,7 +39,7 @@ export async function lookupEmployeeByEmail(email: string) {
   const admin = createAdminClient();
   const { data } = await admin
     .from("employees")
-    .select("id, first_name, last_name, email, threecx_extension, role, assigned_office_id")
+    .select("id, first_name, last_name, email, threecx_extension, sms_number, role, assigned_office_id")
     .ilike("email", email)
     .maybeSingle();
   return data;
