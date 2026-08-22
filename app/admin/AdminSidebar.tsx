@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AdminAccess } from "@/lib/adminAccess";
@@ -187,12 +188,20 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     },
   ].filter((s) => s.items.length > 0);
 
-  return (
-    <nav className="w-[220px] flex-shrink-0 pr-2">
+  // Closed by default on mobile, and auto-closes on route change so
+  // tapping a nav link doesn't leave the drawer open over the new page.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const navContent = (
+    <>
       <Link
         href="/admin"
         className="block text-sm font-bold mb-6 px-2"
         style={{ color: pathname === "/admin" ? "var(--portal-emerald)" : "#16302B" }}
+        onClick={() => setMobileOpen(false)}
       >
         Admin Portal
       </Link>
@@ -228,9 +237,60 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           </div>
         </div>
       ))}
-      <Link href="/select-app" className="block text-xs px-2 mt-6" style={{ color: "rgba(22,48,43,0.4)" }}>
+      <Link
+        href="/select-app"
+        className="block text-xs px-2 mt-6"
+        style={{ color: "rgba(22,48,43,0.4)" }}
+        onClick={() => setMobileOpen(false)}
+      >
         ← Back to apps
       </Link>
-    </nav>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar: hamburger toggle, only shown below md */}
+      <div className="md:hidden flex items-center justify-between w-full mb-4">
+        <span className="text-sm font-bold" style={{ color: "#16302B" }}>
+          Admin Portal
+        </span>
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open admin menu"
+          className="p-2 rounded-lg border"
+          style={{ borderColor: "var(--portal-line)" }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#16302B" strokeWidth="2">
+            <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Static sidebar on md+ */}
+      <nav className="hidden md:block w-[220px] flex-shrink-0 pr-2">{navContent}</nav>
+
+      {/* Mobile drawer: backdrop + sliding panel, md:hidden */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <nav
+            className="relative w-[260px] max-w-[80vw] h-full overflow-y-auto p-4"
+            style={{ background: "var(--portal-sand)" }}
+          >
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close admin menu"
+              className="absolute top-4 right-4 p-1"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16302B" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+              </svg>
+            </button>
+            {navContent}
+          </nav>
+        </div>
+      )}
+    </>
   );
 }

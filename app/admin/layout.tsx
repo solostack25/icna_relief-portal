@@ -28,7 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <main style={{ minHeight: "100vh", background: "var(--portal-sand)" }}>
       <PortalHeader />
-      <div className="max-w-[1800px] mx-auto px-4 sm:px-10 py-8 sm:py-10 flex gap-8 items-start">
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-10 py-8 sm:py-10 flex flex-col md:flex-row gap-4 md:gap-8 items-start">
         <AdminSidebar access={access} />
         <div className="flex-1 min-w-0">{children}</div>
       </div>
