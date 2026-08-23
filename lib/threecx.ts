@@ -40,6 +40,23 @@ async function getAccessToken(config: ThreeCxConfig): Promise<string> {
   return data.access_token;
 }
 
+// Recording URLs 3CX hands back (via the Call History report or a Call
+// Flow Designer webhook action) are behind the same PBX auth as every
+// other API call - not public links. Exported so the recording webhook
+// can fetch the audio bytes with a fresh token, same as makeThreeCxCall
+// does for placing calls.
+export async function downloadThreeCxRecording(config: ThreeCxConfig, recordingUrl: string): Promise<Buffer> {
+  const token = await getAccessToken(config);
+  // recordingUrl may be a full URL or a path relative to the PBX base,
+  // depending on how the webhook/report handed it to us.
+  const url = recordingUrl.startsWith("http") ? recordingUrl : `${config.baseUrl}${recordingUrl}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    throw new Error(`3CX recording download failed: ${res.status} ${await res.text().catch(() => "")}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
 export async function makeThreeCxCall(
   config: ThreeCxConfig,
   fromExtension: string,

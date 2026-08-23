@@ -47,6 +47,22 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="azure_openai_api_key" label="API Key" placeholder="From Azure OpenAI Studio > Keys and Endpoint" />
         <ConnectorKeyField settingKey="azure_openai_deployment" label="Chat Deployment Name" placeholder="e.g. gpt-4o" />
         <ConnectorKeyField settingKey="azure_openai_image_deployment" label="Image Deployment Name (optional)" placeholder="e.g. dall-e-3" />
+        <ConnectorKeyField
+          settingKey="azure_openai_whisper_deployment"
+          label="Whisper Deployment Name (optional)"
+          placeholder="e.g. whisper — for call recording transcription"
+        />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="Call Recording Webhook (3CX → Portal)"
+        description="3CX doesn't push recordings here automatically — someone needs to set up a Call Flow Designer (or equivalent) webhook action in 3CX that POSTs to /api/webhooks/threecx/call-recording once a recorded call finishes, with an X-Webhook-Secret header matching the value below. Requires call recording to be enabled on the 3CX plan, and a Whisper deployment configured above."
+      >
+        <ConnectorKeyField
+          settingKey="threecx_recording_webhook_secret"
+          label="Webhook Shared Secret"
+          placeholder="Any long random string — set the same value in 3CX's webhook header"
+        />
       </ConnectorSection>
 
       <ConnectorSection

@@ -226,3 +226,44 @@ export async function generateFlierBackgroundDataUri(
 
   throw new Error("Image generation returned neither a URL nor image data.");
 }
+
+/**
+ * Whisper speech-to-text, for call recording transcription. Uses its
+ * own deployment setting (azure_openai_whisper_deployment) since
+ * Whisper is deployed separately from the chat/image models in Azure
+ * OpenAI Studio - same account, different deployment. Sends the audio
+ * directly (Azure's Whisper endpoint takes multipart/form-data, not
+ * base64), so this is a distinct request shape from callAzureChat.
+ */
+export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
+  const endpoint = await getIntegrationSetting("azure_openai_endpoint", process.env.AZURE_OPENAI_ENDPOINT);
+  const apiKey = await getIntegrationSetting("azure_openai_api_key", process.env.AZURE_OPENAI_API_KEY);
+  const deployment = await getIntegrationSetting("azure_openai_whisper_deployment", process.env.AZURE_OPENAI_WHISPER_DEPLOYMENT);
+  const apiVersion = (await getIntegrationSetting("azure_openai_api_version", process.env.AZURE_OPENAI_API_VERSION)) ?? "2024-06-01";
+
+  if (!endpoint || !apiKey || !deployment) {
+    throw new Error(
+      "Call transcription isn't configured yet. Set 'azure_openai_whisper_deployment' in Admin > Connectors (deploy a whisper model in Azure OpenAI Studio first)."
+    );
+  }
+
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(audioBuffer)]), filename);
+
+  const res = await fetch(
+    `${endpoint.replace(/\/+$/, "")}/openai/deployments/${deployment}/audio/transcriptions?api-version=${apiVersion}`,
+    {
+      method: "POST",
+      headers: { "api-key": apiKey },
+      body: form,
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Whisper transcription failed: ${res.status} ${body}`);
+  }
+
+  const data = await res.json();
+  return data.text as string;
+}

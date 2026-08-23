@@ -45,6 +45,75 @@ async function sfCreate(auth: { accessToken: string; instanceUrl: string }, sobj
   return json.id as string;
 }
 
+async function sfUpdate(auth: { accessToken: string; instanceUrl: string }, sobject: string, id: string, fields: Record<string, unknown>) {
+  const res = await fetch(`${auth.instanceUrl}/services/data/v60.0/sobjects/${sobject}/${id}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  // Salesforce PATCH returns 204 No Content on success, no JSON body.
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Salesforce update ${sobject}/${id} failed: ${res.status} ${body}`);
+  }
+}
+
+async function sfQuery(auth: { accessToken: string; instanceUrl: string }, soql: string): Promise<any[]> {
+  const res = await fetch(`${auth.instanceUrl}/services/data/v60.0/query?q=${encodeURIComponent(soql)}`, {
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Salesforce query failed: ${JSON.stringify(json)}`);
+  return json.records ?? [];
+}
+
+/**
+ * Recordings/transcripts arrive after the call - usually seconds to a
+ * few minutes later, once 3CX finishes processing and calls our
+ * webhook - by which point pushDonorCallToSalesforce has already
+ * created the Task for that call. Rather than create a second,
+ * disconnected Task, this finds the most recent Call-type Task on the
+ * same Contact from within the last few hours and appends the
+ * transcript to its Description. Falls back to creating a fresh Task
+ * if nothing recent enough is found (e.g. a recording came in for a
+ * call that wasn't logged through the donor-calling flow at all).
+ */
+export async function attachTranscriptToSalesforceTask(
+  contactSalesforceId: string,
+  transcript: string
+): Promise<{ ok: true; taskId: string; created: boolean } | { ok: false; error: string }> {
+  if (!isSalesforceConfigured()) return { ok: false, error: "Salesforce not configured" };
+
+  try {
+    const auth = await getSalesforceAuth();
+    const since = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+
+    const recent = await sfQuery(
+      auth,
+      `SELECT Id, Description FROM Task WHERE WhoId = '${contactSalesforceId}' AND Type = 'Call' AND CreatedDate >= ${since} ORDER BY CreatedDate DESC LIMIT 1`
+    );
+
+    if (recent.length > 0) {
+      const existing = recent[0];
+      const merged = [existing.Description, "", "--- Transcript ---", transcript].filter(Boolean).join("\n");
+      await sfUpdate(auth, "Task", existing.Id, { Description: merged.slice(0, 32000) });
+      return { ok: true, taskId: existing.Id, created: false };
+    }
+
+    const taskId = await sfCreate(auth, "Task", {
+      WhoId: contactSalesforceId,
+      Subject: "Donor Call: Recording Transcript",
+      Description: transcript.slice(0, 32000),
+      Status: "Completed",
+      Type: "Call",
+      ActivityDate: new Date().toISOString().slice(0, 10),
+    });
+    return { ok: true, taskId, created: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Unknown Salesforce error" };
+  }
+}
+
 export async function pushDonorCallToSalesforce(call: DonorCallForSync): Promise<{ synced: boolean; error?: string }> {
   if (!isSalesforceConfigured()) return { synced: false, error: "Salesforce not configured" };
 
