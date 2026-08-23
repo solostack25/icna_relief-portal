@@ -69,36 +69,6 @@ export default function AccessEditor({
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <h2 className="text-sm font-medium mb-1">Marketing admin access</h2>
-        <p className="text-xs text-[var(--color-text-dim)] mb-4">
-          Grants the Contacts, Segments, Email Campaigns, SMS Campaigns, Sequences, and Donor Calling
-          section in the Admin Portal sidebar, plus the &quot;Contacts &amp; Campaigns&quot; tile on the app launcher.
-        </p>
-        <label className="flex items-center gap-3 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={selected.has("marketing-contacts")}
-            onChange={() => toggle("marketing-contacts")}
-            className="accent-[var(--color-accent)]"
-          />
-          Marketing & Campaigns admin
-        </label>
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="mt-6 rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save access"}
-        </button>
-        {saveMsg && (
-          <p className="text-sm text-[var(--color-text-dim)] mt-2">
-            {saveMsg}
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 className="text-sm font-medium mb-4">App access</h2>
         <div className="space-y-2">
           {allApps

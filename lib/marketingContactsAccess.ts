@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 
-// Same pattern as lib/flierMarketingAccess.ts / lib/financeAdminAccess.ts -
-// single source of truth, checked at both the page level and
-// independently in every API route.
+// Every office runs donor calling campaigns - this used to require an
+// explicit employee_program_access grant (program_slug =
+// "marketing-contacts"), but since it's meant to be baseline access
+// for all staff rather than a selectively-granted permission, any
+// authenticated employee now passes. Left as its own function (rather
+// than inlining an auth check at each call site) so the policy lives
+// in one place if it ever needs to change back to gated access.
 export type MarketingContactsAccess = { ok: false; status: 401 | 403 } | { ok: true; employeeId: string };
 
 export async function getMarketingContactsAccess(): Promise<MarketingContactsAccess> {
@@ -12,17 +16,8 @@ export async function getMarketingContactsAccess(): Promise<MarketingContactsAcc
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, status: 401 };
 
-  const { data: employee } = await supabase.from("employees").select("id, role").eq("auth_user_id", user.id).single();
+  const { data: employee } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
   if (!employee) return { ok: false, status: 401 };
-  if (employee.role === "admin") return { ok: true, employeeId: employee.id };
-
-  const { data: access } = await supabase
-    .from("employee_program_access")
-    .select("program_slug")
-    .eq("employee_id", employee.id)
-    .eq("program_slug", "marketing-contacts")
-    .maybeSingle();
-  if (!access) return { ok: false, status: 403 };
 
   return { ok: true, employeeId: employee.id };
 }

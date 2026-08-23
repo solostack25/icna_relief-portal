@@ -55,15 +55,13 @@ export async function getAdminAccess(
         .maybeSingle();
   const canManageFliers = isAdmin || !!flierAccess;
 
-  const { data: marketingAccess } = isAdmin
-    ? { data: null }
-    : await supabase
-        .from("employee_program_access")
-        .select("program_slug")
-        .eq("employee_id", employeeId)
-        .eq("program_slug", "marketing-contacts")
-        .maybeSingle();
-  const canManageMarketing = isAdmin || !!marketingAccess;
+  // Marketing suite (Contacts, Segments, Donor Calling, Email/SMS
+  // Campaigns, Sequences) used to be a selective grant like InKind/
+  // Fliers above, but donor calling specifically is routine work every
+  // office does - rather than split it out from the rest of the suite
+  // it shares an access gate with, the whole thing is now baseline
+  // access for any employee (see lib/marketingContactsAccess.ts).
+  const canManageMarketing = true;
 
   return {
     isAdmin,
