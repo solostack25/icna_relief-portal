@@ -21,12 +21,9 @@ export default async function AdminPage() {
   const access = await getAdminAccess(supabase, me.id, me.role, me.assigned_office_id);
   if (!access.hasAnyAccess) redirect("/select-app");
 
-  const { data: employees } = access.isAdmin
-    ? await supabase
-        .from("employees")
-        .select("id, first_name, last_name, email, role, is_active")
-        .order("last_name")
-    : { data: null };
+  const { count: employeeCount } = access.isAdmin
+    ? await supabase.from("employees").select("id", { count: "exact", head: true })
+    : { count: null };
 
   const { data: unassignedAreaManagers } = access.isAdmin
     ? await supabase
@@ -182,60 +179,17 @@ export default async function AdminPage() {
           >
             Employees
           </div>
-          <div
-            className="rounded-2xl bg-white overflow-hidden"
+          <Link
+            href="/admin/employees"
+            className="flex items-center justify-between rounded-2xl bg-white px-5 py-4"
             style={{ border: "1px solid var(--portal-line)", boxShadow: "0 1px 2px rgba(22,48,43,0.04)" }}
           >
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--portal-line)" }}>
-                  <th className="px-4 py-3 text-left font-medium" style={{ color: "rgba(22,48,43,0.5)" }}>
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium" style={{ color: "rgba(22,48,43,0.5)" }}>
-                    Email
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium" style={{ color: "rgba(22,48,43,0.5)" }}>
-                    Role
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium" style={{ color: "rgba(22,48,43,0.5)" }}>
-                    Status
-                  </th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {(employees ?? []).map((emp, i) => (
-                  <tr
-                    key={emp.id}
-                    style={{
-                      borderBottom: i < (employees ?? []).length - 1 ? "1px solid var(--portal-line)" : "none",
-                    }}
-                  >
-                    <td className="px-4 py-3">
-                      {emp.first_name} {emp.last_name}
-                    </td>
-                    <td className="px-4 py-3" style={{ color: "rgba(22,48,43,0.55)" }}>
-                      {emp.email}
-                    </td>
-                    <td className="px-4 py-3 capitalize">{emp.role}</td>
-                    <td className="px-4 py-3">
-                      {emp.is_active ? (
-                        <span style={{ color: "var(--portal-emerald)" }}>Active</span>
-                      ) : (
-                        <span style={{ color: "#B55139" }}>Inactive</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/admin/employees/${emp.id}`} style={{ color: "var(--portal-emerald)" }}>
-                        Manage →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            <span className="text-sm">
+              <span style={{ fontWeight: 700, fontSize: 20 }}>{employeeCount ?? 0}</span>{" "}
+              <span style={{ color: "rgba(22,48,43,0.5)" }}>employees have signed in — search, filter, and manage them</span>
+            </span>
+            <span style={{ color: "var(--portal-emerald)", fontWeight: 600 }}>View All →</span>
+          </Link>
         </>
       )}
     </div>

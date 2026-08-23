@@ -153,7 +153,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const sections: NavSection[] = [
     {
       title: "Overview",
-      items: [{ href: "/admin", label: "Dashboard (Employees)", icon: "dashboard" }],
+      items: [{ href: "/admin", label: "Dashboard", icon: "dashboard" }],
     },
     {
       title: "Help Desk",
@@ -204,6 +204,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: "People & Access",
       items: [
+        access.isAdmin && { href: "/admin/employees", label: "Employees", icon: "dashboard" },
         access.isAdmin && { href: "/admin/employees/new", label: "Set Up Portal Access", icon: "addEmployee" },
         access.isAdmin && { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings" },
         access.isAdmin && { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview" },
