@@ -15,7 +15,7 @@ const LABELS: Record<keyof Status, string> = {
 function StatusBadge({ s }: { s: FieldStatus }) {
   if (s.source === "database") {
     return (
-      <span className="text-[11px]" style={{ color: "var(--portal-emerald)" }}>
+      <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--portal-emerald)", background: "#EAF5EE" }}>
         ✓ Set (updated {new Date(s.updatedAt!).toLocaleDateString()}
         {s.updatedBy ? ` by ${s.updatedBy}` : ""})
       </span>
@@ -23,13 +23,13 @@ function StatusBadge({ s }: { s: FieldStatus }) {
   }
   if (s.source === "env") {
     return (
-      <span className="text-[11px]" style={{ color: "#A57420" }}>
+      <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "#A57420", background: "#FCEFDD" }}>
         ✓ Set via environment variable (not yet in the database)
       </span>
     );
   }
   return (
-    <span className="text-[11px]" style={{ color: "#B55139" }}>
+    <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "#B5566B", background: "#FBE9EC" }}>
       Not configured
     </span>
   );
@@ -120,12 +120,21 @@ export default function DropboxSettingsClient() {
     }
   }
 
-  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>Loading…</p>;
+  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.4)" }}>Loading…</p>;
+
+  const fieldInputStyle: React.CSSProperties = {
+    border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
+    borderRadius: 10,
+    padding: "10px 14px",
+    outline: "none",
+  };
 
   return (
     <div>
-      <div className="rounded-xl bg-white p-4 mb-6" style={{ border: "1.5px solid var(--portal-emerald)" }}>
-        <h3 className="text-sm font-bold mb-1">Connect via Authorization Code</h3>
+      <div className="rounded-2xl p-5 mb-6" style={{ background: "#EAF5EE" }}>
+        <h3 className="text-sm font-bold mb-1" style={{ color: "#2F4A3E" }}>
+          Connect via Authorization Code
+        </h3>
         <p className="text-xs mb-3" style={{ color: "rgba(22,48,43,0.55)" }}>
           The easy path — paste your App Key, App Secret, and a fresh authorization code from Dropbox
           (from visiting the authorize URL), and this does the token exchange and saves everything
@@ -136,28 +145,32 @@ export default function DropboxSettingsClient() {
             value={oauthValues.appKey}
             onChange={(v) => setOauthValues({ ...oauthValues, appKey: v })}
             placeholder="App Key"
-            className="w-full rounded-lg px-3 py-2 text-sm"
-            style={{ border: "1px solid var(--portal-line)" }}
+            className="w-full text-sm"
+            style={fieldInputStyle}
             autoComplete="off"
           />
           <PasswordInput
             value={oauthValues.appSecret}
             onChange={(v) => setOauthValues({ ...oauthValues, appSecret: v })}
             placeholder="App Secret"
-            className="w-full rounded-lg px-3 py-2 text-sm"
-            style={{ border: "1px solid var(--portal-line)" }}
+            className="w-full text-sm"
+            style={fieldInputStyle}
             autoComplete="off"
           />
           <PasswordInput
             value={oauthValues.code}
             onChange={(v) => setOauthValues({ ...oauthValues, code: v })}
             placeholder="Authorization Code (from the Dropbox authorize page)"
-            className="w-full rounded-lg px-3 py-2 text-sm"
-            style={{ border: "1px solid var(--portal-line)" }}
+            className="w-full text-sm"
+            style={fieldInputStyle}
             autoComplete="off"
           />
         </div>
-        {connectError && <p className="text-sm text-red-600 mb-2">{connectError}</p>}
+        {connectError && (
+          <p className="text-sm mb-2" style={{ color: "#B5566B" }}>
+            {connectError}
+          </p>
+        )}
         {connected && (
           <p className="text-sm mb-2" style={{ color: "var(--portal-emerald)" }}>
             Connected — all three credentials saved and live immediately.
@@ -166,8 +179,8 @@ export default function DropboxSettingsClient() {
         <button
           onClick={connectWithCode}
           disabled={connecting || Object.values(oauthValues).some((v) => !v.trim())}
-          className="text-sm px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-          style={{ background: "var(--portal-emerald)" }}
+          className="text-sm px-5 py-2.5 rounded-full text-white font-bold disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+          style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
         >
           {connecting ? "Connecting…" : "Connect"}
         </button>
@@ -183,24 +196,30 @@ export default function DropboxSettingsClient() {
 
       <div className="space-y-4 mb-6">
         {(Object.keys(LABELS) as (keyof Status)[]).map((field) => (
-          <div key={field} className="rounded-xl bg-white p-4" style={{ border: "1px solid var(--portal-line)" }}>
+          <div key={field} className="rounded-2xl p-4" style={{ background: "#F4F3EE" }}>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-sm font-bold">{LABELS[field]}</label>
+              <label className="text-sm font-bold" style={{ color: "#2F4A3E" }}>
+                {LABELS[field]}
+              </label>
               <StatusBadge s={status[field]} />
             </div>
             <PasswordInput
               value={values[field]}
               onChange={(v) => setValues({ ...values, [field]: v })}
               placeholder="Leave blank to keep current value"
-              className="w-full rounded-lg px-3 py-2 text-sm"
-              style={{ border: "1px solid var(--portal-line)" }}
+              className="w-full text-sm"
+              style={{ ...fieldInputStyle, background: "#fff" }}
               autoComplete="off"
             />
           </div>
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && (
+        <p className="text-sm mb-3" style={{ color: "#B5566B" }}>
+          {error}
+        </p>
+      )}
       {saved && (
         <p className="text-sm mb-3" style={{ color: "var(--portal-emerald)" }}>
           Saved — changes are live immediately, no deploy needed.
@@ -211,16 +230,16 @@ export default function DropboxSettingsClient() {
         <button
           onClick={save}
           disabled={saving || Object.values(values).every((v) => !v.trim())}
-          className="text-sm px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-          style={{ background: "var(--portal-emerald)" }}
+          className="text-sm px-5 py-2.5 rounded-full text-white font-bold disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+          style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
         >
           {saving ? "Saving…" : "Save Changes"}
         </button>
         <button
           onClick={testConnection}
           disabled={testing}
-          className="text-sm px-5 py-2.5 rounded-lg font-medium disabled:opacity-50 cursor-pointer"
-          style={{ border: "1px solid var(--portal-line)", color: "var(--portal-emerald)" }}
+          className="text-sm px-5 py-2.5 rounded-full font-bold disabled:opacity-50 cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+          style={{ background: "#fff", color: "var(--portal-emerald)", boxShadow: "0 2px 8px rgba(22,48,43,0.08)" }}
         >
           {testing ? "Testing…" : "Test Connection"}
         </button>
@@ -228,7 +247,7 @@ export default function DropboxSettingsClient() {
 
       {testResult && (
         <div
-          className="rounded-lg px-4 py-3 text-sm"
+          className="rounded-2xl px-4 py-3 text-sm"
           style={{
             background: testResult.ok ? "#E3F0EA" : "#FBE3DC",
             color: testResult.ok ? "var(--portal-emerald)" : "#B55139",

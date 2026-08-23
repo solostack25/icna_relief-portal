@@ -54,29 +54,36 @@ export default function ConnectorKeyField({
     }
   }
 
-  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>Loading…</p>;
+  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.4)" }}>Loading…</p>;
 
   return (
-    <div className="mb-3">
+    <div className="mb-4">
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-sm font-bold">{label}</label>
+        <label className="text-sm font-bold" style={{ color: "#2F4A3E" }}>
+          {label}
+        </label>
         {status.source === "database" && (
-          <span className="text-[11px]" style={{ color: "var(--portal-emerald)" }}>
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--portal-emerald)", background: "#EAF5EE" }}>
             ✓ Set{status.updatedAt ? ` (updated ${new Date(status.updatedAt).toLocaleDateString()}` : ""}
             {status.updatedBy ? ` by ${status.updatedBy})` : status.updatedAt ? ")" : ""}
           </span>
         )}
         {status.source === "env" && (
-          <span className="text-[11px]" style={{ color: "#A57420" }}>
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "#A57420", background: "#FCEFDD" }}>
             ✓ Set via environment variable
           </span>
         )}
-        {status.source === "unset" && <span className="text-[11px] text-gray-400">Not set</span>}
+        {status.source === "unset" && (
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "rgba(22,48,43,0.4)", background: "#F4F3EE" }}>
+            Not set
+          </span>
+        )}
       </div>
       <div className="flex gap-2">
         <div className="flex-1">
           <PasswordInput
-            className="border rounded px-3 py-2 text-sm w-full"
+            className="w-full text-sm"
+            style={{ border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))", borderRadius: 10, padding: "10px 14px", outline: "none" }}
             placeholder={placeholder ?? "Paste value..."}
             value={value}
             onChange={setValue}
@@ -85,13 +92,17 @@ export default function ConnectorKeyField({
         <button
           onClick={save}
           disabled={saving || !value.trim()}
-          className="px-3 py-2 rounded text-sm font-medium text-white disabled:opacity-40"
-          style={{ background: "var(--portal-emerald)" }}
+          className="px-5 py-2.5 rounded-full text-sm font-bold text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+          style={{ background: "var(--portal-emerald)", boxShadow: value.trim() ? "0 3px 10px rgba(31,111,84,0.3)" : "none" }}
         >
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {error && (
+        <p className="text-xs mt-1.5" style={{ color: "#B5566B" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

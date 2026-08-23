@@ -51,20 +51,23 @@ export default function CioApproversManager() {
   return (
     <div>
       {approvers.length > 0 ? (
-        <ul className="mb-3 space-y-1">
+        <ul className="mb-3 space-y-2">
           {approvers.map((a) => (
-            <li key={a.id} className="flex items-center justify-between text-sm rounded-lg border border-[var(--color-border)] bg-white px-3 py-2">
+            <li key={a.id} className="flex items-center justify-between text-sm rounded-2xl px-4 py-2.5" style={{ background: "#F4F3EE" }}>
               <span>
-                {a.full_name} <span className="text-xs" style={{ color: "rgba(22,48,43,0.5)" }}>({a.email})</span>
+                <span style={{ fontWeight: 600 }}>{a.full_name}</span>{" "}
+                <span className="text-xs" style={{ color: "rgba(22,48,43,0.5)" }}>
+                  ({a.email})
+                </span>
               </span>
-              <button onClick={() => removeApprover(a.email)} className="text-xs text-red-600 hover:underline">
+              <button onClick={() => removeApprover(a.email)} className="text-xs font-semibold hover:underline" style={{ color: "#B5566B" }}>
                 Remove
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm mb-3" style={{ color: "rgba(22,48,43,0.6)" }}>
+        <p className="text-sm mb-3" style={{ color: "rgba(22,48,43,0.5)" }}>
           No approvers designated yet — until one is added, only Portal Admins can approve fundraisers.
         </p>
       )}
@@ -74,17 +77,23 @@ export default function CioApproversManager() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="approver@icnarelief.org"
-          className="flex-1 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none"
+          className="flex-1 text-sm"
+          style={{ border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))", borderRadius: 10, padding: "10px 14px", background: "#fff", outline: "none" }}
         />
         <button
           type="submit"
           disabled={saving}
-          className="text-sm rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 disabled:opacity-50"
+          className="text-sm rounded-full text-white font-bold px-5 py-2.5 disabled:opacity-50 cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+          style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
         >
           Add
         </button>
       </form>
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {error && (
+        <p className="text-xs mt-2" style={{ color: "#B5566B" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

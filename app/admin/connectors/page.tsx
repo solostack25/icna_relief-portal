@@ -125,7 +125,9 @@ export default async function AdminConnectorsPage() {
           Webhook endpoint (register this in CharityStack, subscribed to donation.created,
           donation.updated, subscription.created, subscription.updated, subscription.cancelled):
           <br />
-          <code className="text-[11px]">{"{portal-url}"}/api/webhooks/charitystack</code>
+          <code className="text-[11px] px-2 py-1 rounded-md inline-block mt-1" style={{ background: "#F4F3EE" }}>
+            {"{portal-url}"}/api/webhooks/charitystack
+          </code>
         </p>
         <div className="mt-2">
           <ConnectorKeyField settingKey="charitystack_webhook_secret" label="Webhook Signing Secret" placeholder="Shown once when the webhook is created in CharityStack" />
@@ -166,9 +168,14 @@ function ConnectorSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-10">
-      <h2 className="text-sm font-bold mb-1">{title}</h2>
-      <p className="text-xs mb-3" style={{ color: "rgba(22,48,43,0.5)" }}>
+    <div
+      className="mb-6"
+      style={{ background: "#fff", borderRadius: 24, boxShadow: "0 3px 12px rgba(22,48,43,0.06)", padding: "24px 26px" }}
+    >
+      <h2 className="text-base font-bold mb-1.5" style={{ color: "#2F4A3E" }}>
+        {title}
+      </h2>
+      <p className="text-xs mb-4" style={{ color: "rgba(22,48,43,0.5)" }}>
         {description}
       </p>
       {children}

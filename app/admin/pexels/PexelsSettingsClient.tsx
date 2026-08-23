@@ -43,25 +43,27 @@ export default function PexelsSettingsClient() {
     }
   }
 
-  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>Loading…</p>;
+  if (!status) return <p className="text-sm" style={{ color: "rgba(22,48,43,0.4)" }}>Loading…</p>;
 
   return (
-    <div className="rounded-xl bg-white p-4" style={{ border: "1px solid var(--portal-line)" }}>
+    <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-sm font-bold">API Key</label>
+        <label className="text-sm font-bold" style={{ color: "#2F4A3E" }}>
+          API Key
+        </label>
         {status.source === "database" && (
-          <span className="text-[11px]" style={{ color: "var(--portal-emerald)" }}>
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--portal-emerald)", background: "#EAF5EE" }}>
             ✓ Set (updated {new Date(status.updatedAt!).toLocaleDateString()}
             {status.updatedBy ? ` by ${status.updatedBy}` : ""})
           </span>
         )}
         {status.source === "env" && (
-          <span className="text-[11px]" style={{ color: "#A57420" }}>
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "#A57420", background: "#FCEFDD" }}>
             ✓ Set via environment variable
           </span>
         )}
         {status.source === "unset" && (
-          <span className="text-[11px]" style={{ color: "#B55139" }}>
+          <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "#B5566B", background: "#FBE9EC" }}>
             Not configured
           </span>
         )}
@@ -70,11 +72,15 @@ export default function PexelsSettingsClient() {
         value={value}
         onChange={setValue}
         placeholder="Leave blank to keep current value"
-        className="w-full rounded-lg px-3 py-2 text-sm mb-3"
-        style={{ border: "1px solid var(--portal-line)" }}
+        className="w-full text-sm mb-3"
+        style={{ border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))", borderRadius: 10, padding: "10px 14px", outline: "none" }}
         autoComplete="off"
       />
-      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      {error && (
+        <p className="text-sm mb-2" style={{ color: "#B5566B" }}>
+          {error}
+        </p>
+      )}
       {saved && (
         <p className="text-sm mb-2" style={{ color: "var(--portal-emerald)" }}>
           Saved — live immediately.
@@ -83,8 +89,8 @@ export default function PexelsSettingsClient() {
       <button
         onClick={save}
         disabled={saving || !value.trim()}
-        className="text-sm px-5 py-2 rounded-lg text-white font-medium cursor-pointer disabled:opacity-40"
-        style={{ background: "var(--portal-emerald)" }}
+        className="text-sm px-5 py-2.5 rounded-full text-white font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+        style={{ background: "var(--portal-emerald)", boxShadow: value.trim() ? "0 3px 10px rgba(31,111,84,0.3)" : "none" }}
       >
         {saving ? "Saving…" : "Save"}
       </button>
