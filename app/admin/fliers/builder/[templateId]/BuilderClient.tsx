@@ -223,14 +223,14 @@ export default function BuilderClient({ template }: { template: any }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="text-base font-bold outline-none rounded-full px-4 py-2.5"
-            style={{ minWidth: 180, background: "#fff", border: "1.5px solid var(--portal-line)" }}
+            style={{ minWidth: 180, background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}
           />
           <input
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="Category"
             className="text-sm font-semibold outline-none rounded-full px-4 py-2.5"
-            style={{ width: 130, color: "#4F6B5B", background: "#EAF5EE" }}
+            style={{ width: 130, color: "#3E7FBF", background: "#E9F1FA" }}
           />
           <select
             onChange={(e) => {
@@ -286,8 +286,8 @@ export default function BuilderClient({ template }: { template: any }) {
               </optgroup>
             ))}
           </select>
-          <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)" }}>
-            <span className="text-xs font-semibold" style={{ color: DIM }}>
+          <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
+            <span className="text-xs font-bold" style={{ color: "#7A9186" }}>
               Background
             </span>
             <input
@@ -365,23 +365,23 @@ export default function BuilderClient({ template }: { template: any }) {
       </div>
 
       <div className="flex gap-3 items-start">
-        <div className="flex flex-col gap-1.5 w-[68px] flex-shrink-0 rounded-3xl p-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)", boxShadow: "0 2px 8px rgba(22,48,43,0.05)" }}>
-          <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} />
-          <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} />
-          <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} />
-          <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} />
-          <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} />
-          <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} />
-          <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} />
-          <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} />
-          <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} />
+        <div className="flex flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
+          <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
+          <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
+          <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
+          <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} color="#2F6D46" />
+          <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} color="#6B5FB5" />
+          <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} color="#C9A227" />
+          <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} color="#3E9E8F" />
+          <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" />
+          <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
         </div>
 
         <div
-          className="flex-1 rounded-2xl overflow-auto flex items-center justify-center p-8"
-          style={{ background: "#E7E9EA", minHeight: 500, maxHeight: 680 }}
+          className="flex-1 rounded-3xl overflow-auto flex items-center justify-center p-8"
+          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)", minHeight: 500, maxHeight: 680 }}
         >
-          <div style={{ boxShadow: "0 12px 40px rgba(16,24,22,0.22)", borderRadius: 6, overflow: "hidden" }}>
+          <div style={{ boxShadow: "0 16px 44px rgba(31,74,48,0.18)", borderRadius: 10, overflow: "hidden" }}>
             <FlierCanvas
               width={canvasWidth}
               height={canvasHeight}
@@ -398,7 +398,7 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
 
         <div className="w-[268px] flex-shrink-0 space-y-3">
-          <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", border: "1.5px solid var(--portal-line)", boxShadow: "0 2px 8px rgba(22,48,43,0.05)" }}>
+          <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
             {!selected ? (
               <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
                 Select an element on the canvas to edit it, or add a new one from the left. Double-click
@@ -406,7 +406,7 @@ export default function BuilderClient({ template }: { template: any }) {
               </p>
             ) : (
               <>
-                <div className="flex items-center px-1.5 pt-1.5" style={{ borderBottom: "1.5px solid var(--portal-line)" }}>
+                <div className="flex items-center px-1.5 pt-1.5" style={{ borderBottom: "1.5px solid #F0F4F1" }}>
                   <TabBtn active={panelTab === "style"} onClick={() => setPanelTab("style")} icon={<Icon.Style />} label="Style" />
                   {hasEffectsTab && (
                     <TabBtn active={panelTab === "effects"} onClick={() => setPanelTab("effects")} icon={<Icon.Effects />} label="Effects" />
@@ -804,7 +804,7 @@ function toggleStyle(current: string, kind: "bold" | "italic"): string {
 
 function PillGroup({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1 rounded-full px-2.5 py-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)" }}>
+    <div className="flex items-center gap-1 rounded-full px-2.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
       {children}
     </div>
   );
@@ -847,22 +847,20 @@ function IconBtn({
   );
 }
 
-function RailBtn({ onClick, label, icon }: { onClick: () => void; label: string; icon: React.ReactNode }) {
+function RailBtn({ onClick, label, icon, color }: { onClick: () => void; label: string; icon: React.ReactNode; color: string }) {
   return (
     <button
       onClick={onClick}
       title={`Add ${label}`}
-      className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-2xl cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150 group"
+      className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group"
     >
       <span
-        className="flex items-center justify-center rounded-full transition-colors duration-150 group-hover:shadow-sm"
-        style={{ width: 34, height: 34, background: "#EAF5EE", color: "var(--portal-emerald)" }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "#FCEFDD")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "#EAF5EE")}
+        className="flex items-center justify-center rounded-2xl transition-shadow duration-150 group-hover:shadow-md"
+        style={{ width: 38, height: 38, background: `${color}22`, color }}
       >
-        <span style={{ width: 16, height: 16 }}>{icon}</span>
+        <span style={{ width: 18, height: 18 }}>{icon}</span>
       </span>
-      <span className="text-[10px] font-semibold" style={{ color: DIM }}>
+      <span className="text-[10px] font-bold" style={{ color: "#7A9186" }}>
         {label}
       </span>
     </button>
@@ -901,11 +899,11 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="flex-1 text-xs font-semibold py-2 rounded-full cursor-pointer capitalize transition-all duration-150 hover:scale-105 active:scale-95"
+      className="flex-1 text-xs font-bold py-2 rounded-full cursor-pointer capitalize transition-all duration-150 hover:scale-105 active:scale-95"
       style={{
-        border: `1.5px solid ${active ? "var(--portal-emerald)" : "var(--portal-line)"}`,
-        color: active ? "white" : "#666",
-        background: active ? "var(--portal-emerald)" : "white",
+        color: active ? "white" : "#5F7A6D",
+        background: active ? "var(--portal-emerald)" : "#F0F4F1",
+        boxShadow: active ? "0 3px 8px rgba(31,111,84,0.3)" : "none",
       }}
     >
       {children}

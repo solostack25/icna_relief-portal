@@ -106,7 +106,7 @@ export default function TemplatesListClient() {
             key={t.id}
             href={`/admin/fliers/builder/${t.id}`}
             className="flex flex-col rounded-3xl overflow-hidden bg-white cursor-pointer hover:scale-[1.03] hover:shadow-lg active:scale-95 transition-all duration-150"
-            style={{ border: "1px solid var(--portal-line)", boxShadow: "0 2px 6px rgba(22,48,43,0.06)" }}
+            style={{ boxShadow: "0 4px 14px rgba(22,48,43,0.08)" }}
           >
             <div
               className="flex items-center justify-center relative"
