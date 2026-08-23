@@ -302,6 +302,18 @@ export default async function SelectAppPage() {
               </svg>
             }
           />
+          <QuickCard
+            href="/marketing/donor-calling"
+            title="Donor Calling"
+            desc="Jump into a calling campaign — click a name, call, log the outcome"
+            tint="#E3EEF8"
+            iconColor="#2B6CB0"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .3 2 .6 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.5 2.9.6a2 2 0 011.7 2.1z" />
+              </svg>
+            }
+          />
         </div>
 
         {/* ---------- YOUR PROGRAMS ---------- */}
