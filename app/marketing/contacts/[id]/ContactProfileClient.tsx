@@ -142,90 +142,127 @@ export default function ContactProfileClient({ contactId }: { contactId: string 
     load();
   }
 
-  if (loading) return <p className="text-sm text-gray-400 mt-6">Loading…</p>;
-  if (notFoundErr || !contact) return <p className="text-sm text-gray-400 mt-6">Contact not found.</p>;
+  if (loading) return <p className="text-sm mt-8" style={{ color: "rgba(22,48,43,0.4)" }}>Loading…</p>;
+  if (notFoundErr || !contact) return <p className="text-sm mt-8" style={{ color: "rgba(22,48,43,0.4)" }}>Contact not found.</p>;
+
+  const inputStyle: React.CSSProperties = {
+    border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
+    borderRadius: 10,
+    padding: "10px 14px",
+    fontSize: 14,
+    background: "#fff",
+    outline: "none",
+  };
+
+  const cardStyle: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: 24,
+    boxShadow: "0 3px 12px rgba(22,48,43,0.06)",
+    padding: "24px 26px",
+    marginBottom: 20,
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mt-4 mb-6">
-        <h1 className="text-xl font-semibold">
+      <div className="flex items-center justify-between mt-5 mb-7">
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28, margin: 0 }}>
           {contact.first_name} {contact.last_name ?? ""}
         </h1>
         <div className="flex gap-1.5">
           {contact.tags.map((t) => (
-            <span key={t} className="rounded-full bg-purple-100 text-purple-700 text-xs font-medium px-2.5 py-1 capitalize">
+            <span
+              key={t}
+              className="rounded-full text-xs font-bold px-3 py-1.5 capitalize"
+              style={{ background: "#F0E9FA", color: "#7A4FB5" }}
+            >
               {t.replace(/_/g, " ")}
             </span>
           ))}
         </div>
       </div>
 
-      <section className="rounded-xl border p-6 mb-6" style={{ background: "var(--portal-sand, #FAF8F2)" }}>
-        <h2 className="text-sm font-medium mb-4">Contact Info</h2>
+      <section style={cardStyle}>
+        <h2 className="text-sm font-bold mb-4" style={{ color: "#2F4A3E" }}>
+          Contact Info
+        </h2>
         <dl className="grid grid-cols-[80px_1fr] gap-y-3 text-sm">
-          <dt className="text-gray-500">Phone</dt>
-          <dd>{contact.phone ?? "—"}</dd>
-          <dt className="text-gray-500">Email</dt>
-          <dd>{contact.email ?? "—"}</dd>
+          <dt style={{ color: "rgba(22,48,43,0.45)" }}>Phone</dt>
+          <dd style={{ fontWeight: 600 }}>{contact.phone ?? "—"}</dd>
+          <dt style={{ color: "rgba(22,48,43,0.45)" }}>Email</dt>
+          <dd style={{ fontWeight: 600 }}>{contact.email ?? "—"}</dd>
         </dl>
-        <label className="flex items-center gap-2 mt-4 pt-4 border-t text-sm cursor-pointer">
-          <input type="checkbox" checked={contact.do_not_call} onChange={toggleDoNotCall} />
-          Do not call this contact
+        <label
+          className="flex items-center gap-2.5 mt-5 pt-5 text-sm cursor-pointer"
+          style={{ borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.08))" }}
+        >
+          <input type="checkbox" checked={contact.do_not_call} onChange={toggleDoNotCall} style={{ width: 16, height: 16, accentColor: "#B5566B" }} />
+          <span style={{ fontWeight: 500 }}>Do not call this contact</span>
         </label>
       </section>
 
-      <section className="rounded-xl border p-6 mb-6" style={{ background: "var(--portal-sand, #FAF8F2)" }}>
-        <h2 className="text-sm font-medium mb-4">Comms</h2>
+      <section style={cardStyle}>
+        <h2 className="text-sm font-bold mb-4" style={{ color: "#2F4A3E" }}>
+          Comms
+        </h2>
         <div className="flex flex-wrap items-center gap-3 mb-2">
           <button
             onClick={handleCall}
             disabled={!contact.phone || calling || contact.do_not_call}
-            className="flex items-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
-            style={{ borderColor: "var(--portal-emerald)", color: "var(--portal-emerald)" }}
+            className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
           >
             📞 {calling ? "Calling…" : "Call"}
           </button>
           <button
             onClick={() => setShowTextBox((s) => !s)}
             disabled={!contact.phone || contact.do_not_call}
-            className="flex items-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
-            style={{ borderColor: "#3E7FBF", color: "#3E7FBF" }}
+            className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: "#3E7FBF", color: "#fff", boxShadow: "0 3px 10px rgba(62,127,191,0.3)" }}
           >
             💬 Text
           </button>
         </div>
-        {contact.do_not_call && <p className="text-xs text-amber-600 mb-2">Marked do-not-call — calling/texting disabled.</p>}
+        {contact.do_not_call && (
+          <p className="text-xs mb-2" style={{ color: "#B5566B" }}>
+            Marked do-not-call — calling/texting disabled.
+          </p>
+        )}
         {showTextBox && (
-          <div className="flex gap-2 mb-2">
+          <div className="flex gap-2 mt-3">
             <input
               value={textBody}
               onChange={(e) => setTextBody(e.target.value)}
               placeholder="Message…"
-              className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              className="flex-1"
+              style={inputStyle}
             />
             <button
               onClick={handleSendText}
               disabled={texting || !textBody.trim()}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-full px-5 py-2.5 text-sm font-bold text-white cursor-pointer disabled:opacity-50 hover:scale-105 active:scale-95 transition-transform duration-150"
               style={{ background: "#3E7FBF" }}
             >
               {texting ? "Sending…" : "Send"}
             </button>
           </div>
         )}
-        {callMsg && <p className="text-xs text-gray-500">{callMsg}</p>}
+        {callMsg && (
+          <p className="text-xs mt-2" style={{ color: "rgba(22,48,43,0.5)" }}>
+            {callMsg}
+          </p>
+        )}
       </section>
 
-      <section className="rounded-xl border p-6" style={{ background: "var(--portal-sand, #FAF8F2)" }}>
-        <h2 className="text-sm font-medium mb-4">Log a Call Attempt</h2>
-        <form onSubmit={handleLogCall} className="space-y-3 mb-5">
+      <section style={cardStyle}>
+        <h2 className="text-sm font-bold mb-4" style={{ color: "#2F4A3E" }}>
+          Log a Call Attempt
+        </h2>
+        <form onSubmit={handleLogCall} className="space-y-4 mb-1">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Outcome</label>
-            <select
-              value={disposition}
-              onChange={(e) => setDisposition(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-            >
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+              Outcome
+            </label>
+            <select value={disposition} onChange={(e) => setDisposition(e.target.value)} className="w-full" style={inputStyle}>
               <option value="">Select an outcome…</option>
               {DISPOSITIONS.map((d) => (
                 <option key={d.value} value={d.value}>
@@ -240,39 +277,43 @@ export default function ContactProfileClient({ contactId }: { contactId: string 
               placeholder="Pledge amount ($)"
               value={pledgeAmount}
               onChange={(e) => setPledgeAmount(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+              className="w-full"
+              style={inputStyle}
             />
           )}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Notes</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+              Notes
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-white resize-none"
+              className="w-full resize-none"
+              style={inputStyle}
             />
           </div>
           <button
             type="submit"
             disabled={!disposition || logging}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--portal-emerald)" }}
+            className="rounded-full px-6 py-2.5 text-sm font-bold text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: disposition ? "var(--portal-emerald, #2F6D46)" : "rgba(22,48,43,0.25)", boxShadow: disposition ? "0 3px 10px rgba(31,111,84,0.3)" : "none" }}
           >
             {logging ? "Saving…" : "Log Call"}
           </button>
         </form>
 
         {history.length > 0 && (
-          <div className="space-y-3 pt-4 border-t">
+          <div className="space-y-3.5 mt-6 pt-5" style={{ borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.08))" }}>
             {history.map((h) => (
               <div key={h.id} className="text-sm">
                 <p>
-                  <span className="font-medium">{dispositionLabel(h.disposition)}</span>
-                  <span className="text-gray-400"> · {new Date(h.called_at).toLocaleString()}</span>
-                  {h.campaign_name && <span className="text-gray-400"> · {h.campaign_name}</span>}
-                  {h.pledge_amount != null && <span className="text-gray-400"> · ${h.pledge_amount}</span>}
+                  <span style={{ fontWeight: 700 }}>{dispositionLabel(h.disposition)}</span>
+                  <span style={{ color: "rgba(22,48,43,0.4)" }}> · {new Date(h.called_at).toLocaleString()}</span>
+                  {h.campaign_name && <span style={{ color: "rgba(22,48,43,0.4)" }}> · {h.campaign_name}</span>}
+                  {h.pledge_amount != null && <span style={{ color: "rgba(22,48,43,0.4)" }}> · ${h.pledge_amount}</span>}
                 </p>
-                {h.notes && <p className="text-gray-500">{h.notes}</p>}
+                {h.notes && <p style={{ color: "rgba(22,48,43,0.55)" }}>{h.notes}</p>}
               </div>
             ))}
           </div>

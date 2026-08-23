@@ -10,7 +10,7 @@ export default async function ContactProfilePage({ params }: { params: Promise<{
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <Link href="/marketing/contacts" className="text-sm text-gray-500 hover:text-gray-800">
+      <Link href="/marketing/contacts" className="text-sm font-semibold" style={{ color: "rgba(22,48,43,0.45)" }}>
         ← Back to contacts
       </Link>
       <ContactProfileClient contactId={id} />
