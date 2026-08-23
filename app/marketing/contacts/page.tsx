@@ -105,7 +105,9 @@ export default function ContactsPage() {
               contacts.map((c) => (
                 <tr key={c.id} className="border-t">
                   <td className="px-3 py-2">
-                    {[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
+                    <Link href={`/marketing/contacts/${c.id}`} className="text-emerald-700 hover:underline">
+                      {[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
+                    </Link>
                   </td>
                   <td className="px-3 py-2">{c.email ?? "—"}</td>
                   <td className="px-3 py-2">{c.phone ?? "—"}</td>
