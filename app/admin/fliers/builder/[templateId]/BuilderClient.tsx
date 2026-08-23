@@ -303,8 +303,8 @@ export default function BuilderClient({ template }: { template: any }) {
           <button
             onClick={save}
             disabled={saving}
-            className="text-sm px-6 py-2.5 rounded-xl text-white font-semibold cursor-pointer disabled:opacity-60"
-            style={{ background: "var(--portal-emerald)", boxShadow: "0 2px 8px rgba(31,111,84,0.3)" }}
+            className="text-sm px-6 py-2.5 rounded-full text-white font-bold cursor-pointer disabled:opacity-60 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.35)" }}
           >
             {saving ? "Saving…" : "Save Template"}
           </button>
@@ -458,7 +458,7 @@ export default function BuilderClient({ template }: { template: any }) {
                       {selected.type === "image" && (
                         <button
                           onClick={() => setPickerOpen(true)}
-                          className="text-xs px-3 py-2.5 rounded-lg cursor-pointer w-full font-medium flex items-center justify-center gap-2"
+                          className="text-xs px-3 py-2.5 rounded-full cursor-pointer w-full font-bold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-transform duration-150"
                           style={{ border: "1.5px solid var(--portal-emerald)", color: "var(--portal-emerald)" }}
                         >
                           <span style={{ width: 14, height: 14 }}>
@@ -810,10 +810,12 @@ function IconBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed hover:bg-black/[0.06] transition-colors"
-      style={{ color: "#333" }}
+      className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none hover:scale-110 active:scale-95 hover:shadow-md transition-all duration-150"
+      style={{ color: "var(--portal-emerald)", background: "transparent" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "#EAF5EE")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
-      <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
+      <span style={{ width: 16, height: 16, display: "inline-block" }}>{children}</span>
     </button>
   );
 }
@@ -823,10 +825,17 @@ function RailBtn({ onClick, label, icon }: { onClick: () => void; label: string;
     <button
       onClick={onClick}
       title={`Add ${label}`}
-      className="flex flex-col items-center gap-1 py-2.5 rounded-xl cursor-pointer hover:bg-black/[0.04] transition-colors"
+      className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-2xl cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150 group"
     >
-      <span style={{ width: 18, height: 18, color: "#333" }}>{icon}</span>
-      <span className="text-[10px]" style={{ color: DIM }}>
+      <span
+        className="flex items-center justify-center rounded-full transition-colors duration-150 group-hover:shadow-sm"
+        style={{ width: 34, height: 34, background: "#EAF5EE", color: "var(--portal-emerald)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#FCEFDD")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#EAF5EE")}
+      >
+        <span style={{ width: 16, height: 16 }}>{icon}</span>
+      </span>
+      <span className="text-[10px] font-semibold" style={{ color: DIM }}>
         {label}
       </span>
     </button>
@@ -837,10 +846,10 @@ function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 cursor-pointer transition-colors"
+      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2.5 cursor-pointer transition-all duration-150"
       style={{
         color: active ? "var(--portal-emerald)" : DIM,
-        borderBottom: active ? "2px solid var(--portal-emerald)" : "2px solid transparent",
+        borderBottom: active ? "3px solid var(--portal-emerald)" : "3px solid transparent",
         marginBottom: -1,
       }}
     >
@@ -854,7 +863,7 @@ function ToggleIconBtn({ active, onClick, icon }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center py-1.5 cursor-pointer transition-colors"
+      className="flex-1 flex items-center justify-center py-2 rounded-lg cursor-pointer transition-all duration-150 hover:scale-105 active:scale-95"
       style={{ background: active ? "var(--portal-emerald)" : "transparent", color: active ? "white" : "#555" }}
     >
       <span style={{ width: 14, height: 14 }}>{icon}</span>
@@ -866,11 +875,11 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="flex-1 text-xs py-1.5 rounded-lg cursor-pointer capitalize transition-colors"
+      className="flex-1 text-xs font-semibold py-2 rounded-full cursor-pointer capitalize transition-all duration-150 hover:scale-105 active:scale-95"
       style={{
-        border: `1px solid ${active ? "var(--portal-emerald)" : "var(--portal-line)"}`,
-        color: active ? "var(--portal-emerald)" : "#666",
-        background: active ? "#F3F8F6" : "white",
+        border: `1.5px solid ${active ? "var(--portal-emerald)" : "var(--portal-line)"}`,
+        color: active ? "white" : "#666",
+        background: active ? "var(--portal-emerald)" : "white",
       }}
     >
       {children}
