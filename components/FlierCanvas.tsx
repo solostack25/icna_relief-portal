@@ -512,17 +512,37 @@ function ImageWithMask({
 
   if (!img) {
     return (
-      <Rect
-        {...common}
-        x={el.x}
-        y={el.y}
-        width={el.width}
-        height={el.height}
-        rotation={el.rotation}
-        fill="#EAF3EF"
-        stroke="#DDE4DF"
-        dash={[6, 4]}
-      />
+      <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation}>
+        <Rect x={0} y={0} width={el.width} height={el.height} fill="#EAF3EF" stroke="#8FC2A6" strokeWidth={1.5} dash={[7, 5]} cornerRadius={Math.min(16, el.width * 0.05)} />
+        {/* A plain dashed box gives no clue what to do next - this is a
+            picture-frame glyph + label, centered, drawn only while empty.
+            Purely decorative (listening: false) so clicks still hit the
+            Rect above and select the element normally. */}
+        <Path
+          data="M -18 -12 L 18 -12 L 18 12 L -18 12 Z M -13 8 L -5 -2 L 2 5 L 8 -3 L 13 8 Z"
+          x={el.width / 2}
+          y={el.height / 2 - 16}
+          stroke="#4F8A6B"
+          strokeWidth={2}
+          lineJoin="round"
+          listening={false}
+        />
+        <Ellipse x={el.width / 2 - 7} y={el.height / 2 - 20} radiusX={2.5} radiusY={2.5} fill="#4F8A6B" listening={false} />
+        {el.width > 70 && el.height > 60 && (
+          <KonvaText
+            text="Click 'Choose Image' \u2192"
+            x={0}
+            y={el.height / 2 + 8}
+            width={el.width}
+            align="center"
+            fontSize={Math.max(11, Math.min(14, el.width * 0.07))}
+            fontFamily="Inter, sans-serif"
+            fontStyle="600"
+            fill="#4F8A6B"
+            listening={false}
+          />
+        )}
+      </Group>
     );
   }
 

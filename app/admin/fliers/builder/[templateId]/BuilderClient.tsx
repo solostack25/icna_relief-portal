@@ -45,6 +45,15 @@ const DIM = "rgba(22,48,43,0.5)";
 export default function BuilderClient({ template }: { template: any }) {
   const supabase = createClient();
 
+  const [showTip, setShowTip] = useState(false);
+  useEffect(() => {
+    setShowTip(localStorage.getItem("flierBuilderTipDismissed") !== "1");
+  }, []);
+  function dismissTip() {
+    localStorage.setItem("flierBuilderTipDismissed", "1");
+    setShowTip(false);
+  }
+
   const [name, setName] = useState(template.name);
   const [category, setCategory] = useState(template.category ?? "");
   const [canvasWidth, setCanvasWidth] = useState(template.canvas_width);
@@ -311,37 +320,52 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <PillGroup>
+      {showTip && (
+        <div
+          className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 mb-3"
+          style={{ background: "#FCEFDD", border: "1px solid #F0D5A8" }}
+        >
+          <span className="text-sm" style={{ color: "#8A5A1E" }}>
+            <span className="font-bold">New here?</span> Click a shape on the left to add it to your flier, then
+            style it using the panel on the right.
+          </span>
+          <button onClick={dismissTip} className="text-xs font-bold cursor-pointer flex-shrink-0" style={{ color: "#8A5A1E" }}>
+            Got it
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-start gap-2 mb-3 flex-wrap">
+        <LabeledGroup label="Undo / Redo">
           <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
           <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
-        </PillGroup>
-        <PillGroup>
+        </LabeledGroup>
+        <LabeledGroup label="Copy / Delete">
           <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
           <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
-        </PillGroup>
-        <PillGroup>
+        </LabeledGroup>
+        <LabeledGroup label="Align">
           <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
           <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
           <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
           <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
           <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
           <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
-        </PillGroup>
-        <PillGroup>
+        </LabeledGroup>
+        <LabeledGroup label="Layer Order">
           <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
           <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
           <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
           <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
-        </PillGroup>
-        <PillGroup>
+        </LabeledGroup>
+        <LabeledGroup label="Zoom">
           <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
           <span className="text-xs w-10 text-center font-medium" style={{ color: DIM }}>
             {Math.round(zoom * 100)}%
           </span>
           <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
           <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom"><Icon.ZoomReset /></IconBtn>
-        </PillGroup>
+        </LabeledGroup>
       </div>
 
       <div className="flex gap-3 items-start">
@@ -790,6 +814,17 @@ function PillGroup({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-0.5 rounded-full bg-white px-2 py-1.5" style={PANEL}>
       {children}
+    </div>
+  );
+}
+
+function LabeledGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <PillGroup>{children}</PillGroup>
+      <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "rgba(22,48,43,0.32)" }}>
+        {label}
+      </span>
     </div>
   );
 }
