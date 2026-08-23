@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -66,6 +66,33 @@ export default function BuilderClient({ template }: { template: any }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [zoom, setZoom] = useState(0.42);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
+
+  // "Fit" zoom: as much of the container as the flier can use, leaving
+  // room to breathe (40px padding) and never exceeding 1.5x (matches
+  // the manual zoom-in cap). Recomputed whenever the container resizes
+  // - which includes the sidebar being collapsed/expanded, since that
+  // changes how much horizontal room this column has, not just an
+  // actual window resize.
+  const fitZoom = useCallback(() => {
+    const el = canvasAreaRef.current;
+    if (!el) return;
+    const availW = el.clientWidth - 40;
+    const availH = el.clientHeight - 40;
+    if (availW <= 0 || availH <= 0) return;
+    const next = Math.min(availW / canvasWidth, availH / canvasHeight, 1.5);
+    setZoom(Math.max(0.15, next));
+  }, [canvasWidth, canvasHeight]);
+
+  useEffect(() => {
+    fitZoom();
+    const el = canvasAreaRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => fitZoom());
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitZoom]);
   const [panelTab, setPanelTab] = useState<"style" | "effects">("style");
 
   // ---- Undo/redo history ----
@@ -360,7 +387,7 @@ export default function BuilderClient({ template }: { template: any }) {
             {Math.round(zoom * 100)}%
           </span>
           <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
-          <IconBtn onClick={() => setZoom(0.42)} title="Reset zoom"><Icon.ZoomReset /></IconBtn>
+          <IconBtn onClick={fitZoom} title="Fit to screen"><Icon.ZoomReset /></IconBtn>
         </LabeledGroup>
       </div>
 
@@ -378,8 +405,9 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
 
         <div
+          ref={canvasAreaRef}
           className="flex-1 rounded-3xl overflow-auto flex items-center justify-center p-8"
-          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)", minHeight: 500, maxHeight: 680 }}
+          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)", height: "calc(100vh - 300px)", minHeight: 560 }}
         >
           <div style={{ boxShadow: "0 16px 44px rgba(31,74,48,0.18)", borderRadius: 10, overflow: "hidden" }}>
             <FlierCanvas

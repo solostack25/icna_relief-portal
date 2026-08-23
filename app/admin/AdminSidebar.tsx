@@ -230,6 +230,23 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Desktop-only collapse, persisted so it stays collapsed across
+  // navigation - mainly for tools like the flier builder where the
+  // canvas benefits from the extra width. Starts expanded (false)
+  // until localStorage says otherwise, read after mount to avoid an
+  // SSR/client mismatch flash.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("adminSidebarCollapsed") === "1") setCollapsed(true);
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem("adminSidebarCollapsed", next ? "1" : "0");
+      return next;
+    });
+  }
+
   const navContent = (
     <>
       <Link
@@ -303,7 +320,22 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       </div>
 
       {/* Static sidebar on md+ */}
-      <nav className="hidden md:block w-[220px] flex-shrink-0 pr-2">{navContent}</nav>
+      <nav
+        className={`hidden md:flex flex-col flex-shrink-0 transition-all duration-200 ${collapsed ? "w-[36px]" : "w-[220px] pr-2"}`}
+      >
+        <button
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Show admin menu" : "Hide admin menu"}
+          title={collapsed ? "Show sidebar" : "Hide sidebar"}
+          className="flex items-center justify-center rounded-full mb-4 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-150"
+          style={{ width: 30, height: 30, background: "#fff", boxShadow: "0 2px 6px rgba(22,48,43,0.1)", color: "var(--portal-emerald)" }}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+            {collapsed ? <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />}
+          </svg>
+        </button>
+        {!collapsed && navContent}
+      </nav>
 
       {/* Mobile drawer: backdrop + sliding panel, md:hidden */}
       {mobileOpen && (
