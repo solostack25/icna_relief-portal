@@ -114,6 +114,62 @@ export async function attachTranscriptToSalesforceTask(
   }
 }
 
+/**
+ * The manual "Push to Salesforce" button (queue page + contact profile)
+ * and the automatic webhook both need the same sequence: find the
+ * contact's most recent transcript, resolve/cache their Salesforce
+ * Contact id, attach the transcript, update the recording's status.
+ * Pulled into one function so there's a single place that logic lives.
+ */
+export async function pushContactTranscriptToSalesforce(
+  contactId: string
+): Promise<{ ok: true; transcript: string; taskId: string } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+
+  const { data: recording } = await admin
+    .from("call_recordings")
+    .select("id, transcript, status")
+    .eq("contact_id", contactId)
+    .not("transcript", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!recording?.transcript) return { ok: false, error: "No transcript available yet for this contact." };
+
+  const { data: contact } = await admin
+    .from("contacts")
+    .select("id, first_name, last_name, email, phone, salesforce_contact_id")
+    .eq("id", contactId)
+    .single();
+  if (!contact) return { ok: false, error: "Contact not found." };
+
+  let sfContactId = contact.salesforce_contact_id as string | null;
+  if (!sfContactId) {
+    if (!isSalesforceConfigured()) return { ok: false, error: "Salesforce not configured" };
+    const auth = await getSalesforceAuth();
+    sfContactId = await findOrCreateDonorContact(auth, {
+      name: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null,
+      email: contact.email,
+      phone: contact.phone,
+      address: null,
+    });
+    if (sfContactId) {
+      await admin.from("contacts").update({ salesforce_contact_id: sfContactId }).eq("id", contact.id);
+    }
+  }
+  if (!sfContactId) return { ok: false, error: "No email or name to match a Salesforce Contact." };
+
+  const result = await attachTranscriptToSalesforceTask(sfContactId, recording.transcript);
+  await admin
+    .from("call_recordings")
+    .update({ status: result.ok ? "pushed_to_salesforce" : "failed", error: result.ok ? null : result.error })
+    .eq("id", recording.id);
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, transcript: recording.transcript, taskId: result.taskId };
+}
+
 export async function pushDonorCallToSalesforce(call: DonorCallForSync): Promise<{ synced: boolean; error?: string }> {
   if (!isSalesforceConfigured()) return { synced: false, error: "Salesforce not configured" };
 

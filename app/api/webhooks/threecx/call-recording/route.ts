@@ -3,9 +3,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 import { getThreeCxConfig, downloadThreeCxRecording } from "@/lib/threecx";
 import { transcribeAudio } from "@/lib/ai/azureOpenAI";
-import { getSalesforceAuth, isSalesforceConfigured } from "@/lib/inkind/salesforceAuth";
-import { findOrCreateDonorContact } from "@/lib/inkind/salesforceDonor";
-import { attachTranscriptToSalesforceTask } from "@/lib/marketing/salesforceDonorCall";
+import { isSalesforceConfigured } from "@/lib/inkind/salesforceAuth";
+import { pushContactTranscriptToSalesforce } from "@/lib/marketing/salesforceDonorCall";
 
 // Called by 3CX once a recorded call finishes - configured on the 3CX
 // side as a Call Flow Designer "REST Data Source" / webhook action (3CX
@@ -111,35 +110,12 @@ export async function POST(req: Request) {
       .eq("id", recording.id);
 
     if (contactId && isSalesforceConfigured()) {
-      const { data: contact } = await admin
-        .from("contacts")
-        .select("id, first_name, last_name, email, phone, salesforce_contact_id")
-        .eq("id", contactId)
-        .single();
-
-      if (contact) {
-        let sfContactId = contact.salesforce_contact_id as string | null;
-        if (!sfContactId) {
-          const auth = await getSalesforceAuth();
-          sfContactId = await findOrCreateDonorContact(auth, {
-            name: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null,
-            email: contact.email,
-            phone: contact.phone,
-            address: null,
-          });
-          if (sfContactId) {
-            await admin.from("contacts").update({ salesforce_contact_id: sfContactId }).eq("id", contact.id);
-          }
-        }
-
-        if (sfContactId) {
-          const result = await attachTranscriptToSalesforceTask(sfContactId, transcript);
-          await admin
-            .from("call_recordings")
-            .update({ status: result.ok ? "pushed_to_salesforce" : "failed", error: result.ok ? null : result.error })
-            .eq("id", recording.id);
-        }
-      }
+      // pushContactTranscriptToSalesforce re-reads the transcript we
+      // just saved (rather than passing it in directly) - fine here
+      // since this route is the only writer, and it keeps the push
+      // logic identical to what the manual "Push to Salesforce" button
+      // uses, rather than two slightly different code paths.
+      await pushContactTranscriptToSalesforce(contactId);
     }
 
     return NextResponse.json({ ok: true, callRecordingId: recording.id });
