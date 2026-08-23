@@ -6,6 +6,14 @@ import { usePathname } from "next/navigation";
 import type { AdminAccess } from "@/lib/adminAccess";
 
 const ICONS: Record<string, React.ReactNode> = {
+  dashboard: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="9" rx="1" />
+      <rect x="14" y="3" width="7" height="5" rx="1" />
+      <rect x="14" y="12" width="7" height="9" rx="1" />
+      <rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
+  ),
   tickets: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M9 11l3 3L22 4" />
@@ -143,6 +151,10 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const pathname = usePathname();
 
   const sections: NavSection[] = [
+    {
+      title: "Overview",
+      items: [{ href: "/admin", label: "Dashboard (Employees)", icon: "dashboard" }],
+    },
     {
       title: "Help Desk",
       items: [
