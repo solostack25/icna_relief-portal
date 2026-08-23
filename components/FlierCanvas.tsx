@@ -530,7 +530,7 @@ function ImageWithMask({
         <Ellipse x={el.width / 2 - 7} y={el.height / 2 - 20} radiusX={2.5} radiusY={2.5} fill="#4F8A6B" listening={false} />
         {el.width > 70 && el.height > 60 && (
           <KonvaText
-            text="Click 'Choose Image' \u2192"
+            text="Click Choose Image →"
             x={0}
             y={el.height / 2 + 8}
             width={el.width}

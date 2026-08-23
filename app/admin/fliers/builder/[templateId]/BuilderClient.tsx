@@ -217,23 +217,21 @@ export default function BuilderClient({ template }: { template: any }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap rounded-2xl bg-white px-4 py-2.5" style={PANEL}>
+      <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="text-base font-bold bg-transparent border-none outline-none"
-            style={{ minWidth: 160 }}
+            className="text-base font-bold outline-none rounded-full px-4 py-2.5"
+            style={{ minWidth: 180, background: "#fff", border: "1.5px solid var(--portal-line)" }}
           />
-          <VDivider />
           <input
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="Category"
-            className="text-sm bg-transparent border-none outline-none"
-            style={{ width: 110, color: "#444" }}
+            className="text-sm font-semibold outline-none rounded-full px-4 py-2.5"
+            style={{ width: 130, color: "#4F6B5B", background: "#EAF5EE" }}
           />
-          <VDivider />
           <select
             onChange={(e) => {
               const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
@@ -242,8 +240,8 @@ export default function BuilderClient({ template }: { template: any }) {
                 setCanvasHeight(preset.height);
               }
             }}
-            className="text-sm bg-transparent border-none outline-none cursor-pointer"
-            style={{ color: "#444" }}
+            className="text-sm font-semibold outline-none cursor-pointer rounded-full px-4 py-2.5"
+            style={{ color: "#4F6B5B", background: "#EAF5EE" }}
             defaultValue=""
             title="Set canvas size for a blank template - doesn't move existing elements"
           >
@@ -262,15 +260,14 @@ export default function BuilderClient({ template }: { template: any }) {
               </optgroup>
             ))}
           </select>
-          <VDivider />
           <select
             onChange={(e) => {
               const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
               if (preset) resizeTo(preset.width, preset.height);
               e.target.value = "";
             }}
-            className="text-sm bg-transparent border-none outline-none cursor-pointer font-medium"
-            style={{ color: "var(--portal-emerald)" }}
+            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5"
+            style={{ color: "#fff", background: "var(--portal-amber, #E2892F)" }}
             defaultValue=""
             title="Rescale the current design to fit a different platform size"
           >
@@ -289,9 +286,8 @@ export default function BuilderClient({ template }: { template: any }) {
               </optgroup>
             ))}
           </select>
-          <VDivider />
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs" style={{ color: DIM }}>
+          <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)" }}>
+            <span className="text-xs font-semibold" style={{ color: DIM }}>
               Background
             </span>
             <input
@@ -369,7 +365,7 @@ export default function BuilderClient({ template }: { template: any }) {
       </div>
 
       <div className="flex gap-3 items-start">
-        <div className="flex flex-col gap-2 w-[64px] flex-shrink-0 rounded-2xl bg-white p-2" style={PANEL}>
+        <div className="flex flex-col gap-1.5 w-[68px] flex-shrink-0 rounded-3xl p-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)", boxShadow: "0 2px 8px rgba(22,48,43,0.05)" }}>
           <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} />
           <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} />
           <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} />
@@ -402,7 +398,7 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
 
         <div className="w-[268px] flex-shrink-0 space-y-3">
-          <div className="rounded-2xl bg-white overflow-hidden" style={PANEL}>
+          <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", border: "1.5px solid var(--portal-line)", boxShadow: "0 2px 8px rgba(22,48,43,0.05)" }}>
             {!selected ? (
               <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
                 Select an element on the canvas to edit it, or add a new one from the left. Double-click
@@ -410,7 +406,7 @@ export default function BuilderClient({ template }: { template: any }) {
               </p>
             ) : (
               <>
-                <div className="flex items-center" style={{ borderBottom: "1px solid var(--portal-line)" }}>
+                <div className="flex items-center px-1.5 pt-1.5" style={{ borderBottom: "1.5px solid var(--portal-line)" }}>
                   <TabBtn active={panelTab === "style"} onClick={() => setPanelTab("style")} icon={<Icon.Style />} label="Style" />
                   {hasEffectsTab && (
                     <TabBtn active={panelTab === "effects"} onClick={() => setPanelTab("effects")} icon={<Icon.Effects />} label="Effects" />
@@ -806,13 +802,9 @@ function toggleStyle(current: string, kind: "bold" | "italic"): string {
   return "normal";
 }
 
-function VDivider() {
-  return <div className="w-px h-5" style={{ background: "var(--portal-line)" }} />;
-}
-
 function PillGroup({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-full bg-white px-2 py-1.5" style={PANEL}>
+    <div className="flex items-center gap-1 rounded-full px-2.5 py-2" style={{ background: "#fff", border: "1.5px solid var(--portal-line)" }}>
       {children}
     </div>
   );
@@ -820,9 +812,9 @@ function PillGroup({ children }: { children: React.ReactNode }) {
 
 function LabeledGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1.5">
       <PillGroup>{children}</PillGroup>
-      <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "rgba(22,48,43,0.32)" }}>
+      <span className="text-[10px] font-bold" style={{ color: "#8FA89A" }}>
         {label}
       </span>
     </div>
@@ -881,11 +873,10 @@ function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2.5 cursor-pointer transition-all duration-150"
+      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 mb-1.5 mx-0.5 rounded-full cursor-pointer transition-all duration-150"
       style={{
-        color: active ? "var(--portal-emerald)" : DIM,
-        borderBottom: active ? "3px solid var(--portal-emerald)" : "3px solid transparent",
-        marginBottom: -1,
+        color: active ? "#fff" : "#4F6B5B",
+        background: active ? "var(--portal-emerald)" : "transparent",
       }}
     >
       <span style={{ width: 13, height: 13 }}>{icon}</span>
@@ -924,7 +915,7 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 
 function PanelLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: DIM }}>
+    <div className="text-[13px] font-bold mb-2" style={{ color: "#2F4A3E" }}>
       {children}
     </div>
   );
