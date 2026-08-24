@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 
 type Grant = {
   id: string;
@@ -89,6 +89,79 @@ export default function GrantsClient({ grants: initialGrants, goals: initialGoal
       return true;
     });
   }, [grants, year, regionFilter, chapterFilter, stateFilter, officeFilter]);
+
+  // Same region/chapter/state/office filters, but deliberately ignores
+  // the year filter - this feeds the multi-year comparison table below,
+  // which needs every year visible side by side regardless of what
+  // single year (or "all") the top filter is set to.
+  const filteredAllYears = useMemo(() => {
+    return grants.filter((g) => {
+      if (regionFilter && g.resolvedRegion !== regionFilter) return false;
+      if (chapterFilter && g.chapter !== chapterFilter) return false;
+      if (stateFilter && g.state !== stateFilter) return false;
+      if (officeFilter && g.office_id !== officeFilter) return false;
+      return true;
+    });
+  }, [grants, regionFilter, chapterFilter, stateFilter, officeFilter]);
+
+  const [goalYear, setGoalYear] = useState<number>(years[0] ?? new Date().getFullYear());
+
+  const yearlySummary = useMemo(() => {
+    const byRegion = new Map<string, Record<number, number>>();
+    for (const g of filteredAllYears) {
+      const row = byRegion.get(g.resolvedRegion) ?? {};
+      row[g.fiscal_year] = (row[g.fiscal_year] ?? 0) + Number(g.amount);
+      byRegion.set(g.resolvedRegion, row);
+    }
+    const goalMap = new Map(goals.filter((g) => g.fiscal_year === goalYear).map((g) => [g.region, g.goal_amount]));
+    const rows = Array.from(byRegion.entries())
+      .map(([region, cells]) => {
+        const goalAmount = goalMap.get(region) ?? 0;
+        const actualGoalYear = cells[goalYear] ?? 0;
+        const variance = actualGoalYear - goalAmount;
+        const pctToGoal = goalAmount > 0 ? (actualGoalYear / goalAmount) * 100 : null;
+        return { region, cells, goalAmount, variance, pctToGoal, total: Object.values(cells).reduce((s, v) => s + v, 0) };
+      })
+      .sort((a, b) => b.total - a.total);
+    const colTotals: Record<number, number> = {};
+    years.forEach((y) => (colTotals[y] = rows.reduce((s, r) => s + (r.cells[y] ?? 0), 0)));
+    const totalGoalAmount = rows.reduce((s, r) => s + r.goalAmount, 0);
+    const totalActualGoalYear = rows.reduce((s, r) => s + (r.cells[goalYear] ?? 0), 0);
+    return {
+      rows,
+      colTotals,
+      totalGoalAmount,
+      totalVariance: totalActualGoalYear - totalGoalAmount,
+      totalPctToGoal: totalGoalAmount > 0 ? (totalActualGoalYear / totalGoalAmount) * 100 : null,
+    };
+  }, [filteredAllYears, goals, goalYear, years]);
+
+  const monthlyTrendChart = useMemo(() => {
+    const byYearMonth = new Map<number, Map<number, number>>();
+    for (const g of filteredAllYears) {
+      if (!g.received_date) continue;
+      const d = new Date(g.received_date);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      if (!byYearMonth.has(y)) byYearMonth.set(y, new Map());
+      const monthMap = byYearMonth.get(y)!;
+      monthMap.set(m, (monthMap.get(m) ?? 0) + Number(g.amount));
+    }
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const activeYears = Array.from(byYearMonth.keys()).sort();
+    return monthNames.map((label, m) => {
+      const point: Record<string, number | string> = { month: label };
+      for (const y of activeYears) {
+        const monthMap = byYearMonth.get(y)!;
+        let cumulative = 0;
+        for (let i = 0; i <= m; i++) cumulative += monthMap.get(i) ?? 0;
+        point[String(y)] = cumulative;
+      }
+      return point;
+    });
+  }, [filteredAllYears]);
+  const trendYears = useMemo(() => [...new Set(filteredAllYears.filter((g) => g.received_date).map((g) => new Date(g.received_date!).getFullYear()))].sort(), [filteredAllYears]);
+  const trendColors = ["#B5566B", "#8A9186", "#2F6D46", "#3E7FBF", "#E2892F"];
 
   const matrix = useMemo(() => {
     const byRegion = new Map<string, Record<string, number>>();
@@ -300,6 +373,80 @@ export default function GrantsClient({ grants: initialGrants, goals: initialGoal
         </form>
       )}
 
+      {/* Multi-year comparison table */}
+      <div style={{ ...cardStyle, overflow: "hidden", marginBottom: 24 }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-1">
+          <h2 className="text-sm font-bold" style={{ color: "#2F4A3E" }}>
+            Year Over Year, by Region
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: "rgba(22,48,43,0.5)" }}>
+              Goal / Variance year:
+            </span>
+            <select value={goalYear} onChange={(e) => setGoalYear(Number(e.target.value))} style={{ ...inputStyle, padding: "5px 10px", fontSize: 13 }}>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="text-sm" style={{ width: "100%", minWidth: 760 }}>
+            <thead style={{ background: "#16302B" }}>
+              <tr>
+                <th className="px-4 py-3 text-left font-bold text-white">Region</th>
+                {years.map((y) => (
+                  <th key={y} className="px-3 py-3 text-right font-semibold text-white text-xs">
+                    {y}
+                  </th>
+                ))}
+                <th className="px-3 py-3 text-right font-semibold text-white text-xs">{goalYear} Goal</th>
+                <th className="px-3 py-3 text-right font-semibold text-white text-xs">{goalYear} Variance</th>
+                <th className="px-3 py-3 text-right font-semibold text-white text-xs">% to Goal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {yearlySummary.rows.map((r, i) => (
+                <tr key={r.region} style={{ borderTop: i === 0 ? "none" : "1px solid var(--portal-line, rgba(22,48,43,0.06))" }}>
+                  <td className="px-4 py-2.5 font-bold">{r.region}</td>
+                  {years.map((y) => (
+                    <td key={y} className="px-3 py-2.5 text-right" style={{ color: r.cells[y] ? "#16302B" : "rgba(22,48,43,0.25)", fontWeight: y === goalYear ? 700 : 400 }}>
+                      {r.cells[y] ? money(r.cells[y]) : "—"}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5 text-right" style={{ color: "rgba(22,48,43,0.5)" }}>
+                    {money(r.goalAmount)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.variance >= 0 ? "var(--portal-emerald, #2F6D46)" : "#B5566B" }}>
+                    {r.variance >= 0 ? "+" : ""}
+                    {money(r.variance)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.pctToGoal === null ? "rgba(22,48,43,0.3)" : r.pctToGoal >= 100 ? "var(--portal-emerald, #2F6D46)" : "#A57420" }}>
+                    {r.pctToGoal === null ? "—" : `${r.pctToGoal.toFixed(1)}%`}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: "2px solid var(--portal-line, rgba(22,48,43,0.12))", background: "#F4F3EE" }}>
+                <td className="px-4 py-3 font-bold">Total</td>
+                {years.map((y) => (
+                  <td key={y} className="px-3 py-3 text-right font-bold">
+                    {money(yearlySummary.colTotals[y] ?? 0)}
+                  </td>
+                ))}
+                <td className="px-3 py-3 text-right font-bold">{money(yearlySummary.totalGoalAmount)}</td>
+                <td className="px-3 py-3 text-right font-bold" style={{ color: yearlySummary.totalVariance >= 0 ? "var(--portal-emerald, #2F6D46)" : "#B5566B" }}>
+                  {yearlySummary.totalVariance >= 0 ? "+" : ""}
+                  {money(yearlySummary.totalVariance)}
+                </td>
+                <td className="px-3 py-3 text-right font-bold">{yearlySummary.totalPctToGoal === null ? "—" : `${yearlySummary.totalPctToGoal.toFixed(1)}%`}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Matrix table */}
       <div style={{ ...cardStyle, overflow: "hidden", marginBottom: 24 }}>
         <div className="overflow-x-auto">
@@ -405,6 +552,28 @@ export default function GrantsClient({ grants: initialGrants, goals: initialGoal
               <Legend wrapperStyle={{ fontSize: 10 }} />
             </PieChart>
           </ResponsiveContainer>
+        </div>
+        <div style={{ ...cardStyle, padding: "18px 20px" }}>
+          <h3 className="text-xs font-bold mb-2" style={{ color: "rgba(22,48,43,0.5)" }}>
+            REVENUE BY MONTH (CUMULATIVE)
+          </h3>
+          {trendYears.length === 0 ? (
+            <p className="text-xs py-8 text-center" style={{ color: "rgba(22,48,43,0.35)" }}>
+              No grants have a received date yet.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={monthlyTrendChart}>
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v / 1000000}M`} />
+                <Tooltip formatter={(v) => money(Number(v))} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {trendYears.map((y, i) => (
+                  <Line key={y} type="monotone" dataKey={String(y)} stroke={trendColors[i % trendColors.length]} strokeWidth={2} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>
