@@ -4,6 +4,7 @@ import DropboxSettingsClient from "../dropbox/DropboxSettingsClient";
 import PexelsSettingsClient from "../pexels/PexelsSettingsClient";
 import ConnectorKeyField from "./ConnectorKeyField";
 import CioApproversManager from "./CioApproversManager";
+import SquareLocationMapClient from "./SquareLocationMapClient";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -18,6 +19,8 @@ export default async function AdminConnectorsPage() {
 
   const { data: me } = await supabase.from("employees").select("role").eq("auth_user_id", user.id).single();
   if (me?.role !== "admin") redirect("/select-app");
+
+  const { data: offices } = await supabase.from("b2s_offices").select("id, field_office").eq("is_active", true).order("field_office");
 
   return (
     <div>
@@ -153,6 +156,19 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="threecx_api_url" label="3CX API Base URL" placeholder="https://icnarelief.3cx.us" />
         <ConnectorKeyField settingKey="threecx_client_id" label="3CX API Client ID" placeholder="From Integrations → API in 3CX admin" />
         <ConnectorKeyField settingKey="threecx_client_secret" label="3CX API Client Secret" />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="Square (Event / Pantry Payments)"
+        description="One Square account with a Location set per office. Payments sync into the Revenue page every few hours automatically, or on demand below. Get an Access Token from the Square Developer Dashboard → your application → Credentials — a Production access token, not Sandbox."
+      >
+        <ConnectorKeyField settingKey="square_access_token" label="Access Token" placeholder="EAAA..." />
+        <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.08))" }}>
+          <p className="text-xs font-bold mb-3" style={{ color: "rgba(22,48,43,0.5)" }}>
+            LOCATION → OFFICE MAPPING
+          </p>
+          <SquareLocationMapClient offices={offices ?? []} />
+        </div>
       </ConnectorSection>
     </div>
   );

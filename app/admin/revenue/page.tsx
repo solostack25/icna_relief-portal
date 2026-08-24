@@ -28,6 +28,7 @@ export default async function RevenuePage() {
     { data: donationRows },
     { data: pledgeRows },
     { data: volunteerSignups },
+    { data: squarePaymentRows },
     volunteerRateRaw,
   ] = await Promise.all([
     supabase.from("b2s_offices").select("id, field_office, region"),
@@ -39,6 +40,7 @@ export default async function RevenuePage() {
       .eq("status", "succeeded"),
     supabase.from("donor_call_outcomes").select("pledge_amount, called_at, caller_employee_id").not("pledge_amount", "is", null),
     supabase.from("volunteer_signups").select("qty, slot_id, volunteer_slots(start_time, end_time, event_id, volunteer_events(office_id))"),
+    supabase.from("square_payments").select("amount, square_created_at, office_id, status").eq("status", "COMPLETED"),
     getIntegrationSetting("volunteer_hour_value"),
   ]);
 
@@ -109,11 +111,20 @@ export default async function RevenuePage() {
     manualByRegion.set(r, (manualByRegion.get(r) ?? 0) + Number(g.amount));
   });
 
+  const squareThisYear = (squarePaymentRows ?? []).filter((p) => new Date(p.square_created_at).getFullYear() === currentYear);
+  const squareTotal = squareThisYear.reduce((s, p) => s + Number(p.amount), 0);
+  const squareByRegion = new Map<string, number>();
+  squareThisYear.forEach((p) => {
+    const r = regionFor(p.office_id, null);
+    squareByRegion.set(r, (squareByRegion.get(r) ?? 0) + Number(p.amount));
+  });
+
   const streams = [
     { key: "grant", label: "Grants", total: grantsTotal, byRegion: grantsByRegion, auto: true },
     { key: "general_community", label: "Community Giving", total: givingTotal, byRegion: givingByRegion, auto: true },
     { key: "calling_campaign", label: "Calling Campaign", total: pledgeTotal, byRegion: pledgeByRegion, auto: true },
     { key: "volunteering", label: "Volunteering (valued)", total: volunteerValueTotal, byRegion: volunteerByRegion, auto: true },
+    { key: "square", label: "Square (Event / Pantry Payments)", total: squareTotal, byRegion: squareByRegion, auto: true },
     ...Array.from(manualByStream.entries()).map(([key, total]) => ({
       key,
       label: STREAM_LABELS[key] ?? key,
@@ -127,7 +138,7 @@ export default async function RevenuePage() {
   const communityRevenue = totalRevenue - grantsTotal;
 
   const allRegions = new Set<string>();
-  [grantsByRegion, givingByRegion, pledgeByRegion, volunteerByRegion, manualByRegion].forEach((m) => m.forEach((_, r) => allRegions.add(r)));
+  [grantsByRegion, givingByRegion, pledgeByRegion, volunteerByRegion, squareByRegion, manualByRegion].forEach((m) => m.forEach((_, r) => allRegions.add(r)));
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -153,6 +164,7 @@ export default async function RevenuePage() {
           giving: givingByRegion.get(r) ?? 0,
           calling: pledgeByRegion.get(r) ?? 0,
           volunteering: volunteerByRegion.get(r) ?? 0,
+          square: squareByRegion.get(r) ?? 0,
           manual: manualByRegion.get(r) ?? 0,
         }))}
         offices={(offices ?? []).map((o) => ({ id: o.id, field_office: o.field_office, region: o.region }))}

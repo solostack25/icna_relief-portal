@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type StreamSummary = { key: string; label: string; total: number; auto: boolean };
-type RegionStack = { region: string; grants: number; giving: number; calling: number; volunteering: number; manual: number };
+type RegionStack = { region: string; grants: number; giving: number; calling: number; volunteering: number; square: number; manual: number };
 type Office = { id: string; field_office: string; region: string };
 
 const MANUAL_STREAMS = [
@@ -34,6 +34,7 @@ const STREAM_COLOR: Record<string, string> = {
   general_community: "#3E7FBF",
   calling_campaign: "#8A5FB5",
   volunteering: "#E2892F",
+  square: "#C9A227",
   in_kind: "#B5566B",
   irfas: "#3E9E8F",
   ramadan: "#A57420",
@@ -186,6 +187,7 @@ export default function RevenueClient({
             <Bar dataKey="giving" name="Community Giving" stackId="a" fill={STREAM_COLOR.general_community} />
             <Bar dataKey="calling" name="Calling Campaign" stackId="a" fill={STREAM_COLOR.calling_campaign} />
             <Bar dataKey="volunteering" name="Volunteering" stackId="a" fill={STREAM_COLOR.volunteering} />
+            <Bar dataKey="square" name="Square" stackId="a" fill={STREAM_COLOR.square} />
             <Bar dataKey="manual" name="Other (manual)" stackId="a" fill="#B5566B" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
