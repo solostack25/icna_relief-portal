@@ -8,11 +8,18 @@ type License = { skuId: string; skuPartNumber: string; friendlyName: string; ava
 
 const inputClass = "w-full rounded-lg text-sm";
 const inputStyle: React.CSSProperties = {
-  border: "1px solid rgba(22,48,43,0.15)",
-  borderRadius: 8,
-  padding: "10px 12px",
+  border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
+  borderRadius: 10,
+  padding: "10px 14px",
   fontSize: 14,
   background: "#fff",
+  outline: "none",
+};
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 24,
+  boxShadow: "0 3px 12px rgba(22,48,43,0.06)",
+  padding: "24px 26px",
 };
 const labelClass = "block text-sm font-semibold mb-1.5";
 
@@ -75,7 +82,7 @@ export default function EntraOnboardClient() {
       result.userPrincipalName
     )}&firstName=${encodeURIComponent(form.firstName)}&lastName=${encodeURIComponent(form.lastName)}`;
     return (
-      <div className="max-w-xl rounded-2xl p-6" style={{ background: "#fff", border: "1px solid rgba(22,48,43,0.1)" }}>
+      <div className="max-w-xl" style={cardStyle}>
         <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px" }}>Entra account created</h2>
         <p className="text-sm mb-5" style={{ color: "rgba(22,48,43,0.55)" }}>
           {result.userPrincipalName}
@@ -101,9 +108,9 @@ export default function EntraOnboardClient() {
         </div>
 
         {result.warnings.length > 0 && (
-          <div className="rounded-lg p-4 mb-4" style={{ background: "#FBF0E6", border: "1px solid #E9C9A6" }}>
+          <div className="rounded-2xl p-4 mb-4" style={{ background: "#FCEFDD" }}>
             {result.warnings.map((w, i) => (
-              <p key={i} className="text-sm" style={{ color: "#8A4A1E" }}>
+              <p key={i} className="text-sm" style={{ color: "#A57420" }}>
                 {w}
               </p>
             ))}
@@ -113,8 +120,8 @@ export default function EntraOnboardClient() {
         <div className="flex items-center gap-3">
           <Link
             href={portalSetupUrl}
-            className="text-sm font-semibold px-5 py-2.5 rounded-lg"
-            style={{ background: "var(--icna-green, #2F6D46)", color: "#fff" }}
+            className="text-sm font-bold px-5 py-2.5 rounded-full hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
           >
             Continue → Set Up Portal Access
           </Link>
@@ -193,7 +200,7 @@ export default function EntraOnboardClient() {
       <div className="relative">
         <label className={labelClass}>Manager</label>
         {selectedManager ? (
-          <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ border: "1px solid rgba(22,48,43,0.15)" }}>
+          <div className="flex items-center justify-between rounded-full px-4 py-2.5" style={{ background: "#F4F3EE" }}>
             <span className="text-sm">{selectedManager.displayName}</span>
             <button
               type="button"
@@ -201,7 +208,7 @@ export default function EntraOnboardClient() {
                 setManagerId(null);
                 setManagerSearch("");
               }}
-              className="text-xs"
+              className="text-xs font-semibold"
               style={{ color: "rgba(22,48,43,0.5)" }}
             >
               Change
@@ -217,7 +224,7 @@ export default function EntraOnboardClient() {
               onChange={(e) => setManagerSearch(e.target.value)}
             />
             {managerMatches.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 rounded-lg overflow-hidden" style={{ background: "#fff", border: "1px solid rgba(22,48,43,0.15)" }}>
+              <div className="absolute z-10 w-full mt-1 rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.12)" }}>
                 {managerMatches.map((u) => (
                   <button
                     type="button"
@@ -226,8 +233,8 @@ export default function EntraOnboardClient() {
                       setManagerId(u.id);
                       setManagerSearch("");
                     }}
-                    className="w-full text-left px-3 py-2 text-sm"
-                    style={{ borderTop: "1px solid rgba(22,48,43,0.06)" }}
+                    className="w-full text-left px-4 py-2.5 text-sm"
+                    style={{ borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.06))" }}
                   >
                     {u.displayName} <span style={{ color: "rgba(22,48,43,0.4)" }}>{u.mail}</span>
                   </button>
@@ -265,7 +272,7 @@ export default function EntraOnboardClient() {
       )}
 
       {error && (
-        <p className="text-sm" style={{ color: "#B3261E" }}>
+        <p className="text-sm" style={{ color: "#B5566B" }}>
           {error}
         </p>
       )}
@@ -273,8 +280,8 @@ export default function EntraOnboardClient() {
       <button
         type="submit"
         disabled={saving}
-        className="text-sm font-semibold px-5 py-2.5 rounded-lg"
-        style={{ background: "var(--icna-green, #2F6D46)", color: "#fff", opacity: saving ? 0.6 : 1 }}
+        className="text-sm font-bold px-5 py-2.5 rounded-full cursor-pointer disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+        style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff", opacity: saving ? 0.6 : 1, boxShadow: saving ? "none" : "0 3px 10px rgba(31,111,84,0.3)" }}
       >
         {saving ? "Creating…" : "Create Entra Account"}
       </button>

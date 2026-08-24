@@ -32,13 +32,20 @@ type MatchedRow = AdpRow & {
 };
 
 const inputStyle: React.CSSProperties = {
-  border: "1px solid rgba(22,48,43,0.15)",
-  borderRadius: 6,
-  padding: "8px 10px",
+  border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
+  borderRadius: 10,
+  padding: "9px 12px",
   fontSize: 14,
   background: "#fff",
   width: "100%",
   minWidth: 140,
+  outline: "none",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 24,
+  boxShadow: "0 3px 12px rgba(22,48,43,0.06)",
 };
 
 // Drops middle initials/single-letter tokens and sorts so word order
@@ -248,7 +255,7 @@ export default function EntraDirectoryClient() {
 
   if (loadError) {
     return (
-      <p className="text-sm" style={{ color: "#B3261E" }}>
+      <p className="text-sm" style={{ color: "#B5566B" }}>
         {loadError}
       </p>
     );
@@ -257,10 +264,12 @@ export default function EntraDirectoryClient() {
   return (
     <div>
       {/* ADP Import */}
-      <div className="rounded-2xl mb-10 p-5" style={{ background: "#fff", border: "1px solid rgba(22,48,43,0.1)" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>Import from ADP Export</h2>
+      <div style={{ ...cardStyle, padding: "24px 26px", marginBottom: 28 }}>
+        <h2 className="text-base font-bold mb-1.5" style={{ color: "#2F4A3E" }}>
+          Import from ADP Export
+        </h2>
         <p className="text-sm mb-4" style={{ color: "rgba(22,48,43,0.55)" }}>
-          Upload the ADP "All Staff Profiles" export. Rows are matched to Entra users by name — only rows with a
+          Upload the ADP &quot;All Staff Profiles&quot; export. Rows are matched to Entra users by name — only rows with a
           confident match and an actual difference are checked by default. Review before applying; nothing writes
           to Entra until you click Apply.
         </p>
@@ -274,7 +283,7 @@ export default function EntraDirectoryClient() {
 
         {adpRows && (
           <div className="mt-5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <p className="text-sm" style={{ color: "rgba(22,48,43,0.6)" }}>
                 {matchedRows.length} rows parsed · {matchedRows.filter((r) => r.matchedUserId).length} matched ·{" "}
                 {matchedRows.filter((r) => !r.matchedUserId).length} unmatched ·{" "}
@@ -286,16 +295,26 @@ export default function EntraDirectoryClient() {
               </label>
             </div>
 
-            <div className="rounded-lg overflow-hidden mb-4" style={{ border: "1px solid rgba(22,48,43,0.1)", maxHeight: 480, overflowY: "auto" }}>
+            <div className="rounded-2xl overflow-hidden mb-4" style={{ boxShadow: "0 2px 8px rgba(22,48,43,0.06)", maxHeight: 480, overflowY: "auto" }}>
               <table className="w-full text-xs">
                 <thead style={{ position: "sticky", top: 0, background: "#FAF8F2" }}>
                   <tr>
-                    <th className="px-2 py-2 text-left"></th>
-                    <th className="px-2 py-2 text-left">ADP Name</th>
-                    <th className="px-2 py-2 text-left">Matched Entra User</th>
-                    <th className="px-2 py-2 text-left">Title (current → ADP)</th>
-                    <th className="px-2 py-2 text-left">Manager</th>
-                    <th className="px-2 py-2 text-left">Result</th>
+                    <th className="px-3 py-2.5 text-left"></th>
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      ADP Name
+                    </th>
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Matched Entra User
+                    </th>
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Title (current → ADP)
+                    </th>
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Manager
+                    </th>
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Result
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,23 +322,23 @@ export default function EntraDirectoryClient() {
                     const matchedUser = (directory ?? []).find((u) => u.id === row.matchedUserId);
                     const matchedManager = (directory ?? []).find((u) => u.id === row.matchedManagerUserId);
                     return (
-                      <tr key={row.key} style={{ borderTop: "1px solid rgba(22,48,43,0.06)" }}>
-                        <td className="px-2 py-1.5">
+                      <tr key={row.key} style={{ background: "#fff", borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.06))" }}>
+                        <td className="px-3 py-2">
                           {row.matchedUserId && (
                             <input type="checkbox" checked={checkedKeys.has(row.key)} onChange={() => toggleChecked(row.key)} />
                           )}
                         </td>
-                        <td className="px-2 py-1.5" style={{ fontWeight: 600 }}>
+                        <td className="px-3 py-2" style={{ fontWeight: 600 }}>
                           {row.fullNameForSorting}
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           {matchedUser ? (
                             <span>{matchedUser.mail ?? matchedUser.userPrincipalName}</span>
                           ) : (
-                            <span style={{ color: "#B3261E" }}>No match</span>
+                            <span style={{ color: "#B5566B" }}>No match</span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           {row.titleDiffers ? (
                             <span>
                               <span style={{ color: "rgba(22,48,43,0.4)", textDecoration: "line-through" }}>
@@ -331,7 +350,7 @@ export default function EntraDirectoryClient() {
                             <span style={{ color: "rgba(22,48,43,0.4)" }}>{row.jobTitle}</span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           {row.managerDiffers ? (
                             <span>
                               <span style={{ color: "rgba(22,48,43,0.4)", textDecoration: "line-through" }}>
@@ -343,7 +362,7 @@ export default function EntraDirectoryClient() {
                             <span style={{ color: "rgba(22,48,43,0.4)" }}>{row.reportsToName}</span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5">{applyResults[row.key]}</td>
+                        <td className="px-3 py-2">{applyResults[row.key]}</td>
                       </tr>
                     );
                   })}
@@ -355,8 +374,8 @@ export default function EntraDirectoryClient() {
               <button
                 onClick={applySelected}
                 disabled={applying || checkedKeys.size === 0}
-                className="text-sm font-semibold px-5 py-2.5 rounded-lg"
-                style={{ background: "var(--icna-green, #2F6D46)", color: "#fff", opacity: applying || checkedKeys.size === 0 ? 0.5 : 1 }}
+                className="text-sm font-bold px-5 py-2.5 rounded-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-transform duration-150"
+                style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff", boxShadow: applying || checkedKeys.size === 0 ? "none" : "0 3px 10px rgba(31,111,84,0.3)" }}
               >
                 {applying ? `Applying ${applyProgress.done}/${applyProgress.total}…` : `Apply ${checkedKeys.size} Selected to Entra`}
               </button>
@@ -366,14 +385,16 @@ export default function EntraDirectoryClient() {
       </div>
 
       {/* Directory table */}
-      <div className="flex items-center justify-between mb-1">
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Full Directory</h2>
+      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+        <h2 className="text-base font-bold" style={{ color: "#2F4A3E" }}>
+          Full Directory
+        </h2>
         <input
           type="text"
           placeholder="Search name, email, title…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, width: 260, minWidth: 0 }}
+          style={{ ...inputStyle, borderRadius: 999, width: 260, minWidth: 0, padding: "9px 16px" }}
         />
       </div>
       <p className="text-xs mb-3" style={{ color: "rgba(22,48,43,0.4)" }}>
@@ -381,18 +402,15 @@ export default function EntraDirectoryClient() {
       </p>
 
       {Object.keys(edits).length > 0 && (
-        <div
-          className="flex items-center justify-between rounded-lg px-4 py-2.5 mb-3"
-          style={{ background: "#FBF6E9", border: "1px solid #E9D9A0" }}
-        >
-          <span className="text-sm" style={{ color: "#8A6D1E", fontWeight: 600 }}>
+        <div className="flex items-center justify-between rounded-2xl px-4 py-2.5 mb-3" style={{ background: "#FCEFDD" }}>
+          <span className="text-sm font-bold" style={{ color: "#A57420" }}>
             {Object.keys(edits).length} row{Object.keys(edits).length === 1 ? "" : "s"} with unsaved changes
           </span>
           <button
             onClick={saveAllEdited}
             disabled={savingId !== null}
-            className="text-sm font-semibold px-4 py-1.5 rounded-lg"
-            style={{ background: "var(--icna-green, #2F6D46)", color: "#fff" }}
+            className="text-sm font-bold px-4 py-2 rounded-full cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff" }}
           >
             Save All
           </button>
@@ -404,110 +422,111 @@ export default function EntraDirectoryClient() {
           Loading Entra directory…
         </p>
       ) : (
-        <div className="rounded-lg overflow-x-auto" style={{ border: "1px solid rgba(22,48,43,0.1)" }}>
-          <table className="text-sm" style={{ width: "100%", minWidth: 980 }}>
-            <thead style={{ background: "#FAF8F2" }}>
-              <tr>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
-                  Name
-                </th>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 220 }}>
-                  Email
-                </th>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 200 }}>
-                  Job Title
-                </th>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
-                  Department
-                </th>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
-                  Office
-                </th>
-                <th className="px-3 py-2 text-left" style={{ minWidth: 160 }}>
-                  Manager
-                </th>
-                <th className="px-3 py-2" style={{ minWidth: 140 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDirectory.map((u) => {
-                const edit = edits[u.id] ?? {};
-                const hasEdit = Object.keys(edit).length > 0;
-                return (
-                  <tr
-                    key={u.id}
-                    style={{
-                      borderTop: "1px solid rgba(22,48,43,0.06)",
-                      background: hasEdit ? "#FBF6E9" : "transparent",
-                    }}
-                  >
-                    <td className="px-3 py-2" style={{ fontWeight: 600 }}>
-                      {u.displayName}
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      {u.mail ?? u.userPrincipalName}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        style={inputStyle}
-                        value={edit.jobTitle ?? u.jobTitle ?? ""}
-                        onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], jobTitle: e.target.value } }))}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        style={inputStyle}
-                        value={edit.department ?? u.department ?? ""}
-                        onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], department: e.target.value } }))}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        style={inputStyle}
-                        value={edit.officeLocation ?? u.officeLocation ?? ""}
-                        onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], officeLocation: e.target.value } }))}
-                      />
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "rgba(22,48,43,0.5)" }}>
-                      {u.managerDisplayName ?? "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        {hasEdit && (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          <div className="overflow-x-auto">
+            <table className="text-sm" style={{ width: "100%", minWidth: 980 }}>
+              <thead style={{ background: "#FAF8F2" }}>
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 160, color: "rgba(22,48,43,0.5)" }}>
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 220, color: "rgba(22,48,43,0.5)" }}>
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 200, color: "rgba(22,48,43,0.5)" }}>
+                    Job Title
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 160, color: "rgba(22,48,43,0.5)" }}>
+                    Department
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 160, color: "rgba(22,48,43,0.5)" }}>
+                    Office
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold" style={{ minWidth: 160, color: "rgba(22,48,43,0.5)" }}>
+                    Manager
+                  </th>
+                  <th className="px-4 py-3" style={{ minWidth: 140 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDirectory.map((u, i) => {
+                  const edit = edits[u.id] ?? {};
+                  const hasEdit = Object.keys(edit).length > 0;
+                  return (
+                    <tr
+                      key={u.id}
+                      style={{
+                        borderTop: i === 0 ? "none" : "1px solid var(--portal-line, rgba(22,48,43,0.06))",
+                        background: hasEdit ? "#FCEFDD" : "transparent",
+                      }}
+                    >
+                      <td className="px-4 py-2.5" style={{ fontWeight: 600 }}>
+                        {u.displayName}
+                      </td>
+                      <td className="px-4 py-2.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+                        {u.mail ?? u.userPrincipalName}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          style={inputStyle}
+                          value={edit.jobTitle ?? u.jobTitle ?? ""}
+                          onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], jobTitle: e.target.value } }))}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          style={inputStyle}
+                          value={edit.department ?? u.department ?? ""}
+                          onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], department: e.target.value } }))}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          style={inputStyle}
+                          value={edit.officeLocation ?? u.officeLocation ?? ""}
+                          onChange={(e) => setEdits((prev) => ({ ...prev, [u.id]: { ...prev[u.id], officeLocation: e.target.value } }))}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5" style={{ color: "rgba(22,48,43,0.5)" }}>
+                        {u.managerDisplayName ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          {hasEdit && (
+                            <button
+                              onClick={() =>
+                                setEdits((prev) => {
+                                  const next = { ...prev };
+                                  delete next[u.id];
+                                  return next;
+                                })
+                              }
+                              disabled={savingId === u.id}
+                              className="text-xs font-bold px-3 py-2 rounded-full cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+                              style={{ background: "#fff", color: "rgba(22,48,43,0.5)", boxShadow: "0 1px 4px rgba(22,48,43,0.1)" }}
+                            >
+                              Reset
+                            </button>
+                          )}
                           <button
-                            onClick={() =>
-                              setEdits((prev) => {
-                                const next = { ...prev };
-                                delete next[u.id];
-                                return next;
-                              })
-                            }
-                            disabled={savingId === u.id}
-                            className="text-xs font-semibold px-3 py-2 rounded-md"
-                            style={{ background: "transparent", color: "rgba(22,48,43,0.5)", border: "1px solid rgba(22,48,43,0.15)" }}
+                            onClick={() => saveRow(u.id)}
+                            disabled={!hasEdit || savingId === u.id}
+                            className="text-xs font-bold px-3 py-2 rounded-full cursor-pointer disabled:cursor-default hover:scale-105 active:scale-95 transition-transform duration-150"
+                            style={{
+                              background: hasEdit ? "var(--portal-emerald, #2F6D46)" : "rgba(22,48,43,0.08)",
+                              color: hasEdit ? "#fff" : "rgba(22,48,43,0.35)",
+                            }}
                           >
-                            Reset
+                            {savingId === u.id ? "Saving…" : "Save"}
                           </button>
-                        )}
-                        <button
-                          onClick={() => saveRow(u.id)}
-                          disabled={!hasEdit || savingId === u.id}
-                          className="text-xs font-semibold px-3 py-2 rounded-md"
-                          style={{
-                            background: hasEdit ? "var(--icna-green, #2F6D46)" : "rgba(22,48,43,0.08)",
-                            color: hasEdit ? "#fff" : "rgba(22,48,43,0.35)",
-                            cursor: hasEdit ? "pointer" : "default",
-                          }}
-                        >
-                          {savingId === u.id ? "Saving…" : "Save"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
