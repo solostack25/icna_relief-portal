@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/hungerPrevention/audit";
 
 type BookingRow = { id: string; status: string; slot_id: string; client_id: string; checked_in_at: string | null };
 type ClientRow = { id: string; first_name: string; last_name: string; client_number: string | null; phone: string | null };
@@ -99,11 +100,13 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
       setScanMsg({ text: error.message, ok: false });
       return;
     }
+    await logAudit(supabase, employeeId, "check_in", "pickup_booking", bookingId, { date });
     loadDay();
   }
 
   async function undoCheckIn(bookingId: string) {
     await supabase.from("pickup_bookings").update({ status: "booked", checked_in_at: null, checked_in_by: null }).eq("id", bookingId).eq("status", "completed");
+    await logAudit(supabase, employeeId, "undo_check_in", "pickup_booking", bookingId, { date });
     loadDay();
   }
 

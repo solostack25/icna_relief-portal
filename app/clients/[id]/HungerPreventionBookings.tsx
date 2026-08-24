@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/hungerPrevention/audit";
 
 type Booking = { id: string; status: string; slot_id: string; booked_at: string; checked_in_at: string | null };
 type Slot = { id: string; slot_date: string; start_time: string; end_time: string };
@@ -123,6 +124,7 @@ export default function HungerPreventionBookings({ clientId, clientOfficeId }: {
       setError(insertError.message);
       return;
     }
+    await logAudit(supabase, employeeId, "staff_book_pickup", "pickup_booking", null, { client_id: clientId, slot_id: slotId });
     setShowBooker(false);
     loadBookings();
   }
@@ -131,6 +133,7 @@ export default function HungerPreventionBookings({ clientId, clientOfficeId }: {
     setCancelling(bookingId);
     setConfirmingCancel(null);
     await supabase.from("pickup_bookings").update({ status: "cancelled" }).eq("id", bookingId);
+    await logAudit(supabase, employeeId, "staff_cancel_pickup", "pickup_booking", bookingId, { client_id: clientId });
     setCancelling(null);
     loadBookings();
   }

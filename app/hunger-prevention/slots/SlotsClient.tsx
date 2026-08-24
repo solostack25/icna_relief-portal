@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/hungerPrevention/audit";
 
 type SlotRow = {
   id: string;
@@ -29,6 +30,19 @@ export default function SlotsClient({ officeId }: { officeId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ slot_date: "", start_time: "09:00", end_time: "11:00", capacity: 40 });
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: employee } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
+      setEmployeeId(employee?.id ?? null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadSlots() {
     const { data: slotRows } = await supabase
@@ -67,19 +81,29 @@ export default function SlotsClient({ officeId }: { officeId: string }) {
     setSaving(true);
     setError(null);
 
-    const { error: insertError } = await supabase.from("pickup_slots").insert({
-      office_id: officeId,
-      slot_date: form.slot_date,
-      start_time: form.start_time,
-      end_time: form.end_time,
-      capacity: form.capacity,
-    });
+    const { error: insertError, data: inserted } = await supabase
+      .from("pickup_slots")
+      .insert({
+        office_id: officeId,
+        slot_date: form.slot_date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        capacity: form.capacity,
+      })
+      .select("id")
+      .single();
 
     setSaving(false);
     if (insertError) {
       setError(insertError.message);
       return;
     }
+    await logAudit(supabase, employeeId, "add_slot", "pickup_slot", inserted?.id ?? null, {
+      slot_date: form.slot_date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      capacity: form.capacity,
+    });
     setForm((f) => ({ ...f, slot_date: "" }));
     loadSlots();
   }
