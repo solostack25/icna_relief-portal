@@ -153,7 +153,10 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const sections: NavSection[] = [
     {
       title: "Overview",
-      items: [{ href: "/admin", label: "Dashboard", icon: "dashboard" }],
+      items: [
+        { href: "/admin", label: "Dashboard", icon: "dashboard" },
+        access.isAdmin && { href: "/admin/exec-dashboard", label: "Executive Dashboard", icon: "dashboard" },
+      ].filter(Boolean) as NavItem[],
     },
     {
       title: "Help Desk",
