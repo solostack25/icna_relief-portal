@@ -6,6 +6,7 @@ import ViewIdCardButton from "./ViewIdCardButton";
 import PushToSalesforceButton from "./PushToSalesforceButton";
 import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
+import HungerPreventionBookings from "./HungerPreventionBookings";
 import LogServiceButton from "./LogServiceButton";
 import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
@@ -463,6 +464,8 @@ export default async function ClientProfilePage({
             ))}
           </div>
         </ProgramSection>
+
+        <HungerPreventionBookings clientId={id} clientOfficeId={clientRecord.office_id} />
 
         <ProgramSection
           title="Transitional Housing"
