@@ -122,7 +122,8 @@ export default function SquareLocationMapClient({ offices }: { offices: Office[]
         </p>
       )}
       <p className="text-[11px] mt-2" style={{ color: "rgba(22,48,43,0.4)" }}>
-        Also syncs automatically every few hours via cron. Only mapped locations flow into the Revenue page.
+        Also syncs automatically once a day (6:30am UTC) via cron — Vercel&apos;s Hobby plan only allows daily cron
+        schedules. Only mapped locations flow into the Revenue page.
       </p>
     </div>
   );
