@@ -13,7 +13,7 @@ export default async function GrantsPage() {
   if (me?.role !== "admin") redirect("/select-app");
 
   const [{ data: grants }, { data: goals }, { data: offices }] = await Promise.all([
-    supabase.from("grants").select("id, title, funder_name, program, office_id, region, amount, fiscal_year, received_date, notes"),
+    supabase.from("grants").select("id, title, funder_name, program, office_id, region, amount, fiscal_year, received_date, notes").eq("stream", "grant"),
     supabase.from("grant_region_goals").select("id, region, fiscal_year, goal_amount"),
     supabase.from("b2s_offices").select("id, field_office, region, chapter, state").eq("is_active", true).order("field_office"),
   ]);

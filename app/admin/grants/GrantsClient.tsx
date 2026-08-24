@@ -217,6 +217,7 @@ export default function GrantsClient({ grants: initialGrants, goals: initialGoal
         received_date: form.received_date || null,
         notes: form.notes || null,
         created_by: employee?.id ?? null,
+        stream: "grant",
       })
       .select("id, title, funder_name, program, office_id, region, amount, fiscal_year, received_date, notes")
       .single();
