@@ -156,6 +156,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         { href: "/admin", label: "Dashboard", icon: "dashboard" },
         access.isAdmin && { href: "/admin/exec-dashboard", label: "Executive Dashboard", icon: "dashboard" },
+        access.isAdmin && { href: "/admin/grants", label: "Grants", icon: "dashboard" },
       ].filter(Boolean) as NavItem[],
     },
     {
