@@ -144,7 +144,7 @@ function TiersTab() {
         {tiers
           .sort((a, b) => a.tier_order - b.tier_order)
           .map((tr) => (
-            <div key={tr.id} className="rounded-lg border border-[var(--color-border)] p-4">
+            <div key={tr.id} className="rounded-lg border border-[var(--color-border)] bg-white p-4">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
                 <div className="col-span-1 sm:col-span-1">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">{t("finance.tiers.order")}</label>
@@ -297,7 +297,7 @@ function DelegatesTab() {
           return (
             <div
               key={d.id}
-              className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-4 py-3"
+              className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-white px-4 py-3"
             >
               <div className="text-sm">
                 <span className="font-medium">{d.original_name ?? d.original_email}</span>
@@ -328,7 +328,7 @@ function DelegatesTab() {
           {t("finance.delegates.setUpButton")}
         </button>
       ) : (
-        <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
+        <div className="rounded-lg border border-[var(--color-border)] bg-white p-4 space-y-3">
           <DirectorySearch label={t("finance.delegates.personGoingOut")} value={original} onChange={setOriginal} />
           <DirectorySearch label={t("finance.delegates.coveringForThem")} value={delegate} onChange={setDelegate} />
           <div className="grid grid-cols-2 gap-3">
@@ -511,7 +511,7 @@ function RequestsTab() {
           </p>
         )}
         {filtered.map((r) => (
-          <div key={r.id} className="rounded-lg border border-[var(--color-border)] px-4 py-3">
+          <div key={r.id} className="rounded-lg border border-[var(--color-border)] bg-white px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <a
                 href={`/helpdesk/${r.request_id}`}
