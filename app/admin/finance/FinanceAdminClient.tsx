@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type Tier = {
   id: string;
@@ -44,24 +45,30 @@ type ApprovalRequest = {
 };
 
 const TABS = ["Tiers", "Temporary Coverage", "Active Requests"] as const;
+const TAB_KEYS: Record<(typeof TABS)[number], string> = {
+  Tiers: "finance.tab.tiers",
+  "Temporary Coverage": "finance.tab.temporaryCoverage",
+  "Active Requests": "finance.tab.activeRequests",
+};
 
 export default function FinanceAdminClient() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Tiers");
+  const { t } = useLanguage();
 
   return (
     <div>
       <div className="flex gap-2 mb-6 border-b border-[var(--color-border)]">
-        {TABS.map((t) => (
+        {TABS.map((tb) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tb}
+            onClick={() => setTab(tb)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px cursor-pointer ${
-              tab === t
+              tab === tb
                 ? "border-[var(--color-accent)] text-[var(--color-accent)]"
                 : "border-transparent text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
             }`}
           >
-            {t}
+            {t(TAB_KEYS[tb])}
           </button>
         ))}
       </div>
@@ -79,6 +86,7 @@ export default function FinanceAdminClient() {
 function TiersTab() {
   const [tiers, setTiers] = useState<Tier[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   async function load() {
     const res = await fetch("/api/admin/finance/tiers");
@@ -103,7 +111,7 @@ function TiersTab() {
   }
 
   async function deleteTier(id: string) {
-    if (!confirm("Delete this tier? Any job titles mapped to it will no longer satisfy approval at this level.")) return;
+    if (!confirm(t("finance.tiers.confirmDelete"))) return;
     setError(null);
     const res = await fetch(`/api/admin/finance/tiers/${id}`, { method: "DELETE" });
     const body = await res.json();
@@ -117,56 +125,54 @@ function TiersTab() {
     const res = await fetch("/api/admin/finance/tiers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier_order: nextOrder, tier_name: "New Tier", job_titles: [], max_amount: null }),
+      body: JSON.stringify({ tier_order: nextOrder, tier_name: t("finance.tiers.newTierDefault"), job_titles: [], max_amount: null }),
     });
     const body = await res.json();
     if (!res.ok) return setError(body.error);
     load();
   }
 
-  if (!tiers) return <p className="text-sm text-[var(--color-text-dim)]">Loading…</p>;
+  if (!tiers) return <p className="text-sm text-[var(--color-text-dim)]">{t("finance.tiers.loading")}</p>;
 
   return (
     <div>
       <p className="text-xs text-[var(--color-text-dim)] mb-4">
-        Escalation order (lowest first). A tier's job titles are the real Azure AD job title
-        strings that count for it — several titles can share a tier (e.g. all C-level roles).
-        Leave max amount blank for "always sufficient, no matter the amount" (e.g. CEO).
+        {t("finance.tiers.explainer")}
       </p>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       <div className="space-y-3 mb-4">
         {tiers
           .sort((a, b) => a.tier_order - b.tier_order)
-          .map((t) => (
-            <div key={t.id} className="rounded-lg border border-[var(--color-border)] p-4">
+          .map((tr) => (
+            <div key={tr.id} className="rounded-lg border border-[var(--color-border)] p-4">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
                 <div className="col-span-1 sm:col-span-1">
-                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">Order</label>
+                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">{t("finance.tiers.order")}</label>
                   <input
                     type="number"
-                    defaultValue={t.tier_order}
-                    onBlur={(e) => updateTier(t.id, { tier_order: Number(e.target.value) })}
+                    defaultValue={tr.tier_order}
+                    onBlur={(e) => updateTier(tr.id, { tier_order: Number(e.target.value) })}
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
                 <div className="col-span-1 sm:col-span-3">
-                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">Name</label>
+                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">{t("finance.tiers.name")}</label>
                   <input
                     type="text"
-                    defaultValue={t.tier_name}
-                    onBlur={(e) => updateTier(t.id, { tier_name: e.target.value })}
+                    defaultValue={tr.tier_name}
+                    onBlur={(e) => updateTier(tr.id, { tier_name: e.target.value })}
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
                 <div className="col-span-1 sm:col-span-5">
                   <label className="block text-xs text-[var(--color-text-dim)] mb-1">
-                    AD Job Titles (comma-separated)
+                    {t("finance.tiers.adJobTitles")}
                   </label>
                   <input
                     type="text"
-                    defaultValue={t.job_titles.join(", ")}
+                    defaultValue={tr.job_titles.join(", ")}
                     onBlur={(e) =>
-                      updateTier(t.id, {
+                      updateTier(tr.id, {
                         job_titles: e.target.value
                           .split(",")
                           .map((s) => s.trim())
@@ -177,22 +183,22 @@ function TiersTab() {
                   />
                 </div>
                 <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">Max Amount</label>
+                  <label className="block text-xs text-[var(--color-text-dim)] mb-1">{t("finance.tiers.maxAmount")}</label>
                   <input
                     type="number"
                     step="0.01"
-                    defaultValue={t.max_amount ?? ""}
-                    placeholder="Unlimited"
-                    onBlur={(e) => updateTier(t.id, { max_amount: e.target.value === "" ? null : Number(e.target.value) })}
+                    defaultValue={tr.max_amount ?? ""}
+                    placeholder={t("finance.tiers.unlimited")}
+                    onBlur={(e) => updateTier(tr.id, { max_amount: e.target.value === "" ? null : Number(e.target.value) })}
                     className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
                   />
                 </div>
                 <div className="col-span-1 sm:col-span-1 pt-5">
                   <button
-                    onClick={() => deleteTier(t.id)}
+                    onClick={() => deleteTier(tr.id)}
                     className="text-xs text-red-600 hover:underline cursor-pointer"
                   >
-                    Delete
+                    {t("finance.tiers.delete")}
                   </button>
                 </div>
               </div>
@@ -203,7 +209,7 @@ function TiersTab() {
         onClick={addTier}
         className="text-sm text-[var(--color-accent)] hover:underline cursor-pointer"
       >
-        + Add Tier
+        {t("finance.tiers.addTier")}
       </button>
     </div>
   );
@@ -216,6 +222,7 @@ function DelegatesTab() {
   const [delegates, setDelegates] = useState<Delegate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const { t } = useLanguage();
 
   const [original, setOriginal] = useState<DirUser | null>(null);
   const [delegate, setDelegate] = useState<DirUser | null>(null);
@@ -234,7 +241,7 @@ function DelegatesTab() {
   }, []);
 
   async function removeDelegate(id: string) {
-    if (!confirm("Remove this coverage arrangement?")) return;
+    if (!confirm(t("finance.delegates.confirmRemove"))) return;
     const res = await fetch(`/api/admin/finance/delegates/${id}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) return setError(body.error);
@@ -243,7 +250,7 @@ function DelegatesTab() {
 
   async function submitDelegate() {
     if (!original || !delegate) {
-      setError("Pick both people from the directory search first.");
+      setError(t("finance.delegates.pickBothPeople"));
       return;
     }
     setError(null);
@@ -270,22 +277,20 @@ function DelegatesTab() {
     load();
   }
 
-  if (!delegates) return <p className="text-sm text-[var(--color-text-dim)]">Loading…</p>;
+  if (!delegates) return <p className="text-sm text-[var(--color-text-dim)]">{t("finance.tiers.loading")}</p>;
 
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div>
       <p className="text-xs text-[var(--color-text-dim)] mb-4">
-        Redirect a specific person's approval steps to someone else for a date range — e.g. an
-        Area Manager on vacation. The chain still climbs from the original person's real manager
-        afterward; the delegate is just who's asked in their place.
+        {t("finance.delegates.explainer")}
       </p>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
       <div className="space-y-2 mb-4">
         {delegates.length === 0 && (
-          <p className="text-sm text-[var(--color-text-dim)]">No coverage arrangements set up.</p>
+          <p className="text-sm text-[var(--color-text-dim)]">{t("finance.delegates.noneSetUp")}</p>
         )}
         {delegates.map((d) => {
           const active = d.starts_at <= today && (!d.ends_at || d.ends_at >= today);
@@ -296,19 +301,19 @@ function DelegatesTab() {
             >
               <div className="text-sm">
                 <span className="font-medium">{d.original_name ?? d.original_email}</span>
-                <span className="text-[var(--color-text-dim)]"> → covered by </span>
+                <span className="text-[var(--color-text-dim)]"> {t("finance.delegates.coveredBy")} </span>
                 <span className="font-medium">{d.delegate_name ?? d.delegate_email}</span>
                 <div className="text-xs text-[var(--color-text-dim)] mt-0.5">
-                  {d.starts_at} {d.ends_at ? `– ${d.ends_at}` : "– until removed"}
+                  {d.starts_at} {d.ends_at ? `– ${d.ends_at}` : t("finance.delegates.untilRemoved")}
                   {d.note ? ` · ${d.note}` : ""}
-                  {active ? " · active now" : ""}
+                  {active ? ` · ${t("finance.delegates.activeNow")}` : ""}
                 </div>
               </div>
               <button
                 onClick={() => removeDelegate(d.id)}
                 className="text-xs text-red-600 hover:underline cursor-pointer"
               >
-                Remove
+                {t("finance.delegates.remove")}
               </button>
             </div>
           );
@@ -320,15 +325,15 @@ function DelegatesTab() {
           onClick={() => setShowForm(true)}
           className="text-sm text-[var(--color-accent)] hover:underline cursor-pointer"
         >
-          + Set Up Temporary Coverage
+          {t("finance.delegates.setUpButton")}
         </button>
       ) : (
         <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
-          <DirectorySearch label="Person going out (original approver)" value={original} onChange={setOriginal} />
-          <DirectorySearch label="Covering for them" value={delegate} onChange={setDelegate} />
+          <DirectorySearch label={t("finance.delegates.personGoingOut")} value={original} onChange={setOriginal} />
+          <DirectorySearch label={t("finance.delegates.coveringForThem")} value={delegate} onChange={setDelegate} />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-[var(--color-text-dim)] mb-1">Starts</label>
+              <label className="block text-xs text-[var(--color-text-dim)] mb-1">{t("finance.delegates.starts")}</label>
               <input
                 type="date"
                 value={startsAt}
@@ -338,7 +343,7 @@ function DelegatesTab() {
             </div>
             <div>
               <label className="block text-xs text-[var(--color-text-dim)] mb-1">
-                Ends (blank = until manually removed)
+                {t("finance.delegates.endsBlank")}
               </label>
               <input
                 type="date"
@@ -362,13 +367,13 @@ function DelegatesTab() {
               onClick={submitDelegate}
               className="rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-4 py-2 cursor-pointer"
             >
-              Save
+              {t("finance.delegates.save")}
             </button>
             <button
               onClick={() => setShowForm(false)}
               className="text-sm text-[var(--color-text-dim)] hover:text-[var(--color-text)] cursor-pointer"
             >
-              Cancel
+              {t("finance.delegates.cancel")}
             </button>
           </div>
         </div>
@@ -389,6 +394,7 @@ function DirectorySearch({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DirUser[]>([]);
   const [searching, setSearching] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -414,7 +420,7 @@ function DirectorySearch({
             {value.name} <span className="text-[var(--color-text-dim)]">({value.email})</span>
           </span>
           <button onClick={() => onChange(null)} className="text-xs text-[var(--color-text-dim)] hover:underline cursor-pointer">
-            Change
+            {t("finance.dirSearch.change")}
           </button>
         </div>
       </div>
@@ -428,12 +434,12 @@ function DirectorySearch({
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by name or email…"
+        placeholder={t("finance.dirSearch.searchPlaceholder")}
         className="w-full rounded border border-[var(--color-border)] px-2 py-1.5 text-sm"
       />
       {(results.length > 0 || searching) && (
         <div className="absolute z-10 mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg max-h-48 overflow-y-auto">
-          {searching && <div className="px-3 py-2 text-xs text-[var(--color-text-dim)]">Searching…</div>}
+          {searching && <div className="px-3 py-2 text-xs text-[var(--color-text-dim)]">{t("finance.dirSearch.searching")}</div>}
           {results.map((u) => (
             <button
               key={u.id}
@@ -464,6 +470,7 @@ function RequestsTab() {
   const [requests, setRequests] = useState<ApprovalRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const { t } = useLanguage();
 
   useEffect(() => {
     fetch("/api/admin/finance/requests")
@@ -476,7 +483,7 @@ function RequestsTab() {
   }, []);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!requests) return <p className="text-sm text-[var(--color-text-dim)]">Loading…</p>;
+  if (!requests) return <p className="text-sm text-[var(--color-text-dim)]">{t("finance.tiers.loading")}</p>;
 
   const q = query.trim().toLowerCase();
   const filtered = q
@@ -494,13 +501,13 @@ function RequestsTab() {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by ticket title, submitter name, or email…"
+        placeholder={t("finance.requests.searchPlaceholder")}
         className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm mb-4"
       />
       <div className="space-y-3">
         {filtered.length === 0 && (
           <p className="text-sm text-[var(--color-text-dim)]">
-            {requests.length === 0 ? "No finance approval requests yet." : "No matches."}
+            {requests.length === 0 ? t("finance.requests.noneYet") : t("finance.requests.noMatches")}
           </p>
         )}
         {filtered.map((r) => (
@@ -512,7 +519,7 @@ function RequestsTab() {
                 rel="noopener noreferrer"
                 className="text-sm font-medium hover:underline min-w-0 truncate"
               >
-                {r.ticket?.title ?? "Untitled"}
+                {r.ticket?.title ?? t("finance.requests.untitled")}
               </a>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
@@ -527,9 +534,9 @@ function RequestsTab() {
               </span>
             </div>
             <div className="text-xs text-[var(--color-text-dim)] mt-1 mb-3">
-              ${r.amount} · submitted by {r.ticket?.submitted_by ?? "unknown"} (
+              ${r.amount} · {t("finance.requests.submittedBy")} {r.ticket?.submitted_by ?? "unknown"} (
               {r.ticket?.submitted_by_email ?? "—"}) · {new Date(r.created_at).toLocaleDateString()}
-              {r.final_tier_name && r.status !== "pending" && ` · resolved at ${r.final_tier_name} level`}
+              {r.final_tier_name && r.status !== "pending" && ` · ${t("finance.requests.resolvedAtLevel").replace("{tier}", r.final_tier_name)}`}
             </div>
 
             {/* Full step-by-step trail — this is the "who approved, who's it
@@ -543,7 +550,7 @@ function RequestsTab() {
                     <span>
                       {s.step_order}. {s.approver_name}
                       {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
-                      {s.acting_as_delegate_for_email ? " — covering" : ""}
+                      {s.acting_as_delegate_for_email ? ` ${t("finance.requests.covering")}` : ""}
                     </span>
                     <span
                       className={
@@ -554,7 +561,7 @@ function RequestsTab() {
                             : "text-[var(--color-accent)] font-medium"
                       }
                     >
-                      {s.status === "pending" ? "⏳ awaiting response" : s.status}
+                      {s.status === "pending" ? t("finance.requests.awaitingResponse") : s.status}
                     </span>
                   </div>
                 ))}
