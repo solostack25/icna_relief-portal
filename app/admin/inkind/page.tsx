@@ -42,8 +42,10 @@ export default function TodayPage() {
     <main className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-brand-dark">Today</h1>
-          <p className="text-gray-500 text-sm">
+          <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
+            Today
+          </h1>
+          <p className="text-sm" style={{ color: "rgba(22,48,43,0.55)" }}>
             {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
             {" · "}
             {sessions.length} donation{sessions.length === 1 ? "" : "s"} · {totalItems} items · $

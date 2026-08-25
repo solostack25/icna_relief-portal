@@ -86,8 +86,10 @@ export default async function AdminReviewPage({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold">Review Submissions</h1>
-          <p className="text-sm text-[var(--color-text-dim)]">
+          <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
+            Review Submissions
+          </h1>
+          <p className="text-sm" style={{ color: "rgba(22,48,43,0.55)" }}>
             Mark field submissions reviewed, or flag issues back to the office
           </p>
         </div>

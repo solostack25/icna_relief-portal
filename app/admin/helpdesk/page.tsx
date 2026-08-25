@@ -94,8 +94,10 @@ export default async function AdminHelpdeskPage({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold">Help Desk — Workload</h1>
-          <p className="text-sm text-[var(--color-text-dim)]">
+          <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
+            Help Desk — Workload
+          </h1>
+          <p className="text-sm" style={{ color: "rgba(22,48,43,0.55)" }}>
             Open, in progress, and on-hold tickets by team member
           </p>
         </div>
