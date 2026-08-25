@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AdminAccess } from "@/lib/adminAccess";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
@@ -149,82 +150,83 @@ type NavSection = { title: string; items: NavItem[] };
 
 export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   const sections: NavSection[] = [
     {
-      title: "Overview",
+      title: t("sidebar.section.overview"),
       items: [
-        { href: "/admin", label: "Dashboard", icon: "dashboard" },
-        access.isAdmin && { href: "/admin/exec-dashboard", label: "Executive Dashboard", icon: "dashboard" },
-        access.isAdmin && { href: "/admin/revenue", label: "Revenue", icon: "dashboard" },
-        access.isAdmin && { href: "/admin/grants", label: "Grants", icon: "dashboard" },
+        { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/grants", label: t("sidebar.nav.grants"), icon: "dashboard" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "Help Desk",
+      title: t("sidebar.section.helpDesk"),
       items: [
-        access.canManageTickets && { href: "/admin/helpdesk/manage", label: "Manage Tickets", icon: "tickets" },
-        access.isAdmin && { href: "/admin/helpdesk", label: "Help Desk Workload", icon: "workload" },
+        access.canManageTickets && { href: "/admin/helpdesk/manage", label: t("sidebar.nav.manageTickets"), icon: "tickets" },
+        access.isAdmin && { href: "/admin/helpdesk", label: t("sidebar.nav.helpDeskWorkload"), icon: "workload" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "Finance",
-      items: [access.canManageFinance && { href: "/admin/finance", label: "Finance Approvals", icon: "finance" }].filter(
+      title: t("sidebar.section.finance"),
+      items: [access.canManageFinance && { href: "/admin/finance", label: t("sidebar.nav.financeApprovals"), icon: "finance" }].filter(
         Boolean
       ) as NavItem[],
     },
     {
-      title: "Marketing & Content",
+      title: t("sidebar.section.marketing"),
       items: [
-        access.canManageMarketing && { href: "/marketing/contacts", label: "Contacts", icon: "contacts" },
-        access.canManageMarketing && { href: "/marketing/segments", label: "Segments", icon: "segments" },
-        access.canManageMarketing && { href: "/marketing/campaigns", label: "Email Campaigns", icon: "campaigns" },
-        access.canManageMarketing && { href: "/marketing/sms-campaigns", label: "SMS Campaigns", icon: "sms" },
-        access.canManageMarketing && { href: "/marketing/sequences", label: "Sequences", icon: "sequences" },
-        access.canManageMarketing && { href: "/marketing/donor-calling", label: "Donor Calling", icon: "donorCalling" },
-        access.canManageFliers && { href: "/admin/fliers/builder", label: "Flier Templates", icon: "fliers" },
-        access.canManageFliers && { href: "/admin/fliers/images", label: "Content Library", icon: "library" },
-        access.isAdmin && { href: "/admin/content-folders", label: "Upload Folders", icon: "contentFolders" },
+        access.canManageMarketing && { href: "/marketing/contacts", label: t("sidebar.nav.contacts"), icon: "contacts" },
+        access.canManageMarketing && { href: "/marketing/segments", label: t("sidebar.nav.segments"), icon: "segments" },
+        access.canManageMarketing && { href: "/marketing/campaigns", label: t("sidebar.nav.emailCampaigns"), icon: "campaigns" },
+        access.canManageMarketing && { href: "/marketing/sms-campaigns", label: t("sidebar.nav.smsCampaigns"), icon: "sms" },
+        access.canManageMarketing && { href: "/marketing/sequences", label: t("sidebar.nav.sequences"), icon: "sequences" },
+        access.canManageMarketing && { href: "/marketing/donor-calling", label: t("sidebar.nav.donorCalling"), icon: "donorCalling" },
+        access.canManageFliers && { href: "/admin/fliers/builder", label: t("sidebar.nav.flierTemplates"), icon: "fliers" },
+        access.canManageFliers && { href: "/admin/fliers/images", label: t("sidebar.nav.contentLibrary"), icon: "library" },
+        access.isAdmin && { href: "/admin/content-folders", label: t("sidebar.nav.uploadFolders"), icon: "contentFolders" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "Programs",
+      title: t("sidebar.section.programs"),
       items: [
-        access.canInkind && { href: "/admin/inkind", label: "InKind Admin", icon: "inkind" },
-        access.canReview && { href: "/admin/review", label: "Review Submissions", icon: "review" },
+        access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
+        access.canReview && { href: "/admin/review", label: t("sidebar.nav.reviewSubmissions"), icon: "review" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "Offices",
+      title: t("sidebar.section.offices"),
       items: [
-        access.hasOfficeInfo && { href: "/admin/office-info", label: "Office Dashboard", icon: "officeInfo" },
+        access.hasOfficeInfo && { href: "/admin/office-info", label: t("sidebar.nav.officeDashboard"), icon: "officeInfo" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "Training",
-      items: [access.isAdmin && { href: "/admin/training", label: "Training Courses", icon: "training" }].filter(
+      title: t("sidebar.section.training"),
+      items: [access.isAdmin && { href: "/admin/training", label: t("sidebar.nav.trainingCourses"), icon: "training" }].filter(
         Boolean
       ) as NavItem[],
     },
     {
-      title: "People & Access",
+      title: t("sidebar.section.peopleAccess"),
       items: [
-        access.isAdmin && { href: "/admin/employees", label: "Employees", icon: "dashboard" },
-        access.isAdmin && { href: "/admin/employees/new", label: "Set Up Portal Access", icon: "addEmployee" },
-        access.isAdmin && { href: "/admin/ad-mappings", label: "AD Mappings", icon: "mappings" },
-        access.isAdmin && { href: "/admin/ad-preview", label: "AD Provisioning Preview", icon: "preview" },
-        access.isAdmin && { href: "/admin/entra-directory", label: "Entra Directory", icon: "entraDirectory" },
+        access.isAdmin && { href: "/admin/employees", label: t("sidebar.nav.employees"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/employees/new", label: t("sidebar.nav.setUpPortalAccess"), icon: "addEmployee" },
+        access.isAdmin && { href: "/admin/ad-mappings", label: t("sidebar.nav.adMappings"), icon: "mappings" },
+        access.isAdmin && { href: "/admin/ad-preview", label: t("sidebar.nav.adProvisioningPreview"), icon: "preview" },
+        access.isAdmin && { href: "/admin/entra-directory", label: t("sidebar.nav.entraDirectory"), icon: "entraDirectory" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: "System",
-      items: [access.isAdmin && { href: "/admin/connectors", label: "Connectors", icon: "connectors" }].filter(
+      title: t("sidebar.section.system"),
+      items: [access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" }].filter(
         Boolean
       ) as NavItem[],
     },
     {
-      title: "General",
-      items: [{ href: "/admin/workboards", label: "Workboards", icon: "workboards" }],
+      title: t("sidebar.section.general"),
+      items: [{ href: "/admin/workboards", label: t("sidebar.nav.workboards"), icon: "workboards" }],
     },
   ].filter((s) => s.items.length > 0);
 
@@ -260,7 +262,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         style={{ color: pathname === "/admin" ? "var(--portal-emerald)" : "#16302B" }}
         onClick={() => setMobileOpen(false)}
       >
-        Admin Portal
+        {t("sidebar.adminPortal")}
       </Link>
       {sections.map((section) => (
         <div key={section.title} className="mb-5">
@@ -300,7 +302,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         style={{ color: "rgba(22,48,43,0.4)" }}
         onClick={() => setMobileOpen(false)}
       >
-        ← Back to apps
+        {t("sidebar.backToApps")}
       </Link>
     </>
   );
@@ -310,11 +312,11 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       {/* Mobile top bar: hamburger toggle, only shown below md */}
       <div className="md:hidden flex items-center justify-between w-full mb-4">
         <span className="text-sm font-bold" style={{ color: "#16302B" }}>
-          Admin Portal
+          {t("sidebar.adminPortal")}
         </span>
         <button
           onClick={() => setMobileOpen(true)}
-          aria-label="Open admin menu"
+          aria-label={t("sidebar.openMenu")}
           className="p-2 rounded-lg border"
           style={{ borderColor: "var(--portal-line)" }}
         >
@@ -330,8 +332,8 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       >
         <button
           onClick={toggleCollapsed}
-          aria-label={collapsed ? "Show admin menu" : "Hide admin menu"}
-          title={collapsed ? "Show sidebar" : "Hide sidebar"}
+          aria-label={collapsed ? t("sidebar.showMenu") : t("sidebar.hideMenu")}
+          title={collapsed ? t("sidebar.showMenu") : t("sidebar.hideMenu")}
           className="flex items-center justify-center rounded-full mb-4 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-150"
           style={{ width: 30, height: 30, background: "#fff", boxShadow: "0 2px 6px rgba(22,48,43,0.1)", color: "var(--portal-emerald)" }}
         >
@@ -352,7 +354,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           >
             <button
               onClick={() => setMobileOpen(false)}
-              aria-label="Close admin menu"
+              aria-label={t("sidebar.closeMenu")}
               className="absolute top-4 right-4 p-1"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16302B" strokeWidth="2">
