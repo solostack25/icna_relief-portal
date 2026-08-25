@@ -1,6 +1,7 @@
 import "./globals.css";
 import HadithBanner from "./HadithBanner";
 import ClockReminderWatcher from "@/components/ClockReminderWatcher";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 export const metadata = {
   title: "ICNA Relief Portal",
@@ -15,9 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <HadithBanner />
-        <ClockReminderWatcher />
-        {children}
+        <LanguageProvider>
+          <HadithBanner />
+          <ClockReminderWatcher />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );
