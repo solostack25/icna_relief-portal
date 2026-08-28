@@ -161,6 +161,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/grants", label: t("sidebar.nav.grants"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/salesforce-sync", label: t("sidebar.nav.salesforceSync"), icon: "dashboard" },
       ].filter(Boolean) as NavItem[],
     },
     {
