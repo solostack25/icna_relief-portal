@@ -82,11 +82,22 @@ export async function runReport(
     return empty;
   }
 
-  let clientIdFilter: string[] | null = null;
-  if (mod.scope.type === "via_client" && allowedOfficeIds !== "all") {
-    const { data: clients } = await supabase.from("clients").select("id").in("office_id", allowedOfficeIds);
-    clientIdFilter = (clients ?? []).map((c: { id: string }) => c.id);
-    if (clientIdFilter.length === 0) return empty;
+  // Walk the scope chain (if any): each hop narrows an id set by one
+  // join, starting from allowedOfficeIds and ending with the set of
+  // ids to match against the report table's finalRefColumn. A module
+  // with no office concept ("none") or its own office_id ("direct")
+  // skips this entirely.
+  let finalRefIds: string[] | null = null;
+  if (mod.scope.type === "chain" && allowedOfficeIds !== "all") {
+    let currentIds: string[] = allowedOfficeIds;
+    for (const hop of mod.scope.hops) {
+      const filterCol = "officeColumn" in hop ? hop.officeColumn : hop.filterColumn;
+      const { data: rows } = await supabase.from(hop.table).select(hop.idColumn).in(filterCol, currentIds);
+      currentIds = ((rows ?? []) as unknown as Record<string, unknown>[]).map((r) => String(r[hop.idColumn]));
+      if (currentIds.length === 0) break;
+    }
+    finalRefIds = currentIds;
+    if (finalRefIds.length === 0) return empty;
   }
 
   const columns = new Set<string>([mod.defaultDateColumn]);
@@ -98,8 +109,8 @@ export async function runReport(
   if (mod.scope.type === "direct" && allowedOfficeIds !== "all") {
     query = query.in(mod.scope.officeColumn, allowedOfficeIds);
   }
-  if (mod.scope.type === "via_client" && clientIdFilter) {
-    query = query.in(mod.scope.clientIdColumn, clientIdFilter);
+  if (mod.scope.type === "chain" && finalRefIds) {
+    query = query.in(mod.scope.finalRefColumn, finalRefIds);
   }
   if (params.filters?.date_from) query = query.gte(mod.defaultDateColumn, params.filters.date_from);
   if (params.filters?.date_to) query = query.lte(mod.defaultDateColumn, params.filters.date_to);
