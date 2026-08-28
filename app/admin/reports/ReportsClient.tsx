@@ -40,7 +40,9 @@ type SavedReport = {
   filters: { date_from?: string; date_to?: string; office_id?: string };
 };
 
-export default function ReportsClient({ modules }: { modules: ReportModule[] }) {
+type Office = { id: string; field_office: string; region: string };
+
+export default function ReportsClient({ modules, offices }: { modules: ReportModule[]; offices: Office[] }) {
   const [moduleSlug, setModuleSlug] = useState(modules[0]?.slug ?? "");
   const mod = useMemo(() => modules.find((m) => m.slug === moduleSlug), [modules, moduleSlug]);
 
@@ -48,12 +50,18 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [officeId, setOfficeId] = useState("");
 
   const [result, setResult] = useState<RunResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reportName, setReportName] = useState("");
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+
+  const [showScheduleFields, setShowScheduleFields] = useState(false);
+  const [schedule, setSchedule] = useState<"" | "daily" | "weekly" | "monthly">("");
+  const [recipients, setRecipients] = useState("");
 
   useEffect(() => {
     setSelectedDims([]);
@@ -72,6 +80,10 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
     setList(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
   }
 
+  function currentFilters() {
+    return { date_from: dateFrom || undefined, date_to: dateTo || undefined, office_id: officeId || undefined };
+  }
+
   async function runReport() {
     if (!mod) return;
     setLoading(true);
@@ -80,17 +92,34 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
       const res = await fetch("/api/reports/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          module_slug: mod.slug,
-          dimensions: selectedDims,
-          metrics: selectedMetrics,
-          filters: { date_from: dateFrom || undefined, date_to: dateTo || undefined },
-        }),
+        body: JSON.stringify({ module_slug: mod.slug, dimensions: selectedDims, metrics: selectedMetrics, filters: currentFilters() }),
       });
       const data = await res.json();
       setResult(data);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function exportCsv() {
+    if (!mod) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/reports/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module_slug: mod.slug, dimensions: selectedDims, metrics: selectedMetrics, filters: currentFilters() }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${mod.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-report.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -106,14 +135,22 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
           name: reportName.trim(),
           dimensions: selectedDims,
           metrics: selectedMetrics,
-          filters: { date_from: dateFrom || undefined, date_to: dateTo || undefined },
+          filters: currentFilters(),
           visibility: "private",
+          schedule: schedule || null,
+          schedule_recipients: recipients
+            .split(",")
+            .map((r) => r.trim())
+            .filter(Boolean),
         }),
       });
       const data = await res.json();
       if (data.report) {
         setSavedReports((prev) => [data.report, ...prev]);
         setReportName("");
+        setSchedule("");
+        setRecipients("");
+        setShowScheduleFields(false);
       }
     } finally {
       setSaving(false);
@@ -126,6 +163,7 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
     setSelectedMetrics(r.metrics);
     setDateFrom(r.filters?.date_from ?? "");
     setDateTo(r.filters?.date_to ?? "");
+    setOfficeId(r.filters?.office_id ?? "");
     setResult(null);
   }
 
@@ -180,7 +218,7 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>From</div>
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={inputStyle} />
@@ -189,9 +227,22 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>To</div>
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={inputStyle} />
               </div>
+              {offices.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Office</div>
+                  <select value={officeId} onChange={(e) => setOfficeId(e.target.value)} style={inputStyle}>
+                    <option value="">All offices you can see</option>
+                    {offices.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.field_office}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <button
                 onClick={runReport}
                 disabled={loading || (selectedDims.length === 0 && selectedMetrics.length === 0)}
@@ -199,15 +250,47 @@ export default function ReportsClient({ modules }: { modules: ReportModule[] }) 
               >
                 {loading ? "Running…" : "Run Report"}
               </button>
-              <input
-                placeholder="Name this report to save it…"
-                value={reportName}
-                onChange={(e) => setReportName(e.target.value)}
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <button onClick={saveReport} disabled={saving || !reportName.trim()} style={pillButton(false)}>
-                {saving ? "Saving…" : "Save"}
+              <button
+                onClick={exportCsv}
+                disabled={exporting || (selectedDims.length === 0 && selectedMetrics.length === 0)}
+                style={{ ...pillButton(false), opacity: exporting ? 0.6 : 1 }}
+              >
+                {exporting ? "Exporting…" : "Export CSV"}
               </button>
+            </div>
+
+            <div style={{ borderTop: "1px solid rgba(22,48,43,0.08)", paddingTop: 16, display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <input
+                  placeholder="Name this report to save it…"
+                  value={reportName}
+                  onChange={(e) => setReportName(e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button onClick={() => setShowScheduleFields((v) => !v)} style={pillButton(showScheduleFields)}>
+                  {showScheduleFields ? "Hide schedule" : "+ Schedule email"}
+                </button>
+                <button onClick={saveReport} disabled={saving || !reportName.trim()} style={pillButton(false)}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+
+              {showScheduleFields && (
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <select value={schedule} onChange={(e) => setSchedule(e.target.value as typeof schedule)} style={inputStyle}>
+                    <option value="">No recurring email</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly (Mondays)</option>
+                    <option value="monthly">Monthly (1st)</option>
+                  </select>
+                  <input
+                    placeholder="Recipient emails, comma separated"
+                    value={recipients}
+                    onChange={(e) => setRecipients(e.target.value)}
+                    style={{ ...inputStyle, flex: 1, minWidth: 240 }}
+                  />
+                </div>
+              )}
             </div>
           </>
         )}
