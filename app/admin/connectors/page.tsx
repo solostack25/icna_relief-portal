@@ -4,6 +4,8 @@ import DropboxSettingsClient from "../dropbox/DropboxSettingsClient";
 import PexelsSettingsClient from "../pexels/PexelsSettingsClient";
 import ConnectorKeyField from "./ConnectorKeyField";
 import CioApproversManager from "./CioApproversManager";
+import ZakatApproversManager from "./ZakatApproversManager";
+import ZakatFinanceAccessManager from "./ZakatFinanceAccessManager";
 import SquareLocationMapClient from "./SquareLocationMapClient";
 
 // One page for every external service the portal connects to, rather
@@ -168,6 +170,26 @@ export default async function AdminConnectorsPage() {
             LOCATION → OFFICE MAPPING
           </p>
           <SquareLocationMapClient offices={offices ?? []} />
+        </div>
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="IRFAS — Zakat Application Approvers"
+        description="Every approver added here must sign off before a financial assistance application is approved (unanimous). Each new application emails every active approver a secure review link — no portal login needed."
+      >
+        <ZakatApproversManager />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="IRFAS — Finance Notification"
+        description="Where the 'ready for a check' email goes once an application clears every approver. Also see Approved Applications for who can view the queue itself."
+      >
+        <ConnectorKeyField settingKey="zakat_finance_emails" label="Finance Email(s)" placeholder="finance@icnarelief.org, dlfinance@icnarelief.org" />
+        <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--portal-line, rgba(22,48,43,0.08))" }}>
+          <p className="text-xs font-bold mb-3" style={{ color: "rgba(22,48,43,0.5)" }}>
+            APPROVED APPLICATIONS QUEUE ACCESS
+          </p>
+          <ZakatFinanceAccessManager />
         </div>
       </ConnectorSection>
     </div>

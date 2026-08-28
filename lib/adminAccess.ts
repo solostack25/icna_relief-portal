@@ -9,6 +9,7 @@ export type AdminAccess = {
   canManageFliers: boolean;
   canManageMarketing: boolean;
   canReview: boolean;
+  canZakatFinance: boolean;
   hasOfficeInfo: boolean;
   hasAnyAccess: boolean;
 };
@@ -63,6 +64,11 @@ export async function getAdminAccess(
   // access for any employee (see lib/marketingContactsAccess.ts).
   const canManageMarketing = true;
 
+  const { data: employeeRow } = isAdmin
+    ? { data: null }
+    : await supabase.from("employees").select("is_zakat_finance").eq("id", employeeId).maybeSingle();
+  const canZakatFinance = isAdmin || !!employeeRow?.is_zakat_finance;
+
   return {
     isAdmin,
     canManageTickets,
@@ -71,6 +77,7 @@ export async function getAdminAccess(
     canManageFliers,
     canManageMarketing,
     canReview,
+    canZakatFinance,
     hasOfficeInfo,
     hasAnyAccess:
       isAdmin ||
@@ -80,6 +87,7 @@ export async function getAdminAccess(
       canManageFliers ||
       canManageMarketing ||
       canReview ||
+      canZakatFinance ||
       hasOfficeInfo,
   };
 }

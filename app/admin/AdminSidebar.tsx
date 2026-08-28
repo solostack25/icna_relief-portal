@@ -157,6 +157,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       title: t("sidebar.section.overview"),
       items: [
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
+        { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "dashboard" },
         { href: "/admin/reports", label: t("sidebar.nav.reports"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
@@ -173,9 +174,10 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     },
     {
       title: t("sidebar.section.finance"),
-      items: [access.canManageFinance && { href: "/admin/finance", label: t("sidebar.nav.financeApprovals"), icon: "finance" }].filter(
-        Boolean
-      ) as NavItem[],
+      items: [
+        access.canManageFinance && { href: "/admin/finance", label: t("sidebar.nav.financeApprovals"), icon: "finance" },
+        access.canZakatFinance && { href: "/admin/zakat-finance", label: t("sidebar.nav.zakatFinance"), icon: "finance" },
+      ].filter(Boolean) as NavItem[],
     },
     {
       title: t("sidebar.section.marketing"),
