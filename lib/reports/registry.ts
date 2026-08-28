@@ -19,9 +19,28 @@ export type ReportField = {
   truncate?: "month" | "day"; // if set, group by this date column truncated client-side
 };
 
-export type ReportMetric = ReportField & {
+export type ColumnMetric = ReportField & {
   agg: "count" | "sum" | "avg";
 };
+
+// Some useful metrics aren't a raw column at all (e.g. "hours worked"
+// from clock_in_at/clock_out_at) - this computes a duration in hours
+// between two timestamp columns per row, then sums or averages it.
+// Rows where either column is null (e.g. a still-open clock entry)
+// are skipped rather than counted as zero.
+export type DurationMetric = {
+  key: string;
+  label: string;
+  agg: "duration_hours_sum" | "duration_hours_avg";
+  startColumn: string;
+  endColumn: string;
+};
+
+export type ReportMetric = ColumnMetric | DurationMetric;
+
+export function isDurationMetric(m: ReportMetric): m is DurationMetric {
+  return m.agg === "duration_hours_sum" || m.agg === "duration_hours_avg";
+}
 
 // A scope chain resolves "which office_ids am I allowed to see" down
 // to "which ids in the target table's foreign-key column match that".
@@ -144,6 +163,49 @@ export const REPORT_MODULES: ReportModule[] = [
       { key: "client_count", label: "Clients", column: "id", agg: "count" },
     ],
     allowedRoles: ["staff", "regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "hr-headcount",
+    label: "HR — Headcount",
+    table: "employees",
+    defaultDateColumn: "created_at",
+    scope: { type: "direct", officeColumn: "assigned_office_id" },
+    dimensions: [
+      { key: "role", label: "Role", column: "role" },
+      { key: "is_active", label: "Active Status", column: "is_active" },
+      { key: "created_month", label: "Added Month", column: "created_at", truncate: "month" },
+    ],
+    metrics: [{ key: "employee_count", label: "Employees", column: "id", agg: "count" }],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "hr-training-completions",
+    label: "HR — Training Completions",
+    table: "lms_course_completions",
+    defaultDateColumn: "completed_at",
+    // lms_course_completions has no office_id - scoped via the
+    // completing employee's own assigned_office_id.
+    scope: { type: "chain", hops: [{ table: "employees", idColumn: "id", officeColumn: "assigned_office_id" }], finalRefColumn: "employee_id" },
+    dimensions: [
+      { key: "course_id", label: "Course (ID)", column: "course_id" },
+      { key: "completed_month", label: "Completed Month", column: "completed_at", truncate: "month" },
+    ],
+    metrics: [{ key: "completion_count", label: "Completions", column: "id", agg: "count" }],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "hr-clock-summary",
+    label: "HR — Clock In/Out Summary",
+    table: "time_clock_entries",
+    defaultDateColumn: "clock_in_at",
+    scope: { type: "chain", hops: [{ table: "employees", idColumn: "id", officeColumn: "assigned_office_id" }], finalRefColumn: "employee_id" },
+    dimensions: [{ key: "clock_month", label: "Month", column: "clock_in_at", truncate: "month" }],
+    metrics: [
+      { key: "entry_count", label: "Clock-Ins", column: "id", agg: "count" },
+      { key: "total_hours", label: "Total Hours", agg: "duration_hours_sum", startColumn: "clock_in_at", endColumn: "clock_out_at" },
+      { key: "avg_hours", label: "Avg Hours / Entry", agg: "duration_hours_avg", startColumn: "clock_in_at", endColumn: "clock_out_at" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
   },
   {
     slug: "helpdesk",

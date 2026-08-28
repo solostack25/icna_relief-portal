@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getReportModule, modulesForRole, type ReportModule } from "@/lib/reports/registry";
+import { getReportModule, modulesForRole, isDurationMetric, type ReportModule } from "@/lib/reports/registry";
 
 export type ReportScopeContext = {
   isAdmin: boolean;
@@ -102,7 +102,14 @@ export async function runReport(
 
   const columns = new Set<string>([mod.defaultDateColumn]);
   dims.forEach((d) => columns.add(d.column));
-  mets.forEach((m) => columns.add(m.column));
+  mets.forEach((m) => {
+    if (isDurationMetric(m)) {
+      columns.add(m.startColumn);
+      columns.add(m.endColumn);
+    } else {
+      columns.add(m.column);
+    }
+  });
 
   let query = supabase.from(mod.table).select(Array.from(columns).join(","));
 
@@ -140,6 +147,22 @@ export async function runReport(
 
   const resultRows = Array.from(groups.values()).map((g) => {
     const metricValues = mets.map((m) => {
+      if (isDurationMetric(m)) {
+        const hours = g.rows
+          .map((r) => {
+            const start = r[m.startColumn];
+            const end = r[m.endColumn];
+            if (typeof start !== "string" || typeof end !== "string") return null;
+            const startMs = new Date(start).getTime();
+            const endMs = new Date(end).getTime();
+            if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+            return (endMs - startMs) / (1000 * 60 * 60);
+          })
+          .filter((v): v is number => v !== null);
+        if (m.agg === "duration_hours_sum") return hours.reduce((s, v) => s + v, 0);
+        if (m.agg === "duration_hours_avg") return hours.length ? hours.reduce((s, v) => s + v, 0) / hours.length : 0;
+        return null;
+      }
       const values = g.rows.map((r) => Number(r[m.column])).filter((v) => !Number.isNaN(v));
       if (m.agg === "count") return g.rows.length;
       if (m.agg === "sum") return values.reduce((s, v) => s + v, 0);
