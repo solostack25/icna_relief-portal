@@ -78,7 +78,10 @@ export async function runReport(
 
   const empty = { module: mod, dimension_labels: dims.map((d) => d.label), metric_labels: mets.map((m) => m.label), rows: [], row_count: 0 };
 
-  if (allowedOfficeIds !== "all" && allowedOfficeIds.length === 0 && mod.scope.type !== "none") {
+  if (allowedOfficeIds !== "all" && allowedOfficeIds.length === 0 && mod.scope.type !== "none" && mod.scope.type !== "direct_region") {
+    return empty;
+  }
+  if (mod.scope.type === "direct_region" && !access.isAdmin && !access.assignedRegion) {
     return empty;
   }
 
@@ -119,6 +122,10 @@ export async function runReport(
   if (mod.scope.type === "chain" && finalRefIds) {
     query = query.in(mod.scope.finalRefColumn, finalRefIds);
   }
+  if (mod.scope.type === "direct_region" && !access.isAdmin && access.assignedRegion) {
+    query = query.eq(mod.scope.regionColumn, access.assignedRegion);
+  }
+  if (mod.fixedFilter) query = query.eq(mod.fixedFilter.column, mod.fixedFilter.value);
   if (params.filters?.date_from) query = query.gte(mod.defaultDateColumn, params.filters.date_from);
   if (params.filters?.date_to) query = query.lte(mod.defaultDateColumn, params.filters.date_to);
 
@@ -171,6 +178,22 @@ export async function runReport(
     });
     return { dimensions: g.dimensionValues, metrics: metricValues };
   });
+
+  // Resolve any dimension that's a raw foreign id (e.g. course_id)
+  // into a human label via a small separate lookup query, one batch
+  // per lookup-bearing dimension rather than N+1 per row.
+  for (let i = 0; i < dims.length; i++) {
+    const lookup = dims[i].lookup;
+    if (!lookup) continue;
+    const ids = Array.from(new Set(resultRows.map((r) => r.dimensions[i]).filter((v): v is string => typeof v === "string" && v !== "—")));
+    if (ids.length === 0) continue;
+    const { data: lookupRows } = await supabase.from(lookup.table).select(`id, ${lookup.labelColumn}`).in("id", ids);
+    const labelById = new Map(((lookupRows ?? []) as unknown as Record<string, unknown>[]).map((r) => [String(r.id), r[lookup.labelColumn]]));
+    for (const row of resultRows) {
+      const rawId = row.dimensions[i];
+      if (typeof rawId === "string" && labelById.has(rawId)) row.dimensions[i] = labelById.get(rawId);
+    }
+  }
 
   return {
     module: mod,

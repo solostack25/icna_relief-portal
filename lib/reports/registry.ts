@@ -17,6 +17,12 @@ export type ReportField = {
                              // accepts real column names, so date grouping (e.g. "by
                              // month") is done in the API route after fetch, not here
   truncate?: "month" | "day"; // if set, group by this date column truncated client-side
+  /** If the raw column value is a foreign id (e.g. course_id), resolve
+   *  it to a human label after aggregation with a separate lookup
+   *  query, rather than a PostgREST embed - keeps the aggregator's
+   *  flat row model simple while still showing "Bloodborne Pathogens"
+   *  instead of a UUID. */
+  lookup?: { table: string; labelColumn: string };
 };
 
 export type ColumnMetric = ReportField & {
@@ -58,6 +64,7 @@ export type ScopeHop =
 export type ReportScope =
   | { type: "direct"; officeColumn: string }              // table has its own office_id
   | { type: "chain"; hops: ScopeHop[]; finalRefColumn: string } // scope via one or more joins
+  | { type: "direct_region"; regionColumn: string }        // table has a region text column directly (e.g. grant_region_goals)
   | { type: "none" };                                       // no office concept (e.g. org-wide HR roster)
 
 export type ReportModule = {
@@ -66,6 +73,10 @@ export type ReportModule = {
   table: string;
   defaultDateColumn: string;
   scope: ReportScope;
+  /** Always-applied equality filter, e.g. { column: "stream", value: "grant" }
+   *  to split one shared table (grants) into distinct report modules
+   *  (Grants vs. Other Revenue Streams) without a second physical table. */
+  fixedFilter?: { column: string; value: string };
   dimensions: ReportField[];
   metrics: ReportMetric[];
   /** Which employee roles can even see this module in the builder. Admin always can. */
@@ -187,7 +198,7 @@ export const REPORT_MODULES: ReportModule[] = [
     // completing employee's own assigned_office_id.
     scope: { type: "chain", hops: [{ table: "employees", idColumn: "id", officeColumn: "assigned_office_id" }], finalRefColumn: "employee_id" },
     dimensions: [
-      { key: "course_id", label: "Course (ID)", column: "course_id" },
+      { key: "course_id", label: "Course", column: "course_id", lookup: { table: "lms_courses", labelColumn: "title" } },
       { key: "completed_month", label: "Completed Month", column: "completed_at", truncate: "month" },
     ],
     metrics: [{ key: "completion_count", label: "Completions", column: "id", agg: "count" }],
@@ -206,6 +217,122 @@ export const REPORT_MODULES: ReportModule[] = [
       { key: "avg_hours", label: "Avg Hours / Entry", agg: "duration_hours_avg", startColumn: "clock_in_at", endColumn: "clock_out_at" },
     ],
     allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "grants",
+    label: "Finance — Grants",
+    table: "grants",
+    defaultDateColumn: "received_date",
+    scope: { type: "direct", officeColumn: "office_id" },
+    fixedFilter: { column: "stream", value: "grant" },
+    dimensions: [
+      { key: "funder_name", label: "Funder", column: "funder_name" },
+      { key: "program", label: "Program", column: "program" },
+      { key: "region", label: "Region", column: "region" },
+      { key: "fiscal_year", label: "Fiscal Year", column: "fiscal_year" },
+      { key: "received_month", label: "Received Month", column: "received_date", truncate: "month" },
+    ],
+    metrics: [
+      { key: "grant_count", label: "Grants", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+      { key: "avg_amount", label: "Avg Amount", column: "amount", agg: "avg" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "revenue-other-streams",
+    label: "Finance — Other Revenue Streams",
+    table: "grants",
+    defaultDateColumn: "received_date",
+    // Same physical table as Grants - RevenueClient.tsx splits it by
+    // stream != 'grant' (in-kind, corporate sponsorship, etc.) rather
+    // than a separate table, so the report mirrors that.
+    scope: { type: "direct", officeColumn: "office_id" },
+    dimensions: [
+      { key: "stream", label: "Stream", column: "stream" },
+      { key: "funder_name", label: "Funder", column: "funder_name" },
+      { key: "region", label: "Region", column: "region" },
+      { key: "received_month", label: "Received Month", column: "received_date", truncate: "month" },
+    ],
+    metrics: [
+      { key: "entry_count", label: "Entries", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "grant-region-goals",
+    label: "Finance — Grant Region Goals",
+    table: "grant_region_goals",
+    defaultDateColumn: "fiscal_year",
+    scope: { type: "direct_region", regionColumn: "region" },
+    dimensions: [
+      { key: "region", label: "Region", column: "region" },
+      { key: "fiscal_year", label: "Fiscal Year", column: "fiscal_year" },
+    ],
+    metrics: [{ key: "total_goal", label: "Total Goal Amount", column: "goal_amount", agg: "sum" }],
+    allowedRoles: ["regional_director", "admin"],
+  },
+  {
+    slug: "fundraiser-donations",
+    label: "Fundraising — Donations",
+    table: "charitystack_donation_events",
+    defaultDateColumn: "event_timestamp",
+    scope: { type: "chain", hops: [{ table: "fundraisers", idColumn: "id", officeColumn: "office_id" }], finalRefColumn: "fundraiser_id" },
+    dimensions: [{ key: "event_month", label: "Month", column: "event_timestamp", truncate: "month" }],
+    metrics: [
+      { key: "donation_count", label: "Donations", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+      { key: "avg_amount", label: "Avg Donation", column: "amount", agg: "avg" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "donor-call-pledges",
+    label: "Fundraising — Donor Call Pledges",
+    table: "donor_call_outcomes",
+    defaultDateColumn: "called_at",
+    scope: { type: "chain", hops: [{ table: "employees", idColumn: "id", officeColumn: "assigned_office_id" }], finalRefColumn: "caller_employee_id" },
+    dimensions: [{ key: "called_month", label: "Month", column: "called_at", truncate: "month" }],
+    metrics: [
+      { key: "pledge_count", label: "Pledges", column: "id", agg: "count" },
+      { key: "total_pledged", label: "Total Pledged", column: "pledge_amount", agg: "sum" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "square-payments",
+    label: "Finance — Square Payments",
+    table: "square_payments",
+    defaultDateColumn: "square_created_at",
+    scope: { type: "direct", officeColumn: "office_id" },
+    fixedFilter: { column: "status", value: "COMPLETED" },
+    dimensions: [{ key: "payment_month", label: "Month", column: "square_created_at", truncate: "month" }],
+    metrics: [
+      { key: "payment_count", label: "Payments", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+    ],
+    allowedRoles: ["regional_director", "program_director", "admin"],
+  },
+  {
+    slug: "finance-approvals",
+    label: "Finance — Approval Requests",
+    table: "finance_approval_requests",
+    defaultDateColumn: "created_at",
+    // Approvals climb a management chain resolved live via Microsoft
+    // Graph (see lib/financeApproval.ts) rather than an office - the
+    // request itself carries no office_id, so this is org-wide/admin.
+    scope: { type: "none" },
+    dimensions: [
+      { key: "status", label: "Status", column: "status" },
+      { key: "final_tier_name", label: "Final Tier", column: "final_tier_name" },
+      { key: "created_month", label: "Month", column: "created_at", truncate: "month" },
+    ],
+    metrics: [
+      { key: "request_count", label: "Requests", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+    ],
+    allowedRoles: ["admin"],
   },
   {
     slug: "helpdesk",
