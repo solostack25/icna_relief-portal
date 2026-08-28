@@ -125,7 +125,13 @@ export async function runReport(
   if (mod.scope.type === "direct_region" && !access.isAdmin && access.assignedRegion) {
     query = query.eq(mod.scope.regionColumn, access.assignedRegion);
   }
-  if (mod.fixedFilter) query = query.eq(mod.fixedFilter.column, mod.fixedFilter.value);
+  if (mod.fixedFilter) {
+    if (mod.fixedFilter.operator === "not_null") {
+      query = query.not(mod.fixedFilter.column, "is", null);
+    } else {
+      query = query.eq(mod.fixedFilter.column, mod.fixedFilter.value);
+    }
+  }
   if (params.filters?.date_from) query = query.gte(mod.defaultDateColumn, params.filters.date_from);
   if (params.filters?.date_to) query = query.lte(mod.defaultDateColumn, params.filters.date_to);
 
@@ -187,8 +193,13 @@ export async function runReport(
     if (!lookup) continue;
     const ids = Array.from(new Set(resultRows.map((r) => r.dimensions[i]).filter((v): v is string => typeof v === "string" && v !== "—")));
     if (ids.length === 0) continue;
-    const { data: lookupRows } = await supabase.from(lookup.table).select(`id, ${lookup.labelColumn}`).in("id", ids);
-    const labelById = new Map(((lookupRows ?? []) as unknown as Record<string, unknown>[]).map((r) => [String(r.id), r[lookup.labelColumn]]));
+    const { data: lookupRows } = await supabase.from(lookup.table).select(["id", ...lookup.labelColumns].join(",")).in("id", ids);
+    const labelById = new Map(
+      ((lookupRows ?? []) as unknown as Record<string, unknown>[]).map((r) => [
+        String(r.id),
+        lookup.labelColumns.map((c) => r[c]).filter(Boolean).join(" "),
+      ])
+    );
     for (const row of resultRows) {
       const rawId = row.dimensions[i];
       if (typeof rawId === "string" && labelById.has(rawId)) row.dimensions[i] = labelById.get(rawId);

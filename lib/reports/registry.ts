@@ -21,8 +21,9 @@ export type ReportField = {
    *  it to a human label after aggregation with a separate lookup
    *  query, rather than a PostgREST embed - keeps the aggregator's
    *  flat row model simple while still showing "Bloodborne Pathogens"
-   *  instead of a UUID. */
-  lookup?: { table: string; labelColumn: string };
+   *  instead of a UUID. labelColumns joins multiple columns with a
+   *  space (e.g. ["first_name","last_name"] -> "Jane Doe"). */
+  lookup?: { table: string; labelColumns: string[] };
 };
 
 export type ColumnMetric = ReportField & {
@@ -73,10 +74,13 @@ export type ReportModule = {
   table: string;
   defaultDateColumn: string;
   scope: ReportScope;
-  /** Always-applied equality filter, e.g. { column: "stream", value: "grant" }
+  /** Always-applied filter, e.g. { column: "stream", value: "grant" }
    *  to split one shared table (grants) into distinct report modules
-   *  (Grants vs. Other Revenue Streams) without a second physical table. */
-  fixedFilter?: { column: string; value: string };
+   *  (Grants vs. Other Revenue Streams) without a second physical
+   *  table. operator "not_null" ignores value and filters the column
+   *  IS NOT NULL instead (e.g. handed_off_from_leg_id set = a leg
+   *  that received a handoff). */
+  fixedFilter?: { column: string; value: string; operator?: "eq" | "not_null" };
   dimensions: ReportField[];
   metrics: ReportMetric[];
   /** Which employee roles can even see this module in the builder. Admin always can. */
@@ -198,7 +202,7 @@ export const REPORT_MODULES: ReportModule[] = [
     // completing employee's own assigned_office_id.
     scope: { type: "chain", hops: [{ table: "employees", idColumn: "id", officeColumn: "assigned_office_id" }], finalRefColumn: "employee_id" },
     dimensions: [
-      { key: "course_id", label: "Course", column: "course_id", lookup: { table: "lms_courses", labelColumn: "title" } },
+      { key: "course_id", label: "Course", column: "course_id", lookup: { table: "lms_courses", labelColumns: ["title"] } },
       { key: "completed_month", label: "Completed Month", column: "completed_at", truncate: "month" },
     ],
     metrics: [{ key: "completion_count", label: "Completions", column: "id", agg: "count" }],
@@ -335,32 +339,77 @@ export const REPORT_MODULES: ReportModule[] = [
     allowedRoles: ["admin"],
   },
   {
-    slug: "helpdesk",
-    label: "IT Helpdesk",
+    slug: "helpdesk-requests",
+    label: "IT Helpdesk — Requests",
     table: "helpdesk_requests",
+    defaultDateColumn: "created_at",
+    // The overall request is department-agnostic by design (see
+    // helpdesk_schema_phase1.sql) - department/status detail lives on
+    // helpdesk_request_legs instead, see the "helpdesk-legs" module.
+    scope: { type: "none" },
+    dimensions: [
+      { key: "status", label: "Status", column: "overall_status" },
+      { key: "created_month", label: "Created Month", column: "created_at", truncate: "month" },
+    ],
+    metrics: [{ key: "request_count", label: "Requests", column: "id", agg: "count" }],
+    allowedRoles: ["admin"],
+  },
+  {
+    slug: "helpdesk-legs",
+    label: "IT Helpdesk — Department Legs",
+    table: "helpdesk_request_legs",
     defaultDateColumn: "created_at",
     scope: { type: "none" },
     dimensions: [
       { key: "department", label: "Department", column: "department" },
-      { key: "status", label: "Status", column: "overall_status" },
+      { key: "status", label: "Status", column: "status" },
       { key: "created_month", label: "Created Month", column: "created_at", truncate: "month" },
     ],
     metrics: [
-      { key: "ticket_count", label: "Tickets", column: "id", agg: "count" },
+      { key: "leg_count", label: "Legs", column: "id", agg: "count" },
+      // Duration metric naturally only counts legs that have closed
+      // (rows with a null closed_at are skipped) - this doubles as
+      // "average time to close" per department/status, a reasonable
+      // bottleneck signal without needing a self-join across legs.
+      { key: "avg_hours_open", label: "Avg Hours Open→Closed", agg: "duration_hours_avg", startColumn: "created_at", endColumn: "closed_at" },
+    ],
+    allowedRoles: ["admin"],
+  },
+  {
+    slug: "helpdesk-handoffs",
+    label: "IT Helpdesk — Handoffs Received",
+    table: "helpdesk_request_legs",
+    defaultDateColumn: "created_at",
+    // A leg with handed_off_from_leg_id set is one that was CREATED
+    // by a handoff from another department's leg - grouping these by
+    // department shows where handoffs land most, and the duration
+    // metric shows how long the receiving department then took.
+    scope: { type: "none" },
+    fixedFilter: { column: "handed_off_from_leg_id", value: "", operator: "not_null" },
+    dimensions: [
+      { key: "department", label: "Received By Department", column: "department" },
+      { key: "created_month", label: "Month", column: "created_at", truncate: "month" },
+    ],
+    metrics: [
+      { key: "handoff_count", label: "Handoffs Received", column: "id", agg: "count" },
+      { key: "avg_hours_to_close", label: "Avg Hours To Close After Handoff", agg: "duration_hours_avg", startColumn: "created_at", endColumn: "closed_at" },
     ],
     allowedRoles: ["admin"],
   },
   {
     slug: "helpdesk-leaderboard",
-    label: "IT Helpdesk Leaderboard",
-    table: "helpdesk_requests",
-    defaultDateColumn: "created_at",
+    label: "IT Helpdesk — Points Leaderboard",
+    table: "helpdesk_points_ledger",
+    defaultDateColumn: "awarded_at",
     scope: { type: "none" },
     dimensions: [
-      { key: "assigned_raw_name", label: "Assigned To", column: "assigned_raw_name" },
+      { key: "employee_id", label: "Employee", column: "employee_id", lookup: { table: "employees", labelColumns: ["first_name", "last_name"] } },
+      { key: "reason", label: "Reason", column: "reason" },
+      { key: "awarded_month", label: "Month", column: "awarded_at", truncate: "month" },
     ],
     metrics: [
-      { key: "resolved_count", label: "Resolved Tickets", column: "id", agg: "count" },
+      { key: "award_count", label: "Awards", column: "id", agg: "count" },
+      { key: "total_points", label: "Total Points", column: "points", agg: "sum" },
     ],
     allowedRoles: ["admin"],
   },
