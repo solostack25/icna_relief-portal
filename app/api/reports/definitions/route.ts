@@ -12,7 +12,7 @@ export async function GET() {
   // this to what the employee can see - no extra filtering needed here.
   const { data, error } = await supabase
     .from("report_definitions")
-    .select("id, module_slug, name, description, filters, dimensions, metrics, visibility, schedule, owner_id, updated_at")
+    .select("id, module_slug, name, description, filters, dimensions, metrics, column_labels, visibility, schedule, owner_id, updated_at")
     .order("updated_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       filters: body.filters ?? {},
       dimensions: body.dimensions ?? [],
       metrics: body.metrics ?? [],
+      column_labels: body.column_labels ?? {},
       visibility,
       shared_with_roles: body.shared_with_roles ?? [],
       schedule: body.schedule ?? null,

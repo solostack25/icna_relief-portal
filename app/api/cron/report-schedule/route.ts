@@ -32,7 +32,7 @@ async function runScheduledReports() {
 
   const { data: dueReports } = await admin
     .from("report_definitions")
-    .select("id, owner_id, module_slug, name, dimensions, metrics, filters, schedule, schedule_recipients")
+    .select("id, owner_id, module_slug, name, dimensions, metrics, filters, column_labels, schedule, schedule_recipients")
     .not("schedule", "is", null);
 
   const results: { report_id: string; name: string; status: string }[] = [];
@@ -81,7 +81,7 @@ async function runScheduledReports() {
     });
 
     if (resend) {
-      const csv = reportResultToCsv(result);
+      const csv = reportResultToCsv(result, report.column_labels ?? {});
       await resend.client.emails.send({
         from: resend.fromAddress,
         to: report.schedule_recipients,

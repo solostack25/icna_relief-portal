@@ -23,6 +23,8 @@ const pillButton = (active: boolean): React.CSSProperties => ({
 });
 
 type RunResult = {
+  dimension_keys: string[];
+  metric_keys: string[];
   dimension_labels: string[];
   metric_labels: string[];
   rows: { dimensions: unknown[]; metrics: (number | null)[] }[];
@@ -37,6 +39,7 @@ type SavedReport = {
   description: string | null;
   dimensions: string[];
   metrics: string[];
+  column_labels?: Record<string, string>;
   filters: { date_from?: string; date_to?: string; office_id?: string };
 };
 
@@ -51,6 +54,8 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [officeId, setOfficeId] = useState("");
+  const [columnLabels, setColumnLabels] = useState<Record<string, string>>({});
+  const [showColumnLabels, setShowColumnLabels] = useState(false);
 
   const [result, setResult] = useState<RunResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,6 +71,7 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
   useEffect(() => {
     setSelectedDims([]);
     setSelectedMetrics([]);
+    setColumnLabels({});
     setResult(null);
   }, [moduleSlug]);
 
@@ -84,6 +90,17 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
     return { date_from: dateFrom || undefined, date_to: dateTo || undefined, office_id: officeId || undefined };
   }
 
+  // Only send overrides for keys actually selected and actually
+  // edited, so an empty override never masks the real label.
+  function activeColumnLabels() {
+    const selected = new Set([...selectedDims, ...selectedMetrics]);
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(columnLabels)) {
+      if (selected.has(k) && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  }
+
   async function runReport() {
     if (!mod) return;
     setLoading(true);
@@ -92,7 +109,13 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
       const res = await fetch("/api/reports/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ module_slug: mod.slug, dimensions: selectedDims, metrics: selectedMetrics, filters: currentFilters() }),
+        body: JSON.stringify({
+          module_slug: mod.slug,
+          dimensions: selectedDims,
+          metrics: selectedMetrics,
+          filters: currentFilters(),
+          column_labels: activeColumnLabels(),
+        }),
       });
       const data = await res.json();
       setResult(data);
@@ -108,7 +131,13 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
       const res = await fetch("/api/reports/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ module_slug: mod.slug, dimensions: selectedDims, metrics: selectedMetrics, filters: currentFilters() }),
+        body: JSON.stringify({
+          module_slug: mod.slug,
+          dimensions: selectedDims,
+          metrics: selectedMetrics,
+          filters: currentFilters(),
+          column_labels: activeColumnLabels(),
+        }),
       });
       if (!res.ok) return;
       const blob = await res.blob();
@@ -136,6 +165,7 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
           dimensions: selectedDims,
           metrics: selectedMetrics,
           filters: currentFilters(),
+          column_labels: activeColumnLabels(),
           visibility: "private",
           schedule: schedule || null,
           schedule_recipients: recipients
@@ -164,8 +194,17 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
     setDateFrom(r.filters?.date_from ?? "");
     setDateTo(r.filters?.date_to ?? "");
     setOfficeId(r.filters?.office_id ?? "");
+    setColumnLabels(r.column_labels ?? {});
+    setShowColumnLabels(Object.keys(r.column_labels ?? {}).length > 0);
     setResult(null);
   }
+
+  const selectedFields = mod
+    ? [
+        ...mod.dimensions.filter((d) => selectedDims.includes(d.key)).map((d) => ({ key: d.key, label: d.label })),
+        ...mod.metrics.filter((m) => selectedMetrics.includes(m.key)).map((m) => ({ key: m.key, label: m.label })),
+      ]
+    : [];
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
@@ -242,6 +281,29 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
               )}
             </div>
 
+            {selectedFields.length > 0 && (
+              <div>
+                <button onClick={() => setShowColumnLabels((v) => !v)} style={pillButton(showColumnLabels)}>
+                  {showColumnLabels ? "Hide column renaming" : "+ Rename columns for a food bank / external format"}
+                </button>
+                {showColumnLabels && (
+                  <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                    {selectedFields.map((f) => (
+                      <div key={f.key} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", width: 180, flexShrink: 0 }}>{f.label}</div>
+                        <input
+                          placeholder={f.label}
+                          value={columnLabels[f.key] ?? ""}
+                          onChange={(e) => setColumnLabels((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                          style={{ ...inputStyle, flex: 1 }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <button
                 onClick={runReport}
@@ -276,19 +338,25 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
               </div>
 
               {showScheduleFields && (
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <select value={schedule} onChange={(e) => setSchedule(e.target.value as typeof schedule)} style={inputStyle}>
-                    <option value="">No recurring email</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly (Mondays)</option>
-                    <option value="monthly">Monthly (1st)</option>
-                  </select>
-                  <input
-                    placeholder="Recipient emails, comma separated"
-                    value={recipients}
-                    onChange={(e) => setRecipients(e.target.value)}
-                    style={{ ...inputStyle, flex: 1, minWidth: 240 }}
-                  />
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <select value={schedule} onChange={(e) => setSchedule(e.target.value as typeof schedule)} style={inputStyle}>
+                      <option value="">No recurring email</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly (Mondays)</option>
+                      <option value="monthly">Monthly (1st)</option>
+                    </select>
+                    <input
+                      placeholder="Recipient emails, comma separated"
+                      value={recipients}
+                      onChange={(e) => setRecipients(e.target.value)}
+                      style={{ ...inputStyle, flex: 1, minWidth: 240 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(22,48,43,0.5)" }}>
+                    Add your food bank&apos;s reporting email here alongside your own team&apos;s, so both get the same numbers
+                    automatically — no separate entry into their system.
+                  </div>
                 </div>
               )}
             </div>
@@ -306,13 +374,13 @@ export default function ReportsClient({ modules, offices }: { modules: ReportMod
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {result.dimension_labels.map((l) => (
-                      <th key={l} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1.5px solid rgba(22,48,43,0.1)" }}>
+                    {result.dimension_labels.map((l, i) => (
+                      <th key={`d-${i}`} style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1.5px solid rgba(22,48,43,0.1)" }}>
                         {l}
                       </th>
                     ))}
-                    {result.metric_labels.map((l) => (
-                      <th key={l} style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1.5px solid rgba(22,48,43,0.1)" }}>
+                    {result.metric_labels.map((l, i) => (
+                      <th key={`m-${i}`} style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1.5px solid rgba(22,48,43,0.1)" }}>
                         {l}
                       </th>
                     ))}

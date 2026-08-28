@@ -23,6 +23,8 @@ export type RunReportResult =
   | { error: string; status: number }
   | {
       module: ReportModule;
+      dimension_keys: string[];
+      metric_keys: string[];
       dimension_labels: string[];
       metric_labels: string[];
       rows: { dimensions: unknown[]; metrics: (number | null)[] }[];
@@ -76,7 +78,15 @@ export async function runReport(
     allowedOfficeIds = [params.filters.office_id];
   }
 
-  const empty = { module: mod, dimension_labels: dims.map((d) => d.label), metric_labels: mets.map((m) => m.label), rows: [], row_count: 0 };
+  const empty = {
+    module: mod,
+    dimension_keys: dims.map((d) => d.key),
+    metric_keys: mets.map((m) => m.key),
+    dimension_labels: dims.map((d) => d.label),
+    metric_labels: mets.map((m) => m.label),
+    rows: [],
+    row_count: 0,
+  };
 
   if (allowedOfficeIds !== "all" && allowedOfficeIds.length === 0 && mod.scope.type !== "none" && mod.scope.type !== "direct_region") {
     return empty;
@@ -208,6 +218,8 @@ export async function runReport(
 
   return {
     module: mod,
+    dimension_keys: dims.map((d) => d.key),
+    metric_keys: mets.map((m) => m.key),
     dimension_labels: dims.map((d) => d.label),
     metric_labels: mets.map((m) => m.label),
     rows: resultRows,
@@ -215,10 +227,33 @@ export async function runReport(
   };
 }
 
-export function reportResultToCsv(result: Extract<RunReportResult, { row_count: number }>): string {
-  const header = [...result.dimension_labels, ...result.metric_labels].map(csvEscape).join(",");
+export function reportResultToCsv(
+  result: Extract<RunReportResult, { row_count: number }>,
+  labelOverrides?: Record<string, string>
+): string {
+  const headerFor = (key: string, fallback: string) => labelOverrides?.[key]?.trim() || fallback;
+  const dimHeaders = result.dimension_keys.map((k, i) => headerFor(k, result.dimension_labels[i]));
+  const metHeaders = result.metric_keys.map((k, i) => headerFor(k, result.metric_labels[i]));
+  const header = [...dimHeaders, ...metHeaders].map(csvEscape).join(",");
   const lines = result.rows.map((r) => [...r.dimensions, ...r.metrics].map(csvEscape).join(","));
   return [header, ...lines].join("\n");
+}
+
+// Shared by the interactive preview and the CSV/email paths so the
+// on-screen table always shows exactly the headers that would end up
+// in an exported or emailed report - no surprises when an office
+// manager previews before scheduling to their food bank.
+export function applyLabelOverrides(
+  result: Extract<RunReportResult, { row_count: number }>,
+  labelOverrides?: Record<string, string>
+): Extract<RunReportResult, { row_count: number }> {
+  if (!labelOverrides || Object.keys(labelOverrides).length === 0) return result;
+  const headerFor = (key: string, fallback: string) => labelOverrides[key]?.trim() || fallback;
+  return {
+    ...result,
+    dimension_labels: result.dimension_keys.map((k, i) => headerFor(k, result.dimension_labels[i])),
+    metric_labels: result.metric_keys.map((k, i) => headerFor(k, result.metric_labels[i])),
+  };
 }
 
 function csvEscape(v: unknown): string {
