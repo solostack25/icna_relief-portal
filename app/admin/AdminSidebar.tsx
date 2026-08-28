@@ -157,6 +157,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       title: t("sidebar.section.overview"),
       items: [
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
+        { href: "/admin/reports", label: t("sidebar.nav.reports"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/grants", label: t("sidebar.nav.grants"), icon: "dashboard" },
