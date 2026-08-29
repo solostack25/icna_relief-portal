@@ -9,7 +9,7 @@
 // (snake_case) so the API route can insert the submitted detail
 // object directly without a translation layer.
 
-export type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "office" | "employee";
+export type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "office" | "employee" | "pex_card";
 
 export type TicketField = {
   key: string;
@@ -112,6 +112,7 @@ export const PEX_NEW_REQUEST_FIELDS: TicketField[] = [
 
 export const PEX_RECHARGE_REQUEST_FIELDS: TicketField[] = [
   { key: "billing_office_id", label: "Office", type: "office", required: true },
+  { key: "pex_card_id", label: "Card", type: "pex_card", required: true },
   { key: "amount_to_add", label: "Amount to be Added", type: "number", required: true },
   { key: "current_balance", label: "Current Balance", type: "number" },
   { key: "funds_purpose", label: "Purpose of the Funds", type: "textarea" },

@@ -31,10 +31,11 @@ const pillButton = (active: boolean): React.CSSProperties => ({
 
 type Office = { id: string; field_office: string };
 type Grant = { id: string; title: string; funder_name: string | null };
+type PexCard = { id: string; last4: string | null };
 
 // ---------- shared bits ----------
 
-function OneField({ field, value, onChange, offices }: { field: TicketField; value: unknown; onChange: (v: unknown) => void; offices: Office[] }) {
+function OneField({ field, value, onChange, offices, pexCards }: { field: TicketField; value: unknown; onChange: (v: unknown) => void; offices: Office[]; pexCards: PexCard[] }) {
   if (field.type === "checkbox") {
     return (
       <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
@@ -68,6 +69,16 @@ function OneField({ field, value, onChange, offices }: { field: TicketField; val
               {o.field_office}
             </option>
           ))}
+        </select>
+      ) : field.type === "pex_card" ? (
+        <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+          <option value="">Select your card…</option>
+          {pexCards.map((c) => (
+            <option key={c.id} value={c.id}>
+              •••• {c.last4}
+            </option>
+          ))}
+          {pexCards.length === 0 && <option disabled>No cards on file — contact Finance</option>}
         </select>
       ) : (
         <input
@@ -157,6 +168,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
   const [title, setTitle] = useState("");
   const [grantEligible, setGrantEligible] = useState(false);
   const [grants, setGrants] = useState<Grant[]>([]);
+  const [pexCards, setPexCards] = useState<PexCard[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -165,6 +177,10 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
     fetch("/api/finance-tickets/grants")
       .then((r) => r.json())
       .then((d) => setGrants(d.grants ?? []))
+      .catch(() => {});
+    fetch("/api/finance-tickets/pex-cards")
+      .then((r) => r.json())
+      .then((d) => setPexCards(d.cards ?? []))
       .catch(() => {});
   }, []);
 
@@ -285,7 +301,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
       {singleConfig && (
         <div style={{ display: "grid", gap: 12 }}>
           {singleConfig.fields.map((f) => (
-            <OneField key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} />
+            <OneField key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} pexCards={pexCards} />
           ))}
           {!singleConfig.totalField && (
             <div>
