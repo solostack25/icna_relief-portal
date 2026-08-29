@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CATEGORY_LABELS,
-  SINGLE_RECORD_CATEGORIES,
-  type TicketField,
-} from "@/lib/financeTicketForms";
+import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES } from "@/lib/financeTicketForms";
+import FinanceTicketFieldInput from "@/components/FinanceTicketFieldInput";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -32,65 +29,6 @@ const pillButton = (active: boolean): React.CSSProperties => ({
 type Office = { id: string; field_office: string };
 type Grant = { id: string; title: string; funder_name: string | null };
 type PexCard = { id: string; last4: string | null };
-
-// ---------- shared bits ----------
-
-function OneField({ field, value, onChange, offices, pexCards }: { field: TicketField; value: unknown; onChange: (v: unknown) => void; offices: Office[]; pexCards: PexCard[] }) {
-  if (field.type === "checkbox") {
-    return (
-      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-        {field.label}
-      </label>
-    );
-  }
-  return (
-    <div>
-      <div style={labelStyle}>
-        {field.label}
-        {field.required && " *"}
-      </div>
-      {field.type === "textarea" ? (
-        <textarea value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle} rows={3} />
-      ) : field.type === "select" ? (
-        <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
-          <option value="">Select…</option>
-          {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      ) : field.type === "office" ? (
-        <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
-          <option value="">Select office…</option>
-          {offices.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.field_office}
-            </option>
-          ))}
-        </select>
-      ) : field.type === "pex_card" ? (
-        <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
-          <option value="">Select your card…</option>
-          {pexCards.map((c) => (
-            <option key={c.id} value={c.id}>
-              •••• {c.last4}
-            </option>
-          ))}
-          {pexCards.length === 0 && <option disabled>No cards on file — contact Finance</option>}
-        </select>
-      ) : (
-        <input
-          type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(field.type === "number" ? Number(e.target.value) : e.target.value)}
-          style={inputStyle}
-        />
-      )}
-    </div>
-  );
-}
 
 // Grant/office allocation editor for one line item (a credit card
 // transaction or mileage trip) - both batch categories reuse this
@@ -301,7 +239,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
       {singleConfig && (
         <div style={{ display: "grid", gap: 12 }}>
           {singleConfig.fields.map((f) => (
-            <OneField key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} pexCards={pexCards} />
+            <FinanceTicketFieldInput key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} pexCards={pexCards} />
           ))}
           {!singleConfig.totalField && (
             <div>
