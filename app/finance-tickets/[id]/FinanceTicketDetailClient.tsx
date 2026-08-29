@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 import FinanceTicketFieldInput, { type FinanceOffice, type FinancePexCard, type FinanceGrant } from "@/components/FinanceTicketFieldInput";
+import { CreditCardBatchEditor, MileageBatchEditor, type GrantAllocation } from "@/components/FinanceBatchEditors";
 import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
 
 type Data = {
@@ -21,6 +22,8 @@ type Data = {
   detail: unknown;
   approvals: { approval_level: number; chain_person_name: string; approval_status: string; decision_date: string | null; comments: string | null }[];
 };
+
+type Row = Record<string, unknown>;
 
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 20, padding: 20, boxShadow: "0 3px 12px rgba(22,48,43,0.06)" };
 const pillButton = (active: boolean): React.CSSProperties => ({
@@ -44,6 +47,8 @@ const STATUS_COLOR: Record<string, string> = {
   duplicate: "#999",
 };
 
+const BATCH_CATEGORIES = new Set(["credit_card_reimbursement", "mileage_reimbursement"]);
+
 export default function FinanceTicketDetailClient({ id, offices }: { id: string; offices: FinanceOffice[] }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +58,12 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
   const [editedDetail, setEditedDetail] = useState<Record<string, unknown>>({});
   const [pexCards, setPexCards] = useState<FinancePexCard[]>([]);
   const [grants, setGrants] = useState<FinanceGrant[]>([]);
+
+  // Batch-category edit state (Credit Card / Mileage).
+  const [batchHeader, setBatchHeader] = useState<Row>({});
+  const [batchRows, setBatchRows] = useState<Row[]>([]);
+  const [batchAllocations, setBatchAllocations] = useState<GrantAllocation[][]>([]);
+  const [batchOfficeIds, setBatchOfficeIds] = useState<string[][]>([]);
 
   useEffect(() => {
     fetch("/api/finance-tickets/grants")
@@ -70,6 +81,15 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
     }
     setData(body);
     setEditedDetail((body.detail as Record<string, unknown>) ?? {});
+
+    if (BATCH_CATEGORIES.has(body.ticket.category) && body.detail) {
+      const header = body.ticket.category === "credit_card_reimbursement" ? body.detail.statement : body.detail.batch;
+      const rows: Row[] = body.ticket.category === "credit_card_reimbursement" ? body.detail.transactions ?? [] : body.detail.trips ?? [];
+      setBatchHeader(header ?? {});
+      setBatchRows(rows.length ? rows : [{}]);
+      setBatchAllocations(rows.length ? rows.map(() => []) : [[]]);
+      setBatchOfficeIds(rows.length ? rows.map(() => []) : [[]]);
+    }
   }
   useEffect(() => {
     load();
@@ -87,11 +107,22 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
 
   async function resubmit(withEdits: boolean) {
     setResubmitting(true);
+    setError(null);
     try {
+      let payload: Record<string, unknown> = {};
+      if (withEdits && data) {
+        if (data.ticket.category === "credit_card_reimbursement") {
+          payload = { statement: batchHeader, transactions: batchRows.map((r, i) => ({ ...r, grant_allocations: batchAllocations[i], office_ids: batchOfficeIds[i] })) };
+        } else if (data.ticket.category === "mileage_reimbursement") {
+          payload = { batch: batchHeader, trips: batchRows.map((r, i) => ({ ...r, grant_allocations: batchAllocations[i], office_ids: batchOfficeIds[i] })) };
+        } else {
+          payload = { detail: editedDetail };
+        }
+      }
       const res = await fetch(`/api/finance-tickets/${id}/resubmit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(withEdits ? { detail: editedDetail } : {}),
+        body: JSON.stringify(payload),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -110,7 +141,8 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
 
   const { ticket } = data;
   const editableConfig = SINGLE_RECORD_CATEGORIES[ticket.category];
-  const canEditInline = ticket.status === "fixing" && !!editableConfig;
+  const isBatchCategory = BATCH_CATEGORIES.has(ticket.category);
+  const canEditInline = ticket.status === "fixing" && (!!editableConfig || isBatchCategory);
 
   return (
     <>
@@ -156,6 +188,38 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
           </div>
         )}
 
+        {editing && ticket.category === "credit_card_reimbursement" && (
+          <CreditCardBatchEditor
+            statement={batchHeader}
+            setStatement={setBatchHeader}
+            transactions={batchRows}
+            setTransactions={setBatchRows}
+            allocations={batchAllocations}
+            setAllocations={setBatchAllocations}
+            officeIdsPerRow={batchOfficeIds}
+            setOfficeIdsPerRow={setBatchOfficeIds}
+            offices={offices}
+            grants={grants}
+            grantEligible={ticket.grant_eligible}
+          />
+        )}
+
+        {editing && ticket.category === "mileage_reimbursement" && (
+          <MileageBatchEditor
+            batch={batchHeader}
+            setBatch={setBatchHeader}
+            trips={batchRows}
+            setTrips={setBatchRows}
+            allocations={batchAllocations}
+            setAllocations={setBatchAllocations}
+            officeIdsPerRow={batchOfficeIds}
+            setOfficeIdsPerRow={setBatchOfficeIds}
+            offices={offices}
+            grants={grants}
+            grantEligible={ticket.grant_eligible}
+          />
+        )}
+
         {data.approvals.length > 0 && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Approval Progress</div>
@@ -175,7 +239,7 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
             <p style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginBottom: 12 }}>
               An approver requested changes — see their note above. Once you've addressed it, resubmit for approval; it
               picks back up at the same approval level rather than starting the chain over.
-              {!editableConfig && " This ticket type doesn't support inline editing here — contact Finance if something needs to change, otherwise resubmit as-is."}
+              {!canEditInline && " This ticket type doesn't support inline editing here — contact Finance if something needs to change, otherwise resubmit as-is."}
             </p>
             <div style={{ display: "flex", gap: 10 }}>
               {canEditInline && !editing && (
