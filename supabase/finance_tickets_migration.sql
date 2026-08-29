@@ -195,3 +195,16 @@ create policy "finance_ticket_log via ticket" on finance_ticket_log
   );
 
 create policy "finance_ticket_log admin full access" on finance_ticket_log for all using (is_admin());
+
+-- Follow-up fix: a requestor should be able to see their own
+-- ticket's approval chain (who's approved, who's pending), not just
+-- admins. Missed on the first pass - the only select policy was
+-- admin-only.
+create policy "finance_approvals own ticket read" on finance_approvals
+  for select using (
+    exists (
+      select 1 from finance_tickets t
+      where t.id = finance_approvals.finance_ticket_id
+      and t.requestor_id = (select id from employees where auth_user_id = auth.uid())
+    )
+  );

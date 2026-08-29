@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 
 type Data = {
   step: {
@@ -21,6 +22,7 @@ type Data = {
     employees: { first_name: string; last_name: string };
   };
   priorSteps: { approval_level: number; chain_person_name: string; approval_status: string; decision_date: string | null; comments: string | null }[];
+  detail: unknown;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -108,6 +110,10 @@ export default function FinanceTicketApprovalPage({ params }: { params: Promise<
                 <div>Submitted: {new Date(data.ticket.submitted_at).toLocaleDateString()}</div>
                 {data.step.revision_number > 1 && <div>Revision #{data.step.revision_number}</div>}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <FinanceTicketDetailView category={data.ticket.category} detail={data.detail} />
             </div>
 
             {data.priorSteps.length > 0 && (

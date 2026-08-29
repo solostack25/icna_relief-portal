@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
+
 type Ticket = {
   id: string;
   ticket_number: string;
@@ -12,16 +14,6 @@ type Ticket = {
   status: string;
   priority: string;
   submitted_at: string | null;
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  credit_card_reimbursement: "Credit Card Reimbursement",
-  honorarium: "Honorarium",
-  mileage_reimbursement: "Mileage Reimbursement",
-  pex_new_card_request: "PEX New Card Request",
-  pex_recharge_request: "PEX Recharge Request",
-  utility_payment: "Utility Payment",
-  vendor_payment: "Vendor Payment",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -75,10 +67,10 @@ export default function FinanceTicketsPage() {
 
       <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
         {tickets.map((t) => (
-          <div key={t.id} style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 3px 12px rgba(22,48,43,0.06)" }}>
+          <Link key={t.id} href={`/finance-tickets/${t.id}`} style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 3px 12px rgba(22,48,43,0.06)", display: "block" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "#16302B" }}>{t.title}</div>
                 <div style={{ fontSize: 12, color: "rgba(22,48,43,0.5)" }}>
                   {t.ticket_number} · {CATEGORY_LABELS[t.category] ?? t.category}
                 </div>
@@ -86,7 +78,7 @@ export default function FinanceTicketsPage() {
               <div style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[t.status] ?? "#666" }}>{t.status.replace("_", " ").toUpperCase()}</div>
             </div>
             <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginTop: 4 }}>${t.total.toLocaleString()}</div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
+import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 
 type Ticket = {
   id: string;
@@ -54,6 +55,9 @@ export default function FinanceTicketQueueClient() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [saving, setSaving] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedDetail, setExpandedDetail] = useState<{ detail: unknown; approvals?: { approval_level: number; chain_person_name: string; approval_status: string; comments: string | null }[] } | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   async function load() {
     const res = await fetch("/api/admin/finance-tickets");
@@ -63,6 +67,23 @@ export default function FinanceTicketQueueClient() {
   useEffect(() => {
     load();
   }, []);
+
+  async function toggleExpand(id: string) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setExpandedDetail(null);
+      return;
+    }
+    setExpandedId(id);
+    setLoadingDetail(true);
+    try {
+      const res = await fetch(`/api/admin/finance-tickets/${id}/detail`);
+      const data = await res.json();
+      setExpandedDetail(data);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   async function assignToMe(id: string) {
     setSaving(id);
@@ -127,6 +148,9 @@ export default function FinanceTicketQueueClient() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[t.status] ?? "#666" }}>{t.status.replace("_", " ").toUpperCase()}</span>
                 <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => toggleExpand(t.id)} style={pillButton}>
+                    {expandedId === t.id ? "Hide" : "Details"}
+                  </button>
                   {!t.technician_id && (
                     <button onClick={() => assignToMe(t.id)} disabled={saving === t.id} style={pillButton}>
                       Assign to me
@@ -142,6 +166,30 @@ export default function FinanceTicketQueueClient() {
                 </div>
               </div>
             </div>
+            {expandedId === t.id && (
+              <div style={{ borderTop: "1px solid rgba(22,48,43,0.08)", marginTop: 12, paddingTop: 12 }}>
+                {loadingDetail ? (
+                  <div style={{ fontSize: 13, color: "rgba(22,48,43,0.5)" }}>Loading…</div>
+                ) : (
+                  expandedDetail && (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <FinanceTicketDetailView category={t.category} detail={expandedDetail.detail} />
+                      {expandedDetail.approvals && (
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Approval Chain</div>
+                          {expandedDetail.approvals.map((a, i) => (
+                            <div key={i} style={{ fontSize: 12, color: "rgba(22,48,43,0.6)" }}>
+                              Level {a.approval_level} — {a.chain_person_name}: {a.approval_status}
+                              {a.comments ? ` ("${a.comments}")` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && <div style={{ fontSize: 14, color: "rgba(22,48,43,0.5)" }}>No tickets match this filter.</div>}
