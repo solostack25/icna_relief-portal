@@ -18,7 +18,7 @@
 // searchable employee lookup and free text depending on "Is POC an
 // ICNA Relief Member?").
 
-export type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "office" | "employee" | "pex_card" | "grant";
+export type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "office" | "employee" | "pex_card" | "grant" | "multitext";
 
 export type TicketField = {
   key: string;
@@ -39,6 +39,7 @@ export const HONORARIUM_FIELDS: TicketField[] = [
   { key: "is_icna_speaker_list", label: "Is the speaker part of ICNA Relief's speaker list?", type: "checkbox" },
   { key: "event_date", label: "Event Date", type: "date" },
   { key: "billing_office_id", label: "Billing Office", type: "office" },
+  { key: "billing_programs", label: "Billing Programs (comma separated)", type: "multitext" },
   { key: "grant_id", label: "Grant", type: "grant", dependsOn: { key: "grant_eligible", equals: true } },
   { key: "poc_is_icna_member", label: "Is POC an ICNA Relief Member?", type: "checkbox" },
   { key: "poc_user_id", label: "POC User", type: "employee", dependsOn: { key: "poc_is_icna_member", equals: true } },
@@ -74,6 +75,7 @@ export const UTILITY_FIELDS: TicketField[] = [
   },
   { key: "other_utility_name", label: "Name of Other Utility", type: "text", dependsOn: { key: "utility_type", equals: "other" } },
   { key: "billing_office_id", label: "Billing Office", type: "office" },
+  { key: "billing_programs", label: "Billing Programs (comma separated)", type: "multitext" },
   { key: "grant_id", label: "Grant", type: "grant", dependsOn: { key: "grant_eligible", equals: true } },
   { key: "expense_date", label: "Expense Date", type: "date" },
   { key: "poc_is_icna_member", label: "Is POC an ICNA Relief Member?", type: "checkbox" },
@@ -107,6 +109,7 @@ export const VENDOR_FIELDS: TicketField[] = [
   // confirmed no conditional Visible property on this control.
   { key: "other_vendor_name", label: "Name of Other Vendor", type: "text" },
   { key: "billing_office_id", label: "Billing Office", type: "office" },
+  { key: "billing_programs", label: "Billing Programs (comma separated)", type: "multitext" },
   { key: "grant_id", label: "Grant", type: "grant", dependsOn: { key: "grant_eligible", equals: true } },
   { key: "expense_date", label: "Expense Date", type: "date" },
   { key: "poc_is_icna_member", label: "Is POC an ICNA Relief Member?", type: "checkbox" },

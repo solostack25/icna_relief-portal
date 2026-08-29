@@ -156,6 +156,20 @@ export default function FinanceTicketFieldInput({
         </select>
       ) : field.type === "employee" ? (
         <EmployeeLookup value={value} onChange={onChange} />
+      ) : field.type === "multitext" ? (
+        <input
+          placeholder="e.g. Hunger Prevention, Transitional Housing"
+          value={Array.isArray(value) ? value.join(", ") : ((value as string) ?? "")}
+          onChange={(e) =>
+            onChange(
+              e.target.value
+                .split(",")
+                .map((v) => v.trim())
+                .filter(Boolean)
+            )
+          }
+          style={financeFieldInputStyle}
+        />
       ) : (
         <input
           type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
