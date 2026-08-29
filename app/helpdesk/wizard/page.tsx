@@ -20,7 +20,6 @@ export default function HelpdeskWizardPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
   const [submittedBy, setSubmittedBy] = useState("");
   const [submittedByEmail, setSubmittedByEmail] = useState("");
 
@@ -49,7 +48,6 @@ export default function HelpdeskWizardPage() {
     setIntent(i);
     setTitle(i.titleTemplate);
     setDescription("");
-    setAmount("");
     setStep("urgency");
   }
 
@@ -70,13 +68,6 @@ export default function HelpdeskWizardPage() {
       setError("Title is required.");
       return;
     }
-    const parsedAmount = amount.trim() ? Number(amount) : null;
-    if (intent.department === "finance") {
-      if (!amount.trim() || parsedAmount === null || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Amount is required for finance requests.");
-        return;
-      }
-    }
     setSaving(true);
     setError(null);
     try {
@@ -90,26 +81,7 @@ export default function HelpdeskWizardPage() {
         priority,
       });
 
-      let approvalError = false;
-      if (intent.department === "finance" && parsedAmount !== null) {
-        const res = await fetch("/api/finance-approval/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId, amount: parsedAmount }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          // The ticket itself was created successfully - don't block on
-          // this, but flag it on the ticket page rather than silently
-          // losing it, since a finance request with no approval chain
-          // running is exactly the kind of thing that needs a human to
-          // notice.
-          console.error("Finance approval chain failed to start:", body.error);
-          approvalError = true;
-        }
-      }
-
-      router.push(`/helpdesk/${requestId}${approvalError ? "?approvalError=1" : ""}`);
+      router.push(`/helpdesk/${requestId}`);
     } catch (err: any) {
       setError(err.message ?? "Something went wrong. Please try again.");
       setSaving(false);
@@ -152,6 +124,15 @@ export default function HelpdeskWizardPage() {
                   <div className="text-xs text-[var(--color-text-dim)] mt-0.5">{g.blurb}</div>
                 </button>
               ))}
+              <Link
+                href="/finance-tickets/new"
+                className="block text-left rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 hover:border-[var(--color-accent)]"
+              >
+                <div className="text-sm font-medium">Finance</div>
+                <div className="text-xs text-[var(--color-text-dim)] mt-0.5">
+                  Reimbursements, payments, PEX card — opens Finance Tickets
+                </div>
+              </Link>
             </div>
             <Link
               href="/helpdesk/new"
@@ -271,29 +252,6 @@ export default function HelpdeskWizardPage() {
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
               />
             </div>
-
-            {intent.department === "finance" && (
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Amount</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-dim)]">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] pl-7 pr-3 py-2 text-sm"
-                  />
-                </div>
-                <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                  Routes to the right approver(s) automatically based on this amount.
-                </p>
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

@@ -47,7 +47,6 @@ export default function NewRequestPage() {
     priority: "normal" as Priority,
     submitted_by: "",
     submitted_by_email: "",
-    amount: "",
   });
 
   useEffect(() => {
@@ -81,13 +80,6 @@ export default function NewRequestPage() {
       setError("Title is required.");
       return;
     }
-    const parsedAmount = form.amount.trim() ? Number(form.amount) : null;
-    if (form.department === "finance") {
-      if (!form.amount.trim() || parsedAmount === null || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-        setError("Amount is required for finance requests.");
-        return;
-      }
-    }
     setSaving(true);
     setError(null);
     try {
@@ -101,21 +93,7 @@ export default function NewRequestPage() {
         priority: form.priority,
       });
 
-      let approvalError = false;
-      if (form.department === "finance" && parsedAmount !== null) {
-        const res = await fetch("/api/finance-approval/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId, amount: parsedAmount }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          console.error("Finance approval chain failed to start:", body.error);
-          approvalError = true;
-        }
-      }
-
-      router.push(`/helpdesk/${requestId}${approvalError ? "?approvalError=1" : ""}`);
+      router.push(`/helpdesk/${requestId}`);
     } catch (err: any) {
       setError(err.message ?? "Something went wrong. Please try again.");
       setSaving(false);
@@ -146,21 +124,33 @@ export default function NewRequestPage() {
           <div>
             <label className="block text-sm font-medium mb-1.5">Department</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(Object.keys(DEPARTMENT_LABELS) as Department[]).map((d) => (
-                <button
-                  type="button"
-                  key={d}
-                  onClick={() => handleDepartmentChange(d)}
-                  className={`text-sm py-2 rounded-lg border cursor-pointer ${
-                    form.department === d
-                      ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
-                      : "border-[var(--color-border)] text-[var(--color-text-dim)]"
-                  }`}
-                >
-                  {DEPARTMENT_LABELS[d]}
-                </button>
-              ))}
+              {(Object.keys(DEPARTMENT_LABELS) as Department[])
+                .filter((d) => d !== "finance")
+                .map((d) => (
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => handleDepartmentChange(d)}
+                    className={`text-sm py-2 rounded-lg border cursor-pointer ${
+                      form.department === d
+                        ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                        : "border-[var(--color-border)] text-[var(--color-text-dim)]"
+                    }`}
+                  >
+                    {DEPARTMENT_LABELS[d]}
+                  </button>
+                ))}
+              <Link
+                href="/finance-tickets/new"
+                className="text-sm py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-dim)] text-center hover:border-[var(--color-accent)]"
+              >
+                Finance →
+              </Link>
             </div>
+            <p className="text-xs text-[var(--color-text-dim)] mt-1.5">
+              Finance requests (reimbursements, payments, PEX card) now go through Finance Tickets, which routes
+              automatically by amount.
+            </p>
           </div>
 
           <div>
@@ -183,29 +173,6 @@ export default function NewRequestPage() {
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
             />
           </div>
-
-          {form.department === "finance" && (
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-dim)]">
-                  $
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] pl-7 pr-3 py-2 text-sm"
-                />
-              </div>
-              <p className="text-xs text-[var(--color-text-dim)] mt-1">
-                Routes to the right approver(s) automatically based on this amount.
-              </p>
-            </div>
-          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

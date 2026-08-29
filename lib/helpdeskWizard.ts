@@ -194,54 +194,16 @@ export const WIZARD_GROUPS: WizardGroup[] = [
       },
     ],
   },
-  {
-    id: "finance",
-    label: "Finance",
-    blurb: "Reimbursements, payments, PEX card",
-    intents: [
-      {
-        id: "fin-reimbursement",
-        label: "I need to be reimbursed for something I paid for",
-        department: "finance",
-        category: "Reimbursement",
-        titleTemplate: "Reimbursement request",
-        descriptionPrompt: "What did you pay for, how much, and when? Attach your receipt after submitting.",
-      },
-      {
-        id: "fin-check",
-        label: "I need a check issued",
-        department: "finance",
-        category: "Check Request",
-        titleTemplate: "Check request",
-        descriptionPrompt: "Who should the check go to, for how much, and why?",
-      },
-      {
-        id: "fin-pex",
-        label: "I have a question about my PEX card",
-        department: "finance",
-        category: "PEX Card",
-        titleTemplate: "PEX card question",
-        descriptionPrompt: "What's the question or issue with your PEX card?",
-      },
-      {
-        id: "fin-vendor",
-        label: "We need to pay a vendor",
-        department: "finance",
-        category: "Vendor Payment",
-        titleTemplate: "Vendor payment request",
-        descriptionPrompt: "Which vendor, how much, and what's it for?",
-      },
-      {
-        id: "fin-other",
-        label: "Something else finance-related",
-        department: "finance",
-        category: "Other",
-        titleTemplate: "Finance request",
-        descriptionPrompt: "What do you need help with?",
-      },
-    ],
-  },
+  // Finance was removed as a wizard group - finance requests (Credit
+  // Card, Honorarium, Mileage, PEX, Utility, Vendor) now go through
+  // the dedicated Finance Tickets system (/finance-tickets/new),
+  // which has real per-category fields and $-threshold approval
+  // routing, rather than this generic wizard's flat title/description/
+  // amount shape and (now-retired) finance_approval_* chain. See the
+  // group-selection step in app/helpdesk/wizard/page.tsx for the
+  // link-out shown in its place.
 ];
+
 
 export const URGENCY_OPTIONS: { label: string; sublabel: string; priority: Priority }[] = [
   { label: "No rush", sublabel: "Whenever you get a chance", priority: "low" },
