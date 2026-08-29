@@ -192,6 +192,13 @@ export default async function AdminConnectorsPage() {
           <ZakatFinanceAccessManager />
         </div>
       </ConnectorSection>
+
+      <ConnectorSection
+        title="Finance Tickets — CEO Routing"
+        description="Where a Finance Ticket's approval goes when the requestor is C-suite and the amount is over the COO self-approval threshold ($10,000). Left blank, those tickets go on hold and notify Finance for manual routing instead of guessing who the CEO is."
+      >
+        <ConnectorKeyField settingKey="finance_ceo_email" label="CEO Email" placeholder="ceo@icnarelief.org" />
+      </ConnectorSection>
     </div>
   );
 }

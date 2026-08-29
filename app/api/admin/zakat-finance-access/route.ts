@@ -16,8 +16,8 @@ export async function GET() {
   const result = await requireAdmin(supabase);
   if ("error" in result) return result.error;
 
-  const { data } = await supabase.from("employees").select("id, full_name, email").eq("is_zakat_finance", true).order("full_name");
-  return NextResponse.json({ approvers: data ?? [] });
+  const { data } = await supabase.from("employees").select("id, first_name, last_name, email").eq("is_zakat_finance", true).order("first_name");
+  return NextResponse.json({ approvers: (data ?? []).map((e) => ({ id: e.id, email: e.email, full_name: `${e.first_name} ${e.last_name}` })) });
 }
 
 // body: { email: string, is_zakat_finance: boolean } - only grants

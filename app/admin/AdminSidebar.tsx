@@ -175,7 +175,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: t("sidebar.section.finance"),
       items: [
-        access.canManageFinance && { href: "/admin/finance", label: t("sidebar.nav.financeApprovals"), icon: "finance" },
+        { href: "/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" },
         access.canZakatFinance && { href: "/admin/zakat-finance", label: t("sidebar.nav.zakatFinance"), icon: "finance" },
       ].filter(Boolean) as NavItem[],
     },
