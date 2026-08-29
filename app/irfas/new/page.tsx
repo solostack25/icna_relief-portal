@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import TicketConfirmationCard from "@/components/TicketConfirmationCard";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -20,7 +20,6 @@ const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, marginB
 const SUGGESTED_CATEGORIES = ["Rent Assistance", "Utility Assistance", "Medical Assistance", "Food Assistance", "Emergency Assistance", "Other"];
 
 export default function NewIrfasApplicationPage() {
-  const router = useRouter();
   const [form, setForm] = useState({
     applicant_name: "",
     applicant_phone: "",
@@ -34,7 +33,7 @@ export default function NewIrfasApplicationPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ id: string; application_number: string } | null>(null);
 
   async function submit() {
     setSubmitting(true);
@@ -51,7 +50,7 @@ export default function NewIrfasApplicationPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
-      setDone(true);
+      setDone(data.application);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -62,15 +61,16 @@ export default function NewIrfasApplicationPage() {
   if (done) {
     return (
       <div className="max-w-xl mx-auto p-6">
-        <div style={{ background: "#fff", borderRadius: 24, padding: 24, boxShadow: "0 3px 12px rgba(22,48,43,0.06)" }}>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Application submitted</div>
-          <p style={{ fontSize: 14, color: "rgba(22,48,43,0.6)", marginBottom: 16 }}>
-            Every configured approver has been emailed a review link. You&apos;ll see the status update once they&apos;ve all decided.
-          </p>
-          <button onClick={() => router.push("/irfas")} style={{ fontSize: 13, fontWeight: 600, color: "#8A5FB5" }}>
-            View my applications →
-          </button>
-        </div>
+        <TicketConfirmationCard
+          systemLabel="IRFAS Application"
+          ticketNumber={done.application_number}
+          title={form.applicant_name}
+          note="Every configured approver has been emailed a review link. You'll see the status update once they've all decided."
+          shortcuts={[
+            { label: "View All My Applications", href: "/irfas", primary: true },
+            { label: "Submit Another Application", href: "/irfas/new" },
+          ]}
+        />
       </div>
     );
   }

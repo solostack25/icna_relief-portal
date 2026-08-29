@@ -5,6 +5,7 @@ import Link from "next/link";
 
 type Application = {
   id: string;
+  application_number: string;
   applicant_name: string;
   category: string;
   amount_requested: number;
@@ -66,6 +67,7 @@ export default function IrfasApplicationsPage() {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{a.applicant_name}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: statusColor[a.status] ?? "#666" }}>{a.status.toUpperCase()}</div>
             </div>
+            <div style={{ fontSize: 12, color: "rgba(22,48,43,0.4)", fontFamily: "monospace" }}>{a.application_number}</div>
             <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginTop: 4 }}>
               {a.category} · ${a.amount_requested.toLocaleString()}
               {a.amount_approved != null ? ` (approved: $${a.amount_approved.toLocaleString()})` : ""}

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
 import FinanceTicketFieldInput from "@/components/FinanceTicketFieldInput";
 import { CreditCardBatchEditor, MileageBatchEditor, type GrantAllocation } from "@/components/FinanceBatchEditors";
+import TicketConfirmationCard from "@/components/TicketConfirmationCard";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -34,7 +34,6 @@ type PexCard = { id: string; last4: string | null };
 // ---------- main component ----------
 
 export default function NewFinanceTicketClient({ offices }: { offices: Office[] }) {
-  const router = useRouter();
   const [category, setCategory] = useState<keyof typeof CATEGORY_LABELS>("honorarium");
   const [title, setTitle] = useState("");
   const [grantEligible, setGrantEligible] = useState(false);
@@ -42,7 +41,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
   const [pexCards, setPexCards] = useState<PexCard[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ id: string; ticket_number: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/finance-tickets/grants")
@@ -124,7 +123,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
-      setDone(true);
+      setDone(data.ticket);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -134,15 +133,17 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
 
   if (done) {
     return (
-      <div style={cardStyle}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Ticket submitted</div>
-        <p style={{ fontSize: 14, color: "rgba(22,48,43,0.6)", marginBottom: 16 }}>
-          It's been routed for approval automatically based on the amount and your reporting chain.
-        </p>
-        <button onClick={() => router.push("/finance-tickets")} style={{ fontSize: 13, fontWeight: 600, color: "#8A5FB5" }}>
-          View my tickets →
-        </button>
-      </div>
+      <TicketConfirmationCard
+        systemLabel="Finance Ticket"
+        ticketNumber={done.ticket_number}
+        title={title}
+        note="It's been routed for approval automatically based on the amount and your reporting chain."
+        shortcuts={[
+          { label: "View This Ticket", href: `/finance-tickets/${done.id}`, primary: true },
+          { label: "Submit Another Ticket", href: "/finance-tickets/new" },
+          { label: "View All My Tickets", href: "/finance-tickets" },
+        ]}
+      />
     );
   }
 

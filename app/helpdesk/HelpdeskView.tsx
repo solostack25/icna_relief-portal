@@ -76,7 +76,7 @@ export async function HelpdeskView({
   if (mode === "submit") {
     const { data: myRequests } = await supabase
       .from("helpdesk_requests")
-      .select("id, title, overall_status, created_at")
+      .select("id, ticket_number, title, overall_status, created_at")
       .eq("submitted_by_email", me.email)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -183,7 +183,10 @@ export async function HelpdeskView({
                   href={`/helpdesk/${r.id}`}
                   className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
                 >
-                  <span className="text-sm font-medium truncate">{r.title}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium truncate">{r.title}</span>
+                    <span className="block text-xs text-[var(--color-text-dim)] font-mono">{r.ticket_number}</span>
+                  </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
                       r.overall_status === "closed"

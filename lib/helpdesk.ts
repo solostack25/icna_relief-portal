@@ -199,7 +199,7 @@ export async function createRequestWithFirstLeg(
     category: string | null;
     priority: Priority;
   }
-): Promise<{ requestId: string; legId: string }> {
+): Promise<{ requestId: string; legId: string; ticketNumber: string }> {
   const { data: request, error: requestError } = await supabase
     .from("helpdesk_requests")
     .insert({
@@ -208,7 +208,7 @@ export async function createRequestWithFirstLeg(
       submitted_by: params.submitted_by,
       submitted_by_email: params.submitted_by_email,
     })
-    .select("id")
+    .select("id, ticket_number")
     .single();
 
   if (requestError || !request) {
@@ -231,7 +231,7 @@ export async function createRequestWithFirstLeg(
     throw new Error(legError?.message ?? "Failed to create leg");
   }
 
-  return { requestId: request.id, legId: leg.id };
+  return { requestId: request.id, legId: leg.id, ticketNumber: request.ticket_number };
 }
 
 // Hands a leg off to another department: closes the current leg

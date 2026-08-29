@@ -401,6 +401,7 @@ export default async function HelpdeskRequestPage({
         </div>
 
         <h1 className="text-xl font-semibold mb-1">{request.title}</h1>
+        <p className="text-xs text-[var(--color-text-dim)] font-mono mb-1">{request.ticket_number}</p>
         <p className="text-sm text-[var(--color-text-dim)] mb-6">
           Submitted by {request.submitted_by} ({request.submitted_by_email}) ·{" "}
           {new Date(request.created_at).toLocaleDateString()}

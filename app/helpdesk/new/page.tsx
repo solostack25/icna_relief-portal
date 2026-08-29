@@ -93,7 +93,7 @@ export default function NewRequestPage() {
         priority: form.priority,
       });
 
-      router.push(`/helpdesk/${requestId}`);
+      router.push(`/helpdesk/confirmation/${requestId}`);
     } catch (err: any) {
       setError(err.message ?? "Something went wrong. Please try again.");
       setSaving(false);
