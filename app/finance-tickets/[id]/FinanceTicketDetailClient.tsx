@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
-import FinanceTicketFieldInput, { type FinanceOffice, type FinancePexCard } from "@/components/FinanceTicketFieldInput";
-import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES } from "@/lib/financeTicketForms";
+import FinanceTicketFieldInput, { type FinanceOffice, type FinancePexCard, type FinanceGrant } from "@/components/FinanceTicketFieldInput";
+import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
 
 type Data = {
   ticket: {
@@ -52,6 +52,14 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
   const [editing, setEditing] = useState(false);
   const [editedDetail, setEditedDetail] = useState<Record<string, unknown>>({});
   const [pexCards, setPexCards] = useState<FinancePexCard[]>([]);
+  const [grants, setGrants] = useState<FinanceGrant[]>([]);
+
+  useEffect(() => {
+    fetch("/api/finance-tickets/grants")
+      .then((r) => r.json())
+      .then((d) => setGrants(d.grants ?? []))
+      .catch(() => {});
+  }, []);
 
   async function load() {
     const res = await fetch(`/api/finance-tickets/${id}`);
@@ -132,16 +140,19 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
         {editing && editableConfig && (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>Edit Before Resubmitting</div>
-            {editableConfig.fields.map((f) => (
-              <FinanceTicketFieldInput
-                key={f.key}
-                field={f}
-                value={editedDetail[f.key]}
-                onChange={(v) => setEditedDetail((d) => ({ ...d, [f.key]: v }))}
-                offices={offices}
-                pexCards={pexCards}
-              />
-            ))}
+            {editableConfig.fields
+              .filter((f) => isFieldVisible(f, { ...editedDetail, grant_eligible: ticket.grant_eligible }))
+              .map((f) => (
+                <FinanceTicketFieldInput
+                  key={f.key}
+                  field={f}
+                  value={editedDetail[f.key]}
+                  onChange={(v) => setEditedDetail((d) => ({ ...d, [f.key]: v }))}
+                  offices={offices}
+                  pexCards={pexCards}
+                  grants={grants}
+                />
+              ))}
           </div>
         )}
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES } from "@/lib/financeTicketForms";
+import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
 import FinanceTicketFieldInput from "@/components/FinanceTicketFieldInput";
 
 const inputStyle: React.CSSProperties = {
@@ -238,9 +238,11 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
 
       {singleConfig && (
         <div style={{ display: "grid", gap: 12 }}>
-          {singleConfig.fields.map((f) => (
-            <FinanceTicketFieldInput key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} pexCards={pexCards} />
-          ))}
+          {singleConfig.fields
+            .filter((f) => isFieldVisible(f, { ...detail, grant_eligible: grantEligible }))
+            .map((f) => (
+              <FinanceTicketFieldInput key={f.key} field={f} value={detail[f.key]} onChange={(v) => setDetail((d) => ({ ...d, [f.key]: v }))} offices={offices} pexCards={pexCards} grants={grants} />
+            ))}
           {!singleConfig.totalField && (
             <div>
               <div style={labelStyle}>Total Amount</div>
@@ -260,6 +262,16 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
             <input type="date" value={(ccStatement.start_date as string) ?? ""} onChange={(e) => setCcStatement((s) => ({ ...s, start_date: e.target.value }))} style={inputStyle} />
             <input type="date" value={(ccStatement.end_date as string) ?? ""} onChange={(e) => setCcStatement((s) => ({ ...s, end_date: e.target.value }))} style={inputStyle} />
           </div>
+          {grantEligible && (
+            <select value={(ccStatement.grant_id as string) ?? ""} onChange={(e) => setCcStatement((s) => ({ ...s, grant_id: e.target.value }))} style={inputStyle}>
+              <option value="">Default grant for this statement (optional)…</option>
+              {grants.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
+            </select>
+          )}
 
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 8 }}>Transactions</div>
           {ccTransactions.map((t, i) => (
@@ -321,6 +333,16 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
           <div style={{ display: "flex", gap: 10 }}>
             <input type="number" step="0.01" placeholder="Rate per mile" value={(mileageBatch.rate_per_mile as number) ?? ""} onChange={(e) => setMileageBatch((s) => ({ ...s, rate_per_mile: Number(e.target.value) }))} style={inputStyle} />
           </div>
+          {grantEligible && (
+            <select value={(mileageBatch.grant_id as string) ?? ""} onChange={(e) => setMileageBatch((s) => ({ ...s, grant_id: e.target.value }))} style={inputStyle}>
+              <option value="">Default grant for these trips (optional)…</option>
+              {grants.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
+            </select>
+          )}
 
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 8 }}>Trips</div>
           {mileageTrips.map((t, i) => (
