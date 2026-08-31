@@ -64,7 +64,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeRailPanel, setActiveRailPanel] = useState<null | "elements" | "photos">(null);
+  const [activeRailPanel, setActiveRailPanel] = useState<null | "elements" | "photos" | "edit">(null);
   const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
   const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
@@ -127,6 +127,11 @@ export default function BuilderClient({ template }: { template: any }) {
     setPanelTab("style");
     setEffectsDrawer(null);
     setStyleDrawer(null);
+    // The "Edit image" left panel only makes sense while an image is
+    // selected - close it automatically if selection changes away from
+    // one (including deselecting entirely) rather than leaving an empty
+    // panel open.
+    setActiveRailPanel((p) => (p === "edit" && (!selected || selected.type !== "image") ? null : p));
   }, [selectedId]);
 
   function addElement(el: FlierElement) {
@@ -263,6 +268,20 @@ export default function BuilderClient({ template }: { template: any }) {
   // category instead of each being its own top-level rail button. Doesn't
   // close the panel/drawer after adding one, since Canva keeps it open so
   // you can drop several shapes or icons onto the canvas in a row.
+  // Shared between the right panel's Effects tab (unchanged, existing entry
+  // point) and the new left-docked "Edit image" panel opened from the
+  // floating toolbar's Edit button - same CategoryButtons triggering the
+  // same effectsDrawer state either way, so there's exactly one set of
+  // Drawers rendered once in the tree regardless of which trigger opened it.
+  const imageEditCategories = selected && selected.type === "image" && (
+    <div className="space-y-2">
+      <CategoryButton label="Shape" onClick={() => setEffectsDrawer("shape")} />
+      <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
+      <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
+      <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+    </div>
+  );
+
   const elementsPanelContent = (
     <div className="space-y-5">
       <div>
@@ -498,6 +517,16 @@ export default function BuilderClient({ template }: { template: any }) {
                     </div>
                     {elementsPanelContent}
                   </>
+                ) : activeRailPanel === "edit" ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold">Edit image</h3>
+                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                        ✕
+                      </button>
+                    </div>
+                    {imageEditCategories}
+                  </>
                 ) : (
                   <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
                 )}
@@ -528,6 +557,7 @@ export default function BuilderClient({ template }: { template: any }) {
                   onDelete={deleteSelected}
                   onAlign={align}
                   onReorder={reorder}
+                  onEdit={() => setActiveRailPanel("edit")}
                 />
               )}
             />
@@ -783,12 +813,7 @@ export default function BuilderClient({ template }: { template: any }) {
 
                   {panelTab === "effects" && selected.type === "image" && (
                     <>
-                      <div className="space-y-2">
-                        <CategoryButton label="Shape" onClick={() => setEffectsDrawer("shape")} />
-                        <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
-                        <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
-                        <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
-                      </div>
+                      {imageEditCategories}
 
                       <Drawer title="Shape" open={effectsDrawer === "shape"} onClose={() => setEffectsDrawer(null)}>
                         <div className="flex gap-1.5">
@@ -958,7 +983,7 @@ export default function BuilderClient({ template }: { template: any }) {
             <div className="lg:hidden sticky bottom-0 z-30 -mx-4 sm:-mx-10">
               {selected && (
                 <div className="flex justify-center py-2">
-                  <FloatingToolbar el={selected} onDuplicate={duplicateSelected} onDelete={deleteSelected} onAlign={align} onReorder={reorder} />
+                  <FloatingToolbar el={selected} onDuplicate={duplicateSelected} onDelete={deleteSelected} onAlign={align} onReorder={reorder} onEdit={() => setActiveRailPanel("edit")} />
                 </div>
               )}
               <div
@@ -998,6 +1023,16 @@ export default function BuilderClient({ template }: { template: any }) {
                   </button>
                 </div>
                 {elementsPanelContent}
+              </>
+            ) : activeRailPanel === "edit" ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold">Edit image</h3>
+                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {imageEditCategories}
               </>
             ) : (
               <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
@@ -1041,12 +1076,14 @@ function FloatingToolbar({
   onDelete,
   onAlign,
   onReorder,
+  onEdit,
 }: {
   el: FlierElement;
   onDuplicate: () => void;
   onDelete: () => void;
   onAlign: (pos: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") => void;
   onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
+  onEdit: () => void;
 }) {
   const [open, setOpen] = useState<"align" | "layer" | null>(null);
 
@@ -1057,6 +1094,14 @@ function FloatingToolbar({
         style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
         onMouseLeave={() => setOpen(null)}
       >
+        {el.type === "image" && (
+          <>
+            <DarkIconBtn onClick={onEdit} title="Edit image">
+              <Icon.Effects />
+            </DarkIconBtn>
+            <div className="w-px h-5 mx-0.5" style={{ background: "rgba(255,255,255,0.15)" }} />
+          </>
+        )}
         <DarkIconBtn onClick={onDuplicate} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></DarkIconBtn>
         <DarkIconBtn onClick={onDelete} title="Delete"><Icon.Delete /></DarkIconBtn>
         <div className="w-px h-5 mx-0.5" style={{ background: "rgba(255,255,255,0.15)" }} />
