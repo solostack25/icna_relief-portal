@@ -205,11 +205,63 @@ export default function BuilderClient({ template }: { template: any }) {
     setSelectedId(copy.id);
   }
 
+  const [smartResize, setSmartResize] = useState(false);
+  const [resizing, setResizing] = useState(false);
+
   function resizeTo(newWidth: number, newHeight: number) {
     const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
     setCanvasWidth(newWidth);
     setCanvasHeight(newHeight);
     commit(resized);
+  }
+
+  // AI-repositioned alternative to the plain resizeTo above - see
+  // /api/marketing/smart-resize for why this exists as a separate path
+  // rather than replacing the plain one. Falls back to the plain resize
+  // for any element the model didn't return usable coordinates for (or
+  // if the whole request fails), so a bad/partial AI response never
+  // leaves elements missing or off-canvas.
+  async function smartResizeTo(newWidth: number, newHeight: number) {
+    setResizing(true);
+    try {
+      const simplified = elements.map((el) => ({
+        id: el.id,
+        type: el.type,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        ...(el.type === "text" ? { text: el.text.slice(0, 80) } : {}),
+      }));
+      const res = await fetch("/api/marketing/smart-resize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elements: simplified, oldWidth: canvasWidth, oldHeight: canvasHeight, newWidth, newHeight }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+
+      const layoutById = new Map<string, { x: number; y: number; width: number; height: number }>(
+        body.layout.map((l: any) => [l.id, l])
+      );
+      // Elements the model skipped still get the plain scale/letterbox
+      // treatment rather than being left at their old (now out-of-canvas)
+      // position - computed against the same old/new dimensions either way.
+      const fallback = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
+      const merged = elements.map((el, i) => {
+        const l = layoutById.get(el.id);
+        return l ? ({ ...el, x: l.x, y: l.y, width: l.width, height: l.height } as FlierElement) : fallback[i];
+      });
+
+      setCanvasWidth(newWidth);
+      setCanvasHeight(newHeight);
+      commit(merged);
+    } catch (e: any) {
+      alert(`Smart resize failed, using regular resize instead: ${e.message}`);
+      resizeTo(newWidth, newHeight);
+    } finally {
+      setResizing(false);
+    }
   }
 
   function reorder(dir: "front" | "back" | "forward" | "backward") {
@@ -655,16 +707,20 @@ export default function BuilderClient({ template }: { template: any }) {
           <select
             onChange={(e) => {
               const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
-              if (preset) resizeTo(preset.width, preset.height);
+              if (preset) {
+                if (smartResize) smartResizeTo(preset.width, preset.height);
+                else resizeTo(preset.width, preset.height);
+              }
               e.target.value = "";
             }}
-            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5"
+            disabled={resizing}
+            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5 disabled:opacity-60"
             style={{ color: "#fff", background: "var(--portal-amber, #E2892F)" }}
             defaultValue=""
             title="Rescale the current design to fit a different platform size"
           >
             <option value="" disabled>
-              Resize to…
+              {resizing ? "Resizing…" : "Resize to…"}
             </option>
             {presetGroups.map((group) => (
               <optgroup key={group} label={group}>
@@ -678,6 +734,14 @@ export default function BuilderClient({ template }: { template: any }) {
               </optgroup>
             ))}
           </select>
+          <label
+            className="flex items-center gap-1.5 text-xs font-bold rounded-full px-3 py-2 cursor-pointer"
+            style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)", color: smartResize ? "var(--portal-emerald)" : "#7A9186" }}
+            title="When on, resizing repositions elements to fit the new shape instead of just scaling with empty margins"
+          >
+            <input type="checkbox" checked={smartResize} onChange={(e) => setSmartResize(e.target.checked)} className="cursor-pointer" />
+            ✨ AI resize
+          </label>
           <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
             <span className="text-xs font-bold" style={{ color: "#7A9186" }}>
               Background
