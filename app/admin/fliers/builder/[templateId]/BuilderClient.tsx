@@ -358,28 +358,16 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
       )}
 
-      <div className="flex items-start gap-2 mb-3 flex-wrap">
+      {/* Only global, non-selection-dependent controls live in the persistent
+          bar now. Everything that only makes sense once something is selected
+          (duplicate/delete/align/layer order) moved to the floating toolbar
+          that appears directly above the selected element - see renderToolbar
+          below. Static always-on rows of disabled icon buttons is the "Paint"
+          tell we're moving away from. */}
+      <div className="flex items-center justify-between mb-3">
         <LabeledGroup label="Undo / Redo">
           <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
           <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Copy / Delete">
-          <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
-          <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Align">
-          <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
-          <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
-          <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
-          <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
-          <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
-          <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Layer Order">
-          <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
-          <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
-          <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
-          <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
         </LabeledGroup>
         <LabeledGroup label="Zoom">
           <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
@@ -421,6 +409,15 @@ export default function BuilderClient({ template }: { template: any }) {
               onChange={setElements}
               onCommit={commit}
               scale={zoom}
+              renderToolbar={(el) => (
+                <FloatingToolbar
+                  el={el}
+                  onDuplicate={duplicateSelected}
+                  onDelete={deleteSelected}
+                  onAlign={align}
+                  onReorder={reorder}
+                />
+              )}
             />
           </div>
         </div>
@@ -828,6 +825,96 @@ function toggleStyle(current: string, kind: "bold" | "italic"): string {
   if (nextBold) return "bold";
   if (nextItalic) return "italic";
   return "normal";
+}
+
+// The floating contextual toolbar - positioned by FlierCanvas, content owned
+// here. Kept to a single compact pill (Canva's floating toolbar is narrow)
+// with Align and Layer order tucked behind small popovers rather than the
+// old approach of spelling every option out inline.
+function FloatingToolbar({
+  el,
+  onDuplicate,
+  onDelete,
+  onAlign,
+  onReorder,
+}: {
+  el: FlierElement;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onAlign: (pos: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") => void;
+  onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
+}) {
+  const [open, setOpen] = useState<"align" | "layer" | null>(null);
+
+  return (
+    <div className="relative">
+      <div
+        className="flex items-center gap-0.5 rounded-full px-1.5 py-1.5"
+        style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        onMouseLeave={() => setOpen(null)}
+      >
+        <DarkIconBtn onClick={onDuplicate} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></DarkIconBtn>
+        <DarkIconBtn onClick={onDelete} title="Delete"><Icon.Delete /></DarkIconBtn>
+        <div className="w-px h-5 mx-0.5" style={{ background: "rgba(255,255,255,0.15)" }} />
+        <DarkIconBtn onClick={() => setOpen(open === "align" ? null : "align")} title="Align" active={open === "align"}>
+          <Icon.AlignCenterH />
+        </DarkIconBtn>
+        <DarkIconBtn onClick={() => setOpen(open === "layer" ? null : "layer")} title="Layer order" active={open === "layer"}>
+          <Icon.BringFront />
+        </DarkIconBtn>
+      </div>
+
+      {open === "align" && (
+        <div
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full px-1.5 py-1.5 z-10"
+          style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        >
+          <DarkIconBtn onClick={() => onAlign("left")} title="Align left"><Icon.AlignLeft /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("hcenter")} title="Align center"><Icon.AlignCenterH /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("right")} title="Align right"><Icon.AlignRight /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("top")} title="Align top"><Icon.AlignTop /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("vcenter")} title="Align middle"><Icon.AlignCenterV /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("bottom")} title="Align bottom"><Icon.AlignBottom /></DarkIconBtn>
+        </div>
+      )}
+      {open === "layer" && (
+        <div
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full px-1.5 py-1.5 z-10"
+          style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        >
+          <DarkIconBtn onClick={() => onReorder("front")} title="Bring to front"><Icon.BringFront /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("forward")} title="Bring forward"><Icon.BringForward /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("backward")} title="Send backward"><Icon.SendBackward /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("back")} title="Send to back"><Icon.SendBack /></DarkIconBtn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DarkIconBtn({
+  children,
+  onClick,
+  title,
+  active,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors duration-100"
+      style={{ color: "#fff", background: active ? "rgba(255,255,255,0.18)" : "transparent" }}
+      onMouseEnter={(e) => !active && (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+      onMouseLeave={(e) => !active && (e.currentTarget.style.background = "transparent")}
+    >
+      <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
+    </button>
+  );
 }
 
 function PillGroup({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Group, Transformer, Star, RegularPolygon, Arrow, Path } from "react-konva";
 import Konva from "konva";
 import type { FlierElement, FlierImageElement } from "@/lib/flierElements";
@@ -137,6 +137,14 @@ function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img:
   );
 }
 
+// Toolbar floats ~14px above the selection's bounding box, in the same
+// scaled screen-pixel space as the inline text-edit overlay below. Clamped
+// to stay within the stage horizontally so it doesn't clip off-canvas for
+// elements near the left/right edge, and flips below the element if there's
+// no room above (element pinned to the top of the canvas).
+const TOOLBAR_GAP = 14;
+const TOOLBAR_HEIGHT = 44;
+
 export default function FlierCanvas({
   width,
   height,
@@ -148,6 +156,7 @@ export default function FlierCanvas({
   onChange,
   onCommit,
   scale = 1,
+  renderToolbar,
 }: {
   width: number;
   height: number;
@@ -159,6 +168,11 @@ export default function FlierCanvas({
   onChange?: (elements: FlierElement[]) => void;
   onCommit?: (elements: FlierElement[]) => void;
   scale?: number;
+  // Render-prop so BuilderClient owns the buttons/content (duplicate,
+  // delete, align, reorder) while FlierCanvas only owns positioning -
+  // it's the one place that actually knows the selected node's on-screen
+  // bounding box across drag/transform/scale.
+  renderToolbar?: (el: FlierElement) => ReactNode;
 }) {
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -166,6 +180,31 @@ export default function FlierCanvas({
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [toolbarBox, setToolbarBox] = useState<{ left: number; top: number; width: number; flip: boolean } | null>(null);
+
+  const recomputeToolbarBox = () => {
+    if (mode !== "builder" || !selectedId) {
+      setToolbarBox(null);
+      return;
+    }
+    const node = shapeRefs.current[selectedId];
+    if (!node) {
+      setToolbarBox(null);
+      return;
+    }
+    // getClientRect is already in stage pixels post-transform (rotation,
+    // scale from resize handles); multiplying by our own `scale` maps
+    // that into the screen space the Stage itself is rendered at.
+    const rect = node.getClientRect({ relativeTo: stageRef.current });
+    const top = rect.y * scale;
+    const flip = top - TOOLBAR_GAP - TOOLBAR_HEIGHT < 0;
+    setToolbarBox({
+      left: rect.x * scale + (rect.width * scale) / 2,
+      top: flip ? (rect.y + rect.height) * scale + TOOLBAR_GAP : top - TOOLBAR_GAP,
+      width: rect.width * scale,
+      flip,
+    });
+  };
 
   useEffect(() => {
     if (mode !== "builder" || !trRef.current) return;
@@ -176,7 +215,21 @@ export default function FlierCanvas({
     } else {
       trRef.current.nodes([]);
     }
-  }, [selectedId, mode, elements.length]);
+    recomputeToolbarBox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, mode, elements.length, scale]);
+
+  // Keep the toolbar glued to the node through drag and resize/rotate -
+  // Konva's Transformer fires these directly on the node it's attached to.
+  useEffect(() => {
+    if (mode !== "builder" || !selectedId) return;
+    const node = shapeRefs.current[selectedId];
+    if (!node) return;
+    const handler = () => recomputeToolbarBox();
+    node.on("dragmove.toolbar transform.toolbar dragend.toolbar transformend.toolbar", handler);
+    return () => node.off(".toolbar");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, mode]);
 
   function updateElement(id: string, patch: Partial<FlierElement>, commit = true) {
     const next = elements.map((el) => (el.id === id ? ({ ...el, ...patch } as FlierElement) : el)) as FlierElement[];
@@ -453,6 +506,21 @@ export default function FlierCanvas({
           )}
         </Layer>
       </Stage>
+
+      {mode === "builder" && toolbarBox && selectedId && renderToolbar && !editingId && (
+        <div
+          style={{
+            position: "absolute",
+            left: toolbarBox.left,
+            top: toolbarBox.top,
+            transform: `translate(-50%, ${toolbarBox.flip ? "0" : "-100%"})`,
+            zIndex: 20,
+            pointerEvents: "auto",
+          }}
+        >
+          {renderToolbar(elements.find((e) => e.id === selectedId)!)}
+        </div>
+      )}
 
       {editingEl && (
         <textarea
