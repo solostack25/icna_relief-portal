@@ -259,7 +259,7 @@ export default function BuilderClient({ template }: { template: any }) {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const hasEffectsTab = !!selected && selected.type !== "line";
+  const hasEffectsTab = !!selected && selected.type !== "line" && selected.type !== "image";
 
   // Shared between the desktop docked panel, the mobile bottom sheet, and
   // (railButtons only) the mobile sticky bar - defined once at component
@@ -280,6 +280,130 @@ export default function BuilderClient({ template }: { template: any }) {
       <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
       <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
     </div>
+  );
+
+  // Per-category content for the left "Edit image" panel - no Drawer/modal
+  // involved. Requires selected.type === "image", so only meaningful while
+  // effectsDrawer is non-null and an image is selected (guaranteed by the
+  // rendering site below); guarded here too so TypeScript's narrowing on
+  // `selected` holds within each block.
+  const imageEditContent: Record<"shape" | "crop" | "filter" | "border", { title: string; body: React.ReactNode }> | null =
+    selected && selected.type === "image"
+      ? {
+          shape: {
+            title: "Shape",
+            body: (
+              <>
+                <div className="flex gap-1.5">
+                  {(["rect", "rounded", "circle"] as const).map((m) => (
+                    <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
+                      {m}
+                    </SegBtn>
+                  ))}
+                </div>
+                {selected.maskShape === "rounded" && (
+                  <SliderRow
+                    label="Radius"
+                    min={0}
+                    max={Math.min(selected.width, selected.height) / 2}
+                    step={1}
+                    value={selected.maskCornerRadius}
+                    onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
+                    onCommit={(v) => updateSelected({ maskCornerRadius: v })}
+                  />
+                )}
+              </>
+            ),
+          },
+          crop: {
+            title: "Crop & position",
+            body: (
+              <>
+                <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
+                <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
+                <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
+              </>
+            ),
+          },
+          filter: {
+            title: "Filter",
+            body: (
+              <>
+                <div className="flex gap-1.5 mb-1 flex-wrap">
+                  {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
+                    <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
+                      {f}
+                    </SegBtn>
+                  ))}
+                </div>
+                {selected.filter === "duotone" && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
+                      Shadow / Light
+                    </span>
+                    <input
+                      type="color"
+                      value={selected.duotoneShadow}
+                      onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
+                      className="w-6 h-6 rounded-full cursor-pointer"
+                    />
+                    <input
+                      type="color"
+                      value={selected.duotoneHighlight}
+                      onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
+                      className="w-6 h-6 rounded-full cursor-pointer"
+                    />
+                  </div>
+                )}
+                <Section title="Adjust" nested>
+                  <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
+                  <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                  <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
+                  <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
+                  <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+                </Section>
+              </>
+            ),
+          },
+          border: {
+            title: "Border & shadow",
+            body: <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />,
+          },
+        }
+      : null;
+
+  // The left "Edit image" panel itself - category list, or (once
+  // effectsDrawer is set) that category's controls with a back button.
+  // Rendered inline in whichever shell the caller wraps it in (desktop
+  // docked panel or mobile bottom sheet) - no separate modal/Drawer
+  // involved, so there's exactly one panel state to reason about instead
+  // of a panel plus an overlay stacked on top of it.
+  const editImagePanel = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        {effectsDrawer && imageEditContent ? (
+          <button onClick={() => setEffectsDrawer(null)} className="flex items-center gap-1.5 text-sm font-bold cursor-pointer" style={{ color: "#2F4A3E" }}>
+            <span style={{ width: 13, height: 13, transform: "rotate(90deg)" }}>
+              <Icon.Chevron />
+            </span>
+            {imageEditContent[effectsDrawer].title}
+          </button>
+        ) : (
+          <h3 className="text-sm font-bold">Edit image</h3>
+        )}
+        <button
+          onClick={() => {
+            setActiveRailPanel(null);
+            setEffectsDrawer(null);
+          }}
+          className="text-sm cursor-pointer"
+          style={{ color: DIM }}
+        >
+          ✕
+        </button>
+      </div>
+      {effectsDrawer && imageEditContent ? imageEditContent[effectsDrawer].body : imageEditCategories}
+    </>
   );
 
   const elementsPanelContent = (
@@ -518,15 +642,7 @@ export default function BuilderClient({ template }: { template: any }) {
                     {elementsPanelContent}
                   </>
                 ) : activeRailPanel === "edit" ? (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-bold">Edit image</h3>
-                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                        ✕
-                      </button>
-                    </div>
-                    {imageEditCategories}
-                  </>
+                  editImagePanel
                 ) : (
                   <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
                 )}
@@ -811,84 +927,6 @@ export default function BuilderClient({ template }: { template: any }) {
                     </>
                   )}
 
-                  {panelTab === "effects" && selected.type === "image" && (
-                    <>
-                      {imageEditCategories}
-
-                      <Drawer title="Shape" open={effectsDrawer === "shape"} onClose={() => setEffectsDrawer(null)}>
-                        <div className="flex gap-1.5">
-                          {(["rect", "rounded", "circle"] as const).map((m) => (
-                            <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
-                              {m}
-                            </SegBtn>
-                          ))}
-                        </div>
-                        {selected.maskShape === "rounded" && (
-                          <SliderRow
-                            label="Radius"
-                            min={0}
-                            max={Math.min(selected.width, selected.height) / 2}
-                            step={1}
-                            value={selected.maskCornerRadius}
-                            onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
-                            onCommit={(v) => updateSelected({ maskCornerRadius: v })}
-                          />
-                        )}
-                      </Drawer>
-
-                      <Drawer title="Crop & position" open={effectsDrawer === "crop"} onClose={() => setEffectsDrawer(null)}>
-                        <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
-                        <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
-                        <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
-                      </Drawer>
-
-                      <Drawer title="Filter" open={effectsDrawer === "filter"} onClose={() => setEffectsDrawer(null)}>
-                        <div className="flex gap-1.5 mb-1 flex-wrap">
-                          {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
-                            <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
-                              {f}
-                            </SegBtn>
-                          ))}
-                        </div>
-                        {selected.filter === "duotone" && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
-                              Shadow / Light
-                            </span>
-                            <input
-                              type="color"
-                              value={selected.duotoneShadow}
-                              onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
-                              className="w-6 h-6 rounded-full cursor-pointer"
-                            />
-                            <input
-                              type="color"
-                              value={selected.duotoneHighlight}
-                              onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
-                              className="w-6 h-6 rounded-full cursor-pointer"
-                            />
-                          </div>
-                        )}
-
-                        {/* Fine-tune sliders stay one level deeper via the existing
-                            accordion, inside this drawer - these are the least-used
-                            controls for a typical flyer edit (pick a preset and move
-                            on), so a second tap is fine for the rare hand-tune. */}
-                        <Section title="Adjust" nested>
-                          <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
-                          <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
-                          <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
-                          <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
-                          <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
-                        </Section>
-                      </Drawer>
-
-                      <Drawer title="Border & shadow" open={effectsDrawer === "border"} onClose={() => setEffectsDrawer(null)}>
-                        <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />
-                      </Drawer>
-                    </>
-                  )}
-
                   {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
                     <>
                       <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
@@ -1025,15 +1063,7 @@ export default function BuilderClient({ template }: { template: any }) {
                 {elementsPanelContent}
               </>
             ) : activeRailPanel === "edit" ? (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold">Edit image</h3>
-                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                    ✕
-                  </button>
-                </div>
-                {imageEditCategories}
-              </>
+              editImagePanel
             ) : (
               <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
             )}
