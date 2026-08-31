@@ -136,6 +136,7 @@ export default function BuilderClient({ template }: { template: any }) {
     setPanelTab("style");
     setEffectsDrawer(null);
     setStyleDrawer(null);
+    setRemoveBgError(null);
     // The "Edit image" left panel only makes sense while an image is
     // selected - close it automatically if selection changes away from
     // one (including deselecting entirely) rather than leaving an empty
@@ -209,6 +210,8 @@ export default function BuilderClient({ template }: { template: any }) {
   const [smartResize, setSmartResize] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [brandCheckOpen, setBrandCheckOpen] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [removeBgError, setRemoveBgError] = useState<string | null>(null);
 
   function resizeTo(newWidth: number, newHeight: number) {
     const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
@@ -366,8 +369,38 @@ export default function BuilderClient({ template }: { template: any }) {
   // floating toolbar's Edit button - same CategoryButtons triggering the
   // same effectsDrawer state either way, so there's exactly one set of
   // Drawers rendered once in the tree regardless of which trigger opened it.
+  async function runRemoveBackground() {
+    if (!selected || selected.type !== "image" || !selected.imageUrl) return;
+    setRemovingBg(true);
+    setRemoveBgError(null);
+    try {
+      const res = await fetch("/api/marketing/remove-background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selected.imageUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      updateSelected({ imageUrl: body.dataUri, dropboxPath: null } as any);
+    } catch (e: any) {
+      setRemoveBgError(e.message);
+    } finally {
+      setRemovingBg(false);
+    }
+  }
+
   const imageEditCategories = selected && selected.type === "image" && (
     <div className="space-y-2">
+      <button
+        onClick={runRemoveBackground}
+        disabled={removingBg || !selected.imageUrl}
+        className="w-full flex items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-bold cursor-pointer text-white disabled:opacity-50"
+        style={{ background: "#8A5FB5" }}
+        title={!selected.imageUrl ? "Choose a photo first" : undefined}
+      >
+        ✨ {removingBg ? "Removing background…" : "Remove background"}
+      </button>
+      {removeBgError && <p className="text-xs text-red-600">{removeBgError}</p>}
       <CategoryButton label="Shape" onClick={() => setEffectsDrawer("shape")} />
       <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
       <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
