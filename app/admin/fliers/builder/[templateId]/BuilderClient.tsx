@@ -67,6 +67,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [shapesDrawerOpen, setShapesDrawerOpen] = useState(false);
   const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
+  const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +127,7 @@ export default function BuilderClient({ template }: { template: any }) {
   useEffect(() => {
     setPanelTab("style");
     setEffectsDrawer(null);
+    setStyleDrawer(null);
   }, [selectedId]);
 
   function addElement(el: FlierElement) {
@@ -458,52 +460,62 @@ export default function BuilderClient({ template }: { template: any }) {
                             className="w-full rounded-lg px-2.5 py-2 text-sm"
                             style={{ border: "1px solid var(--portal-line)" }}
                           />
-                          <select
-                            value={selected.fontFamily}
-                            onChange={(e) => updateSelected({ fontFamily: e.target.value })}
-                            className="w-full rounded-lg px-2.5 py-2 text-sm"
-                            style={{ border: "1px solid var(--portal-line)" }}
-                          >
-                            {BRAND_FONTS.map((f) => (
-                              <option key={f} value={f}>
-                                {f}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              value={selected.fontSize}
-                              onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
-                              className="w-1/2 rounded-lg px-2.5 py-2 text-sm"
-                              style={{ border: "1px solid var(--portal-line)" }}
-                            />
-                            <div className="flex flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--portal-line)" }}>
-                              <ToggleIconBtn
-                                active={selected.fontStyle.includes("bold")}
-                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "bold") as any })}
-                                icon={<Icon.Bold />}
-                              />
-                              <ToggleIconBtn
-                                active={selected.fontStyle.includes("italic")}
-                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "italic") as any })}
-                                icon={<Icon.Italic />}
-                              />
-                              <ToggleIconBtn active={selected.align === "left"} onClick={() => updateSelected({ align: "left" })} icon={<Icon.AlignLeft />} />
-                              <ToggleIconBtn active={selected.align === "center"} onClick={() => updateSelected({ align: "center" })} icon={<Icon.AlignCenterH />} />
-                              <ToggleIconBtn active={selected.align === "right"} onClick={() => updateSelected({ align: "right" })} icon={<Icon.AlignRight />} />
-                            </div>
+                          <div className="space-y-2 mt-2">
+                            <CategoryButton label="Font" onClick={() => setStyleDrawer("font")} />
+                            <CategoryButton label="Color & spacing" onClick={() => setStyleDrawer("color")} />
                           </div>
-                          <SliderRow
-                            label="Letter sp."
-                            min={-2}
-                            max={20}
-                            step={1}
-                            value={selected.letterSpacing}
-                            onChange={(v) => updateSelected({ letterSpacing: v }, false)}
-                            onCommit={(v) => updateSelected({ letterSpacing: v })}
-                          />
-                          <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+
+                          <Drawer title="Font" open={styleDrawer === "font"} onClose={() => setStyleDrawer(null)}>
+                            <select
+                              value={selected.fontFamily}
+                              onChange={(e) => updateSelected({ fontFamily: e.target.value })}
+                              className="w-full rounded-lg px-2.5 py-2 text-sm mb-2"
+                              style={{ border: "1px solid var(--portal-line)" }}
+                            >
+                              {BRAND_FONTS.map((f) => (
+                                <option key={f} value={f}>
+                                  {f}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={selected.fontSize}
+                                onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
+                                className="w-1/2 rounded-lg px-2.5 py-2 text-sm"
+                                style={{ border: "1px solid var(--portal-line)" }}
+                              />
+                              <div className="flex flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--portal-line)" }}>
+                                <ToggleIconBtn
+                                  active={selected.fontStyle.includes("bold")}
+                                  onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "bold") as any })}
+                                  icon={<Icon.Bold />}
+                                />
+                                <ToggleIconBtn
+                                  active={selected.fontStyle.includes("italic")}
+                                  onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "italic") as any })}
+                                  icon={<Icon.Italic />}
+                                />
+                                <ToggleIconBtn active={selected.align === "left"} onClick={() => updateSelected({ align: "left" })} icon={<Icon.AlignLeft />} />
+                                <ToggleIconBtn active={selected.align === "center"} onClick={() => updateSelected({ align: "center" })} icon={<Icon.AlignCenterH />} />
+                                <ToggleIconBtn active={selected.align === "right"} onClick={() => updateSelected({ align: "right" })} icon={<Icon.AlignRight />} />
+                              </div>
+                            </div>
+                          </Drawer>
+
+                          <Drawer title="Color & spacing" open={styleDrawer === "color"} onClose={() => setStyleDrawer(null)}>
+                            <SliderRow
+                              label="Letter sp."
+                              min={-2}
+                              max={20}
+                              step={1}
+                              value={selected.letterSpacing}
+                              onChange={(v) => updateSelected({ letterSpacing: v }, false)}
+                              onCommit={(v) => updateSelected({ letterSpacing: v })}
+                            />
+                            <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                          </Drawer>
                         </>
                       )}
 
@@ -520,47 +532,109 @@ export default function BuilderClient({ template }: { template: any }) {
                         </button>
                       )}
 
-                      {(selected.type === "rect" || selected.type === "circle" || selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
-                        <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
+                      {selected.type === "circle" && (
+                        <div>
+                          <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                          <div className="pt-2">
+                            <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selected.gradient.enabled}
+                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
+                              />
+                              Gradient fill
+                            </label>
+                            {selected.gradient.enabled && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={selected.gradient.from}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
+                                  className="w-6 h-6 rounded-full cursor-pointer"
+                                />
+                                <input
+                                  type="color"
+                                  value={selected.gradient.to}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
+                                  className="w-6 h-6 rounded-full cursor-pointer"
+                                />
+                                <select
+                                  value={selected.gradient.direction}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
+                                  className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+                                  style={{ border: "1px solid var(--portal-line)" }}
+                                >
+                                  <option value="horizontal">Horizontal</option>
+                                  <option value="vertical">Vertical</option>
+                                  <option value="diagonal">Diagonal</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
 
-                      {(selected.type === "rect" || selected.type === "circle") && (
-                        <div className="pt-1">
-                          <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selected.gradient.enabled}
-                              onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
-                            />
-                            Gradient fill
-                          </label>
-                          {selected.gradient.enabled && (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="color"
-                                value={selected.gradient.from}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
-                                className="w-6 h-6 rounded-full cursor-pointer"
-                              />
-                              <input
-                                type="color"
-                                value={selected.gradient.to}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
-                                className="w-6 h-6 rounded-full cursor-pointer"
-                              />
-                              <select
-                                value={selected.gradient.direction}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
-                                className="flex-1 rounded-lg px-2 py-1.5 text-xs"
-                                style={{ border: "1px solid var(--portal-line)" }}
-                              >
-                                <option value="horizontal">Horizontal</option>
-                                <option value="vertical">Vertical</option>
-                                <option value="diagonal">Diagonal</option>
-                              </select>
+                      {selected.type === "rect" && (
+                        <div className="space-y-2">
+                          <CategoryButton label="Fill" onClick={() => setStyleDrawer("fill")} />
+                          <CategoryButton label="Shape" onClick={() => setStyleDrawer("rectShape")} />
+
+                          <Drawer title="Fill" open={styleDrawer === "fill"} onClose={() => setStyleDrawer(null)}>
+                            <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                            <div className="pt-2">
+                              <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selected.gradient.enabled}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
+                                />
+                                Gradient fill
+                              </label>
+                              {selected.gradient.enabled && (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={selected.gradient.from}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
+                                    className="w-6 h-6 rounded-full cursor-pointer"
+                                  />
+                                  <input
+                                    type="color"
+                                    value={selected.gradient.to}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
+                                    className="w-6 h-6 rounded-full cursor-pointer"
+                                  />
+                                  <select
+                                    value={selected.gradient.direction}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
+                                    className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+                                    style={{ border: "1px solid var(--portal-line)" }}
+                                  >
+                                    <option value="horizontal">Horizontal</option>
+                                    <option value="vertical">Vertical</option>
+                                    <option value="diagonal">Diagonal</option>
+                                  </select>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </Drawer>
+
+                          <Drawer title="Shape" open={styleDrawer === "rectShape"} onClose={() => setStyleDrawer(null)}>
+                            <SliderRow
+                              label="Corners"
+                              min={0}
+                              max={Math.min(selected.width, selected.height) / 2}
+                              step={1}
+                              value={selected.cornerRadius}
+                              onChange={(v) => updateSelected({ cornerRadius: v }, false)}
+                              onCommit={(v) => updateSelected({ cornerRadius: v })}
+                            />
+                          </Drawer>
                         </div>
+                      )}
+
+                      {(selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
+                        <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
                       )}
 
                       {selected.type === "star" && (
@@ -584,18 +658,6 @@ export default function BuilderClient({ template }: { template: any }) {
                           value={selected.sides}
                           onChange={(v) => updateSelected({ sides: v }, false)}
                           onCommit={(v) => updateSelected({ sides: v })}
-                        />
-                      )}
-
-                      {selected.type === "rect" && (
-                        <SliderRow
-                          label="Corners"
-                          min={0}
-                          max={Math.min(selected.width, selected.height) / 2}
-                          step={1}
-                          value={selected.cornerRadius}
-                          onChange={(v) => updateSelected({ cornerRadius: v }, false)}
-                          onCommit={(v) => updateSelected({ cornerRadius: v })}
                         />
                       )}
 
@@ -700,7 +762,12 @@ export default function BuilderClient({ template }: { template: any }) {
                   )}
 
                   {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
-                    <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
+                    <>
+                      <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+                      <Drawer title="Border & shadow" open={effectsDrawer === "border"} onClose={() => setEffectsDrawer(null)}>
+                        <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />
+                      </Drawer>
+                    </>
                   )}
 
                   {panelTab === "effects" &&
