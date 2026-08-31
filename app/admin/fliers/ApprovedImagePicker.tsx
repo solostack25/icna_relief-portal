@@ -144,19 +144,19 @@ export default function ApprovedImagePicker({
       </div>
 
       {allowMore && (
-        <div className="flex gap-1 mb-4 overflow-x-auto" style={{ borderBottom: "1px solid var(--portal-line)" }}>
+        <div className="flex flex-wrap gap-x-1 gap-y-1.5 mb-4" style={{ borderBottom: "1px solid var(--portal-line)" }}>
           {(["approved", "stock", "ai", "upload"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="text-xs font-semibold px-3 py-2 cursor-pointer capitalize flex-shrink-0"
+              className="text-xs font-semibold px-2.5 py-2 cursor-pointer capitalize"
               style={{
                 color: tab === t ? "var(--portal-emerald)" : "rgba(22,48,43,0.5)",
                 borderBottom: tab === t ? "2px solid var(--portal-emerald)" : "2px solid transparent",
                 marginBottom: -1,
               }}
             >
-              {t === "stock" ? "Stock Photos" : t === "ai" ? "AI Generate" : t}
+              {t === "stock" ? "Stock" : t === "ai" ? "AI Generate" : t}
             </button>
           ))}
         </div>
