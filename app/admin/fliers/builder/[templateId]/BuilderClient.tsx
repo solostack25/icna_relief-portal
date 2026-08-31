@@ -64,7 +64,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [elementsOpen, setElementsOpen] = useState(false);
+  const [activeRailPanel, setActiveRailPanel] = useState<null | "elements" | "photos">(null);
   const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
   const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
@@ -132,6 +132,16 @@ export default function BuilderClient({ template }: { template: any }) {
   function addElement(el: FlierElement) {
     commit([...elements, el]);
     setSelectedId(el.id);
+  }
+  // Rail-triggered Photos panel always adds a new filled image element per
+  // click - matches Canva's actual behavior (clicking a thumbnail in the
+  // Photos tab drops a new photo on the canvas, it never silently replaces
+  // whatever happens to be selected). The Style panel's own "Choose/Change
+  // Image" button is the separate, deliberate "replace this specific
+  // element's photo" action and keeps its own pickerOpen + updateSelected
+  // flow untouched.
+  function addPhoto(img: { dropbox_path: string | null; link: string }) {
+    addElement(newImageElement({ dropboxPath: img.dropbox_path, imageUrl: img.link }));
   }
   function updateSelected(patch: Partial<FlierElement>, shouldCommit = true) {
     if (!selected) return;
@@ -405,8 +415,8 @@ export default function BuilderClient({ template }: { template: any }) {
           style={{ background: "#FCEFDD", border: "1px solid #F0D5A8" }}
         >
           <span className="text-sm" style={{ color: "#8A5A1E" }}>
-            <span className="font-bold">New here?</span> Click a shape on the left to add it to your flier, then
-            style it using the panel on the right.
+            <span className="font-bold">New here?</span> Click Text, Photos, or Elements on the left to add
+            something to your flier, then style it using the panel on the right.
           </span>
           <button onClick={dismissTip} className="text-xs font-bold cursor-pointer flex-shrink-0" style={{ color: "#8A5A1E" }}>
             Got it
@@ -441,13 +451,20 @@ export default function BuilderClient({ template }: { template: any }) {
         const railButtons = (
           <>
             <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
-            <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
             <RailBtn
-              onClick={() => setElementsOpen((o) => !o)}
+              onClick={() => setActiveRailPanel((p) => (p === "photos" ? null : "photos"))}
+              label="Photos"
+              icon={ICONS.image}
+              color="#B5566B"
+              active={activeRailPanel === "photos"}
+              title="Browse photos"
+            />
+            <RailBtn
+              onClick={() => setActiveRailPanel((p) => (p === "elements" ? null : "elements"))}
               label="Elements"
               icon={ICONS.rect}
               color="#E2892F"
-              active={elementsOpen}
+              active={activeRailPanel === "elements"}
               title="Browse shapes & icons"
             />
           </>
@@ -461,19 +478,29 @@ export default function BuilderClient({ template }: { template: any }) {
             {/* Docked panel, not an overlay - sits inline in the layout next
                 to the rail so the canvas stays interactive/visible while
                 browsing, matching Canva's own desktop side-panel behavior.
-                Mobile gets the bottom-sheet version further down instead. */}
-            {elementsOpen && (
+                Mobile gets the bottom-sheet version further down instead.
+                Single panel swapping content by activeRailPanel, rather than
+                two independent panels, so Elements and Photos can't both be
+                open at once - matches Canva only ever showing one tab's
+                panel at a time. */}
+            {activeRailPanel && (
               <div
                 className="hidden lg:flex lg:flex-col w-[260px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
                 style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold">Elements</h3>
-                  <button onClick={() => setElementsOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                    ✕
-                  </button>
-                </div>
-                {elementsPanelContent}
+                {activeRailPanel === "elements" ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold">Elements</h3>
+                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                        ✕
+                      </button>
+                    </div>
+                    {elementsPanelContent}
+                  </>
+                ) : (
+                  <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
+                )}
               </div>
             )}
 
@@ -945,28 +972,36 @@ export default function BuilderClient({ template }: { template: any }) {
         );
       })()}
 
-      {/* Mobile-only bottom sheet for the same Elements content shown in the
-          desktop docked panel above (elementsPanelContent, defined once at
-          component scope). lg:hidden on the outer scrim, not the shared
-          Drawer component, since Drawer's desktop variant is a centered
-          overlay - that would duplicate/conflict with the docked panel. */}
-      {elementsOpen && (
+      {/* Mobile-only bottom sheet mirroring the desktop docked panel above -
+          single sheet swapping content by activeRailPanel, same content
+          sources (elementsPanelContent / docked ApprovedImagePicker) so
+          desktop and mobile can't drift apart. lg:hidden on the outer scrim,
+          not the shared Drawer component, since Drawer's desktop variant is
+          a centered overlay that would duplicate/conflict with the docked
+          panel above. */}
+      {activeRailPanel && (
         <div
           className="lg:hidden fixed inset-0 flex items-end justify-center z-50"
           style={{ background: "rgba(22,48,43,0.5)" }}
-          onClick={() => setElementsOpen(false)}
+          onClick={() => setActiveRailPanel(null)}
         >
           <div className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-center mb-2">
               <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
             </div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold">Elements</h3>
-              <button onClick={() => setElementsOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                ✕
-              </button>
-            </div>
-            {elementsPanelContent}
+            {activeRailPanel === "elements" ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold">Elements</h3>
+                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {elementsPanelContent}
+              </>
+            ) : (
+              <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
+            )}
           </div>
         </div>
       )}
