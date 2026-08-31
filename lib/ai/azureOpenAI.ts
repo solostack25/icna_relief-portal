@@ -157,6 +157,57 @@ export async function callAzureChat(
 }
 
 /**
+ * Vision-capable chat completion - describeImage below is the only caller
+ * for now, kept separate from callAzureChat rather than changing that
+ * function's shared ChatMessage type (used by the Portal Assistant's
+ * tool-calling loop) to accept multimodal content. Requires the configured
+ * deployment to actually be a vision-capable model (e.g. gpt-4o); if it
+ * isn't, Azure returns a 400 and that error surfaces to the caller as-is.
+ */
+export async function describeImage(imageUrl: string, instruction: string): Promise<string> {
+  const config = await getAzureConfig();
+  if (!config) {
+    throw new Error(
+      "Azure OpenAI isn't configured yet. Set endpoint, API key, and deployment name in Admin > Connectors."
+    );
+  }
+
+  const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": config.apiKey,
+    },
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: instruction },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      temperature: 0.3,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    const contentFilterError = parseContentFilterError(res.status, errText);
+    if (contentFilterError) throw contentFilterError;
+    throw new Error(`Azure OpenAI vision request failed (${res.status}): ${errText || res.statusText}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Azure OpenAI returned no description.");
+  return content;
+}
+
+/**
  * Image generation (DALL-E / gpt-image via Azure OpenAI), for the
  * "generate a flier image" capability. Separate deployment from chat
  * — image models are deployed independently in Azure OpenAI Studio.

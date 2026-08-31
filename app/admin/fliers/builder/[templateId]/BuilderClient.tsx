@@ -74,7 +74,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [magicWriteLoading, setMagicWriteLoading] = useState(false);
   const [magicWriteSuggestions, setMagicWriteSuggestions] = useState<string[] | null>(null);
   const [magicWriteError, setMagicWriteError] = useState<string | null>(null);
-  const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
+  const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border" | "altText">(null);
   const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
@@ -137,6 +137,7 @@ export default function BuilderClient({ template }: { template: any }) {
     setEffectsDrawer(null);
     setStyleDrawer(null);
     setRemoveBgError(null);
+    setAltTextError(null);
     // The "Edit image" left panel only makes sense while an image is
     // selected - close it automatically if selection changes away from
     // one (including deselecting entirely) rather than leaving an empty
@@ -212,6 +213,28 @@ export default function BuilderClient({ template }: { template: any }) {
   const [brandCheckOpen, setBrandCheckOpen] = useState(false);
   const [removingBg, setRemovingBg] = useState(false);
   const [removeBgError, setRemoveBgError] = useState<string | null>(null);
+  const [altTextLoading, setAltTextLoading] = useState(false);
+  const [altTextError, setAltTextError] = useState<string | null>(null);
+
+  async function generateAltText() {
+    if (!selected || selected.type !== "image" || !selected.imageUrl) return;
+    setAltTextLoading(true);
+    setAltTextError(null);
+    try {
+      const res = await fetch("/api/marketing/generate-alt-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selected.imageUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      updateSelected({ altText: body.altText } as any);
+    } catch (e: any) {
+      setAltTextError(e.message);
+    } finally {
+      setAltTextLoading(false);
+    }
+  }
 
   function resizeTo(newWidth: number, newHeight: number) {
     const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
@@ -405,6 +428,7 @@ export default function BuilderClient({ template }: { template: any }) {
       <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
       <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
       <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+      <CategoryButton label="Alt text" onClick={() => setEffectsDrawer("altText")} />
     </div>
   );
 
@@ -413,7 +437,7 @@ export default function BuilderClient({ template }: { template: any }) {
   // effectsDrawer is non-null and an image is selected (guaranteed by the
   // rendering site below); guarded here too so TypeScript's narrowing on
   // `selected` holds within each block.
-  const imageEditContent: Record<"shape" | "crop" | "filter" | "border", { title: string; body: React.ReactNode }> | null =
+  const imageEditContent: Record<"shape" | "crop" | "filter" | "border" | "altText", { title: string; body: React.ReactNode }> | null =
     selected && selected.type === "image"
       ? {
           shape: {
@@ -494,6 +518,34 @@ export default function BuilderClient({ template }: { template: any }) {
           border: {
             title: "Border & shadow",
             body: <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />,
+          },
+          altText: {
+            title: "Alt text",
+            body: (
+              <div className="space-y-2">
+                <p className="text-xs" style={{ color: DIM }}>
+                  Describes the image for accessibility and social posting.
+                </p>
+                <textarea
+                  value={selected.altText ?? ""}
+                  onChange={(e) => updateSelected({ altText: e.target.value } as any, false)}
+                  onBlur={(e) => updateSelected({ altText: e.target.value } as any)}
+                  rows={3}
+                  placeholder="e.g. Volunteers packing food boxes at a distribution event"
+                  className="w-full rounded-lg px-2.5 py-2 text-sm"
+                  style={{ border: "1px solid var(--portal-line)" }}
+                />
+                <button
+                  onClick={generateAltText}
+                  disabled={altTextLoading || !selected.imageUrl}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer disabled:opacity-50"
+                  style={{ border: "1px solid var(--portal-emerald)", color: "var(--portal-emerald)" }}
+                >
+                  ✨ {altTextLoading ? "Looking at the image…" : "Generate with AI"}
+                </button>
+                {altTextError && <p className="text-xs text-red-600">{altTextError}</p>}
+              </div>
+            ),
           },
         }
       : null;

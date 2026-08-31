@@ -37,6 +37,7 @@ export type FlierImageElement = {
   imageUrl: string | null;
   editable: boolean;
   editableLabel?: string;
+  altText?: string; // accessibility description, optional - see Edit image panel's "Generate alt text"
   // Shape masking - "merge a square photo into a circle" and similar.
   maskShape: "rect" | "circle" | "rounded";
   maskCornerRadius: number; // used when maskShape === "rounded"
