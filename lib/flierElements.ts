@@ -268,6 +268,56 @@ export const CANVAS_SIZE_PRESETS: SizePreset[] = [
 // blank template at a given size) - this is for taking an EXISTING
 // design and adapting it to a different platform's dimensions as a
 // real starting point, not a from-scratch redo.
+export type BrandCheckResult = { offBrandFonts: string[]; offBrandColors: string[] };
+
+// Deterministic, not an AI call - "off-brand" here just means "not one of
+// the exact fonts/colors in BRAND_FONTS / BRAND_COLORS", which is a plain
+// set-membership check. An LLM call would add latency, cost, and a failure
+// mode for something a string/hex comparison already answers instantly and
+// for free - the "AI" in "AI features" doesn't have to mean every feature
+// routes through a model, just that this is part of that same feature set.
+export function checkBrandConsistency(elements: FlierElement[], background: string): BrandCheckResult {
+  const fontsInUse = new Set<string>();
+  const colorsInUse = new Set<string>();
+
+  const addColor = (c: unknown) => {
+    if (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c)) colorsInUse.add(c.toUpperCase());
+  };
+
+  addColor(background);
+  for (const el of elements) {
+    if (el.type === "text") {
+      fontsInUse.add(el.fontFamily);
+      addColor(el.fill);
+    } else if (el.type === "image") {
+      if (el.filter === "duotone") {
+        addColor(el.duotoneShadow);
+        addColor(el.duotoneHighlight);
+      }
+      if (el.borderWidth > 0) addColor(el.borderColor);
+    } else if (el.type === "rect" || el.type === "circle") {
+      addColor(el.fill);
+      if (el.gradient.enabled) {
+        addColor(el.gradient.from);
+        addColor(el.gradient.to);
+      }
+      if (el.borderWidth > 0) addColor(el.borderColor);
+    } else if (el.type === "line") {
+      addColor(el.stroke);
+    } else if (el.type === "star" || el.type === "polygon" || el.type === "arrow" || el.type === "icon") {
+      addColor((el as any).fill);
+    }
+  }
+
+  const brandFontsUpper = new Set(BRAND_FONTS.map((f) => f.toUpperCase()));
+  const brandColorsUpper = new Set(BRAND_COLORS.map((c) => c.toUpperCase()));
+
+  return {
+    offBrandFonts: [...fontsInUse].filter((f) => !brandFontsUpper.has(f.toUpperCase())).sort(),
+    offBrandColors: [...colorsInUse].filter((c) => !brandColorsUpper.has(c)).sort(),
+  };
+}
+
 export function resizeElementsToCanvas(
   elements: FlierElement[],
   oldWidth: number,

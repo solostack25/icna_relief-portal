@@ -11,6 +11,7 @@ import {
   BRAND_COLORS,
   CANVAS_SIZE_PRESETS,
   resizeElementsToCanvas,
+  checkBrandConsistency,
   newTextElement,
   newImageElement,
   newRectElement,
@@ -207,6 +208,7 @@ export default function BuilderClient({ template }: { template: any }) {
 
   const [smartResize, setSmartResize] = useState(false);
   const [resizing, setResizing] = useState(false);
+  const [brandCheckOpen, setBrandCheckOpen] = useState(false);
 
   function resizeTo(newWidth: number, newHeight: number) {
     const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
@@ -762,6 +764,14 @@ export default function BuilderClient({ template }: { template: any }) {
             </span>
           )}
           <button
+            onClick={() => setBrandCheckOpen(true)}
+            className="text-sm px-4 py-2.5 rounded-full font-bold cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ color: "var(--portal-emerald)", border: "1.5px solid var(--portal-emerald)", background: "#fff" }}
+            title="Check fonts and colors used against the brand kit"
+          >
+            ✨ Brand check
+          </button>
+          <button
             onClick={save}
             disabled={saving}
             className="text-sm px-6 py-2.5 rounded-full text-white font-bold cursor-pointer disabled:opacity-60 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-transform duration-150"
@@ -771,6 +781,58 @@ export default function BuilderClient({ template }: { template: any }) {
           </button>
         </div>
       </div>
+
+      <Drawer title="Brand check" open={brandCheckOpen} onClose={() => setBrandCheckOpen(false)}>
+        {(() => {
+          const { offBrandFonts, offBrandColors } = checkBrandConsistency(elements, background);
+          if (offBrandFonts.length === 0 && offBrandColors.length === 0) {
+            return (
+              <p className="text-sm" style={{ color: "var(--portal-emerald)" }}>
+                ✓ Every font and color in this flyer is from the brand kit.
+              </p>
+            );
+          }
+          return (
+            <div className="space-y-4">
+              {offBrandFonts.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#7A9186" }}>
+                    Off-brand fonts
+                  </p>
+                  <div className="space-y-1">
+                    {offBrandFonts.map((f) => (
+                      <div key={f} className="text-sm px-2.5 py-1.5 rounded-lg" style={{ background: "#FCEFDD", fontFamily: f }}>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-1.5" style={{ color: DIM }}>
+                    Brand fonts: {BRAND_FONTS.join(", ")}
+                  </p>
+                </div>
+              )}
+              {offBrandColors.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#7A9186" }}>
+                    Off-brand colors
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {offBrandColors.map((c) => (
+                      <div key={c} className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg" style={{ background: "#FCEFDD" }}>
+                        <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: c, border: "1px solid var(--portal-line)" }} />
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-1.5" style={{ color: DIM }}>
+                    Brand colors: {BRAND_COLORS.join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </Drawer>
 
       {showTip && (
         <div
