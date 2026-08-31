@@ -509,6 +509,12 @@ export default function FlierCanvas({
 
       {mode === "builder" && toolbarBox && selectedId && renderToolbar && !editingId && (
         <div
+          // Floating-over-the-element toolbar only makes sense at desktop
+          // zoom levels - on a phone the canvas is scaled down small enough
+          // (and covered by the user's own thumb while dragging) that this
+          // would be unreliable to tap. Mobile instead gets a full-width bar
+          // docked above the bottom tool rail - see BuilderClient.
+          className="hidden lg:block"
           style={{
             position: "absolute",
             left: toolbarBox.left,

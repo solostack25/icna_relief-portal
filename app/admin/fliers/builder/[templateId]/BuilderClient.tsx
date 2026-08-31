@@ -379,18 +379,27 @@ export default function BuilderClient({ template }: { template: any }) {
         </LabeledGroup>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-start">
-        <div className="flex flex-row lg:flex-col gap-1 w-full lg:w-[72px] flex-shrink-0 overflow-x-auto lg:overflow-visible rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
-          <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
-          <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
-          <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
-          <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} color="#2F6D46" />
-          <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} color="#6B5FB5" />
-          <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} color="#C9A227" />
-          <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} color="#3E9E8F" />
-          <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" />
-          <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
-        </div>
+      {(() => {
+        // Shared between the desktop static rail and the mobile docked one
+        // below so the two don't drift out of sync.
+        const railButtons = (
+          <>
+            <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
+            <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
+            <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
+            <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} color="#2F6D46" />
+            <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} color="#6B5FB5" />
+            <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} color="#C9A227" />
+            <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} color="#3E9E8F" />
+            <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" />
+            <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
+          </>
+        );
+        return (
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-start">
+            <div className="hidden lg:flex lg:flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
+              {railButtons}
+            </div>
 
         <div
           ref={canvasAreaRef}
@@ -764,7 +773,29 @@ export default function BuilderClient({ template }: { template: any }) {
             </div>
           </div>
         </div>
-      </div>
+
+            {/* Mobile-only: docked at the bottom of the viewport (sticky, so
+                it reserves its own layout space - no manual spacer needed)
+                instead of floating over the tiny zoomed-out canvas. Negative
+                margins cancel AdminLayout's page gutter (px-4 sm:px-10) so
+                this sits flush with the screen edges like a native bottom
+                nav, matching the reference recording. */}
+            <div className="lg:hidden sticky bottom-0 z-30 -mx-4 sm:-mx-10">
+              {selected && (
+                <div className="flex justify-center py-2">
+                  <FloatingToolbar el={selected} onDuplicate={duplicateSelected} onDelete={deleteSelected} onAlign={align} onReorder={reorder} />
+                </div>
+              )}
+              <div
+                className="flex flex-row gap-1 overflow-x-auto rounded-t-3xl p-2.5"
+                style={{ background: "#fff", boxShadow: "0 -4px 16px rgba(22,48,43,0.08)", paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}
+              >
+                {railButtons}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {pickerOpen && (
         <ApprovedImagePicker
@@ -779,14 +810,17 @@ export default function BuilderClient({ template }: { template: any }) {
 
       {iconPickerOpen && (
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 flex items-end lg:items-center justify-center lg:p-4 z-50"
           style={{ background: "rgba(22,48,43,0.5)" }}
           onClick={() => setIconPickerOpen(false)}
         >
           <div
-            className="rounded-2xl bg-white p-5 max-w-sm w-full"
+            className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto lg:max-w-sm lg:rounded-2xl lg:max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="flex justify-center mb-2 lg:hidden">
+              <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+            </div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold">Choose an Icon</h3>
               <button onClick={() => setIconPickerOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>

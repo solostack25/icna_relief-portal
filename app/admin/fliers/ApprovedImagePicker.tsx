@@ -71,14 +71,20 @@ export default function ApprovedImagePicker({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 flex items-end lg:items-center justify-center lg:p-4 z-50"
       style={{ background: "rgba(22,48,43,0.5)" }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl bg-white p-5 max-w-lg w-full max-h-[80vh] overflow-y-auto"
+        className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] lg:max-w-lg lg:rounded-2xl lg:max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Grab-handle affordance signals "swipe/tap to dismiss" on a bottom
+            sheet - meaningless on the centered desktop dialog, so hidden there. */}
+        <div className="flex justify-center mb-2 lg:hidden">
+          <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold">Choose an Image</h3>
           <button onClick={onClose} className="text-sm cursor-pointer" style={{ color: "rgba(22,48,43,0.5)" }}>
