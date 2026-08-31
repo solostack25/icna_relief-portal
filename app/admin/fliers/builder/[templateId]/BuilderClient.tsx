@@ -485,7 +485,7 @@ export default function BuilderClient({ template }: { template: any }) {
                 panel at a time. */}
             {activeRailPanel && (
               <div
-                className="hidden lg:flex lg:flex-col w-[260px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
+                className="hidden lg:flex lg:flex-col w-[340px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
                 style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}
               >
                 {activeRailPanel === "elements" ? (

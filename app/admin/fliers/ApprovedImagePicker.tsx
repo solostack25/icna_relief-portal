@@ -27,7 +27,7 @@ export default function ApprovedImagePicker({
   const [images, setImages] = useState<ApprovedImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [stockQuery, setStockQuery] = useState("");
+  const [stockQuery, setStockQuery] = useState("hunger prevention");
   const [stockPhotos, setStockPhotos] = useState<StockPhoto[] | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
@@ -59,6 +59,16 @@ export default function ApprovedImagePicker({
       setStockLoading(false);
     }
   }
+
+  // Pre-load a default stock search so the Stock Photos tab isn't empty the
+  // first time someone opens it - "hunger prevention" matches ICNA Relief's
+  // core program and is the most broadly useful default across flyers.
+  // Runs once on mount regardless of which tab is active, so results are
+  // already there by the time someone clicks into Stock Photos.
+  useEffect(() => {
+    searchStock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -151,12 +161,12 @@ export default function ApprovedImagePicker({
               onChange={(e) => setStockQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchStock()}
               placeholder="Search free stock photos…"
-              className="flex-1 rounded-lg px-3 py-2 text-sm"
+              className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm"
               style={{ border: "1px solid var(--portal-line)" }}
             />
             <button
               onClick={searchStock}
-              className="text-xs px-4 py-2 rounded-lg text-white font-medium cursor-pointer"
+              className="text-xs px-4 py-2 rounded-lg text-white font-medium cursor-pointer flex-shrink-0"
               style={{ background: "var(--portal-emerald)" }}
             >
               Search
