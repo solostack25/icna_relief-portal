@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import {
   type FlierElement,
+  type FontEntry,
   BRAND_FONTS,
+  FONT_LIBRARY,
   BRAND_COLORS,
   CANVAS_SIZE_PRESETS,
   resizeElementsToCanvas,
@@ -64,7 +66,13 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeRailPanel, setActiveRailPanel] = useState<null | "elements" | "photos" | "edit">(null);
+  const [activeRailPanel, setActiveRailPanel] = useState<null | "text" | "elements" | "photos" | "edit">(null);
+  const [fontSearch, setFontSearch] = useState("");
+  const [magicWriteOpen, setMagicWriteOpen] = useState(false);
+  const [magicWritePrompt, setMagicWritePrompt] = useState("");
+  const [magicWriteLoading, setMagicWriteLoading] = useState(false);
+  const [magicWriteSuggestions, setMagicWriteSuggestions] = useState<string[] | null>(null);
+  const [magicWriteError, setMagicWriteError] = useState<string | null>(null);
   const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
   const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
@@ -147,6 +155,37 @@ export default function BuilderClient({ template }: { template: any }) {
   // flow untouched.
   function addPhoto(img: { dropbox_path: string | null; link: string }) {
     addElement(newImageElement({ dropboxPath: img.dropbox_path, imageUrl: img.link }));
+  }
+  // Font-list and Magic Write clicks share this: apply to the selected text
+  // element if there is one, otherwise create a new text box with it. Same
+  // "fill selected or add new" logic as Style tab's text editing already
+  // uses implicitly - this just extends it to two new entry points.
+  function applyText(patch: { text?: string; fontFamily?: string }) {
+    if (selected && selected.type === "text") {
+      updateSelected(patch as any);
+    } else {
+      addElement(newTextElement(patch));
+    }
+  }
+  async function runMagicWrite() {
+    if (!magicWritePrompt.trim()) return;
+    setMagicWriteLoading(true);
+    setMagicWriteError(null);
+    setMagicWriteSuggestions(null);
+    try {
+      const res = await fetch("/api/marketing/magic-write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: magicWritePrompt.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setMagicWriteSuggestions(body.suggestions);
+    } catch (e: any) {
+      setMagicWriteError(e.message);
+    } finally {
+      setMagicWriteLoading(false);
+    }
   }
   function updateSelected(patch: Partial<FlierElement>, shouldCommit = true) {
     if (!selected) return;
@@ -406,6 +445,123 @@ export default function BuilderClient({ template }: { template: any }) {
     </>
   );
 
+  // Text panel: search + Add a text box + Magic Write (AI copy suggestions)
+  // + a browsable font list grouped by category, each rendered in its own
+  // font-family so what you see is what you'll get. Brand fonts (the 3
+  // portal-brand choices) stay pinned first regardless of search/category
+  // grouping, matching how BRAND_FONTS is treated everywhere else in the
+  // builder - they're the safe/expected default, not just one more option.
+  const filteredFontLibrary = FONT_LIBRARY.filter((f) => f.family.toLowerCase().includes(fontSearch.trim().toLowerCase()));
+  const fontCategories: FontEntry["category"][] = ["Brand", "Script", "Display", "Serif", "Sans"];
+  const textPanelContent = (
+    <div className="space-y-4">
+      <input
+        value={fontSearch}
+        onChange={(e) => setFontSearch(e.target.value)}
+        placeholder="Search fonts…"
+        className="w-full rounded-lg px-3 py-2 text-sm"
+        style={{ border: "1px solid var(--portal-line)" }}
+      />
+
+      <button
+        onClick={() => addElement(newTextElement())}
+        className="w-full flex items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-bold cursor-pointer text-white"
+        style={{ background: "var(--portal-emerald)" }}
+      >
+        <span style={{ width: 14, height: 14 }}>
+          <Icon.TextTool />
+        </span>
+        Add a text box
+      </button>
+
+      <div className="rounded-xl" style={{ border: "1px solid var(--portal-line)" }}>
+        <button
+          onClick={() => setMagicWriteOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-3 py-2.5 cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "#2F4A3E" }}>
+            <span style={{ width: 14, height: 14 }}>
+              <Icon.Effects />
+            </span>
+            Magic Write
+          </span>
+          <span style={{ width: 13, height: 13, color: "#8FA89A", transform: magicWriteOpen ? "rotate(180deg)" : "none", transition: "transform 150ms" }}>
+            <Icon.Chevron />
+          </span>
+        </button>
+        {magicWriteOpen && (
+          <div className="px-3 pb-3 space-y-2">
+            <p className="text-xs" style={{ color: DIM }}>
+              Describe what the flyer's for and get short copy suggestions.
+            </p>
+            <div className="flex gap-1.5">
+              <input
+                value={magicWritePrompt}
+                onChange={(e) => setMagicWritePrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runMagicWrite()}
+                placeholder="e.g. blood drive next Saturday"
+                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                style={{ border: "1px solid var(--portal-line)" }}
+              />
+              <button
+                onClick={runMagicWrite}
+                disabled={magicWriteLoading || !magicWritePrompt.trim()}
+                className="text-xs px-3 py-1.5 rounded-lg text-white font-medium cursor-pointer flex-shrink-0 disabled:opacity-50"
+                style={{ background: "var(--portal-emerald)" }}
+              >
+                {magicWriteLoading ? "…" : "Generate"}
+              </button>
+            </div>
+            {magicWriteError && <p className="text-xs text-red-600">{magicWriteError}</p>}
+            {magicWriteSuggestions && (
+              <div className="space-y-1.5">
+                {magicWriteSuggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => applyText({ text: s })}
+                    className="w-full text-left text-xs px-2.5 py-2 rounded-lg cursor-pointer hover:bg-black/[0.03] transition-colors"
+                    style={{ border: "1px solid var(--portal-line)", color: "#2F4A3E" }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {fontCategories.map((cat) => {
+        const inCat = filteredFontLibrary.filter((f) => f.category === cat);
+        if (inCat.length === 0) return null;
+        return (
+          <div key={cat}>
+            <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+              {cat}
+            </p>
+            <div className="space-y-1">
+              {inCat.map((f) => (
+                <button
+                  key={f.family}
+                  onClick={() => applyText({ fontFamily: f.family })}
+                  className="w-full text-left px-3 py-2.5 rounded-lg cursor-pointer hover:bg-black/[0.03] transition-colors"
+                  style={{ border: "1px solid var(--portal-line)", fontFamily: f.family, fontSize: 17, color: "#16302B" }}
+                >
+                  {f.family}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {filteredFontLibrary.length === 0 && (
+        <p className="text-xs" style={{ color: DIM }}>
+          No fonts match "{fontSearch}".
+        </p>
+      )}
+    </div>
+  );
+
   const elementsPanelContent = (
     <div className="space-y-5">
       <div>
@@ -593,7 +749,14 @@ export default function BuilderClient({ template }: { template: any }) {
         // below so the two don't drift out of sync.
         const railButtons = (
           <>
-            <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
+            <RailBtn
+              onClick={() => setActiveRailPanel((p) => (p === "text" ? null : "text"))}
+              label="Text"
+              icon={ICONS.text}
+              color="#3E7FBF"
+              active={activeRailPanel === "text"}
+              title="Add or style text"
+            />
             <RailBtn
               onClick={() => setActiveRailPanel((p) => (p === "photos" ? null : "photos"))}
               label="Photos"
@@ -631,7 +794,17 @@ export default function BuilderClient({ template }: { template: any }) {
                 className="hidden lg:flex lg:flex-col w-[340px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
                 style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}
               >
-                {activeRailPanel === "elements" ? (
+                {activeRailPanel === "text" ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold">Text</h3>
+                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                        ✕
+                      </button>
+                    </div>
+                    {textPanelContent}
+                  </>
+                ) : activeRailPanel === "elements" ? (
                   <>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-bold">Elements</h3>
@@ -1052,7 +1225,17 @@ export default function BuilderClient({ template }: { template: any }) {
             <div className="flex justify-center mb-2">
               <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
             </div>
-            {activeRailPanel === "elements" ? (
+            {activeRailPanel === "text" ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold">Text</h3>
+                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {textPanelContent}
+              </>
+            ) : activeRailPanel === "elements" ? (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold">Elements</h3>

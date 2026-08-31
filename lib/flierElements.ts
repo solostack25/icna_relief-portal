@@ -204,6 +204,35 @@ export type FlierElement =
 export const BRAND_FONTS = ["Manrope", "Fraunces", "IBM Plex Mono"];
 export const BRAND_COLORS = ["#16302B", "#1F6F54", "#C99A3D", "#FBF7EF", "#FFFFFF", "#3E7C9A", "#B55139"];
 
+// Broader font library for the Text panel's font list, beyond the 3 brand
+// fonts above (which stay first/pinned as "Brand"). Loaded via the Google
+// Fonts @import in globals.css - every family here must have a matching
+// entry there or it'll silently fall back to a system font on canvas.
+export type FontEntry = { family: string; category: "Brand" | "Script" | "Display" | "Serif" | "Sans" };
+export const FONT_LIBRARY: FontEntry[] = [
+  { family: "Manrope", category: "Brand" },
+  { family: "Fraunces", category: "Brand" },
+  { family: "IBM Plex Mono", category: "Brand" },
+  { family: "Pacifico", category: "Script" },
+  { family: "Dancing Script", category: "Script" },
+  { family: "Caveat", category: "Script" },
+  { family: "Permanent Marker", category: "Script" },
+  { family: "Sacramento", category: "Script" },
+  { family: "Bebas Neue", category: "Display" },
+  { family: "Anton", category: "Display" },
+  { family: "Righteous", category: "Display" },
+  { family: "Passion One", category: "Display" },
+  { family: "Alfa Slab One", category: "Display" },
+  { family: "Playfair Display", category: "Serif" },
+  { family: "Abril Fatface", category: "Serif" },
+  { family: "Cormorant Garamond", category: "Serif" },
+  { family: "Poppins", category: "Sans" },
+  { family: "Montserrat", category: "Sans" },
+  { family: "Oswald", category: "Sans" },
+  { family: "Raleway", category: "Sans" },
+  { family: "Work Sans", category: "Sans" },
+];
+
 export type SizePreset = { label: string; width: number; height: number; group: string };
 
 export const CANVAS_SIZE_PRESETS: SizePreset[] = [

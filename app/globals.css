@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,500;1,9..144,600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+/* Flier builder's expanded Text panel font library (lib/flierElements.ts
+   FONT_LIBRARY) - every family listed there needs an entry here or it
+   silently falls back to a system font when Konva draws it on canvas. */
+@import url('https://fonts.googleapis.com/css2?family=Pacifico&family=Dancing+Script:wght@400;700&family=Caveat:wght@400;700&family=Permanent+Marker&family=Sacramento&family=Bebas+Neue&family=Anton&family=Righteous&family=Passion+One:wght@400;700&family=Alfa+Slab+One&family=Playfair+Display:wght@400;700;900&family=Abril+Fatface&family=Cormorant+Garamond:wght@400;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&family=Raleway:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
 
 /* ICNA Relief portal theme — emerald/gold, approved Aug 2026 (see
    PortalHeader.tsx / select-app / admin for where this started). Applied

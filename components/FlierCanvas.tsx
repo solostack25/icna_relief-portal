@@ -177,10 +177,33 @@ export default function FlierCanvas({
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef<Record<string, any>>({});
+  const layerRef = useRef<Konva.Layer>(null);
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [toolbarBox, setToolbarBox] = useState<{ left: number; top: number; width: number; flip: boolean } | null>(null);
+
+  // Konva draws text straight to canvas and does NOT wait for a web font
+  // to finish loading - if a text element's fontFamily hasn't actually
+  // loaded into the browser's font set yet, Konva silently falls back to
+  // a system font and won't redraw once the real font arrives, unless
+  // something else happens to trigger a redraw first. This became a real
+  // issue once the Text panel's font library grew well past the 3 brand
+  // fonts (which "worked" mostly by luck - they're `@import`ed in
+  // globals.css, so by the time the builder page had mounted at all they
+  // were usually already cached from an earlier page load). Explicitly
+  // loading whatever fonts are actually in use and redrawing once they
+  // resolve closes that gap for every font in the library, not just the
+  // ones that happened to load in time before.
+  useEffect(() => {
+    const families = Array.from(
+      new Set(elements.filter((el): el is Extract<FlierElement, { type: "text" }> => el.type === "text").map((el) => el.fontFamily))
+    );
+    if (families.length === 0 || typeof document === "undefined" || !("fonts" in document)) return;
+    Promise.all(families.map((f) => document.fonts.load(`16px "${f}"`).catch(() => null))).then(() => {
+      layerRef.current?.batchDraw();
+    });
+  }, [elements]);
 
   const recomputeToolbarBox = () => {
     if (mode !== "builder" || !selectedId) {
@@ -279,7 +302,7 @@ export default function FlierCanvas({
         }}
         style={{ background, borderRadius: 4 }}
       >
-        <Layer>
+        <Layer ref={layerRef}>
           <Rect x={0} y={0} width={width} height={height} fill={background} listening={false} />
           {elements.map((el) => {
             if (el.id === editingId) return null; // covered by the HTML overlay instead
