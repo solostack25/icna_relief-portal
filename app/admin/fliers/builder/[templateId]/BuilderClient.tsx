@@ -379,8 +379,8 @@ export default function BuilderClient({ template }: { template: any }) {
         </LabeledGroup>
       </div>
 
-      <div className="flex gap-3 items-start">
-        <div className="flex flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-start">
+        <div className="flex flex-row lg:flex-col gap-1 w-full lg:w-[72px] flex-shrink-0 overflow-x-auto lg:overflow-visible rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
           <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
           <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
           <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
@@ -394,8 +394,8 @@ export default function BuilderClient({ template }: { template: any }) {
 
         <div
           ref={canvasAreaRef}
-          className="flex-1 rounded-3xl overflow-auto flex items-center justify-center p-8"
-          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)", height: "calc(100vh - 300px)", minHeight: 560 }}
+          className="flex-1 min-w-0 rounded-3xl overflow-auto flex items-center justify-center p-4 sm:p-8 h-[46vh] min-h-[300px] lg:h-[calc(100vh-300px)] lg:min-h-[560px]"
+          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)" }}
         >
           <div style={{ boxShadow: "0 16px 44px rgba(31,74,48,0.18)", borderRadius: 10, overflow: "hidden" }}>
             <FlierCanvas
@@ -422,7 +422,7 @@ export default function BuilderClient({ template }: { template: any }) {
           </div>
         </div>
 
-        <div className="w-[268px] flex-shrink-0 space-y-3">
+        <div className="w-full lg:w-[268px] flex-shrink-0 space-y-3">
           <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
             {!selected ? (
               <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
@@ -907,7 +907,7 @@ function DarkIconBtn({
     <button
       onClick={onClick}
       title={title}
-      className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors duration-100"
+      className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors duration-100"
       style={{ color: "#fff", background: active ? "rgba(255,255,255,0.18)" : "transparent" }}
       onMouseEnter={(e) => !active && (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
       onMouseLeave={(e) => !active && (e.currentTarget.style.background = "transparent")}
@@ -967,15 +967,15 @@ function RailBtn({ onClick, label, icon, color }: { onClick: () => void; label: 
     <button
       onClick={onClick}
       title={`Add ${label}`}
-      className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group"
+      className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group flex-shrink-0"
     >
       <span
         className="flex items-center justify-center rounded-2xl transition-shadow duration-150 group-hover:shadow-md"
-        style={{ width: 38, height: 38, background: `${color}22`, color }}
+        style={{ width: 40, height: 40, background: `${color}22`, color }}
       >
         <span style={{ width: 18, height: 18 }}>{icon}</span>
       </span>
-      <span className="text-[10px] font-bold" style={{ color: "#7A9186" }}>
+      <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: "#7A9186" }}>
         {label}
       </span>
     </button>
