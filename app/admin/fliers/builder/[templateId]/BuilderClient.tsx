@@ -65,6 +65,8 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [shapesDrawerOpen, setShapesDrawerOpen] = useState(false);
+  const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
   const [zoom, setZoom] = useState(0.42);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +125,7 @@ export default function BuilderClient({ template }: { template: any }) {
 
   useEffect(() => {
     setPanelTab("style");
+    setEffectsDrawer(null);
   }, [selectedId]);
 
   function addElement(el: FlierElement) {
@@ -386,12 +389,7 @@ export default function BuilderClient({ template }: { template: any }) {
           <>
             <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
             <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
-            <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
-            <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} color="#2F6D46" />
-            <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} color="#6B5FB5" />
-            <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} color="#C9A227" />
-            <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} color="#3E9E8F" />
-            <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" />
+            <RailBtn onClick={() => setShapesDrawerOpen(true)} label="Shapes" icon={ICONS.rect} color="#E2892F" />
             <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
           </>
         );
@@ -619,8 +617,15 @@ export default function BuilderClient({ template }: { template: any }) {
                   )}
 
                   {panelTab === "effects" && selected.type === "image" && (
-                    <div className="-mx-4">
-                      <Section title="Shape" defaultOpen>
+                    <>
+                      <div className="space-y-2">
+                        <CategoryButton label="Shape" onClick={() => setEffectsDrawer("shape")} />
+                        <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
+                        <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
+                        <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+                      </div>
+
+                      <Drawer title="Shape" open={effectsDrawer === "shape"} onClose={() => setEffectsDrawer(null)}>
                         <div className="flex gap-1.5">
                           {(["rect", "rounded", "circle"] as const).map((m) => (
                             <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
@@ -639,15 +644,15 @@ export default function BuilderClient({ template }: { template: any }) {
                             onCommit={(v) => updateSelected({ maskCornerRadius: v })}
                           />
                         )}
-                      </Section>
+                      </Drawer>
 
-                      <Section title="Crop & position">
+                      <Drawer title="Crop & position" open={effectsDrawer === "crop"} onClose={() => setEffectsDrawer(null)}>
                         <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
                         <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
                         <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
-                      </Section>
+                      </Drawer>
 
-                      <Section title="Filter" defaultOpen>
+                      <Drawer title="Filter" open={effectsDrawer === "filter"} onClose={() => setEffectsDrawer(null)}>
                         <div className="flex gap-1.5 mb-1 flex-wrap">
                           {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
                             <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
@@ -675,10 +680,10 @@ export default function BuilderClient({ template }: { template: any }) {
                           </div>
                         )}
 
-                        {/* Fine-tune sliders nested one level deeper - these are the
-                            least-used controls for a typical flyer edit (pick a filter
-                            preset and move on), so they stay tucked away unless someone
-                            actually wants to hand-tune brightness/contrast/etc. */}
+                        {/* Fine-tune sliders stay one level deeper via the existing
+                            accordion, inside this drawer - these are the least-used
+                            controls for a typical flyer edit (pick a preset and move
+                            on), so a second tap is fine for the rare hand-tune. */}
                         <Section title="Adjust" nested>
                           <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
                           <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
@@ -686,12 +691,12 @@ export default function BuilderClient({ template }: { template: any }) {
                           <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
                           <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
                         </Section>
-                      </Section>
+                      </Drawer>
 
-                      <Section title="Border & shadow">
+                      <Drawer title="Border & shadow" open={effectsDrawer === "border"} onClose={() => setEffectsDrawer(null)}>
                         <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />
-                      </Section>
-                    </div>
+                      </Drawer>
+                    </>
                   )}
 
                   {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
@@ -797,6 +802,65 @@ export default function BuilderClient({ template }: { template: any }) {
         );
       })()}
 
+      <Drawer title="Shapes" open={shapesDrawerOpen} onClose={() => setShapesDrawerOpen(false)}>
+        <div className="grid grid-cols-3 gap-1">
+          <ShapeGridBtn
+            label="Rect"
+            icon={ICONS.rect}
+            color="#E2892F"
+            onClick={() => {
+              addElement(newRectElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+          <ShapeGridBtn
+            label="Circle"
+            icon={ICONS.circle}
+            color="#2F6D46"
+            onClick={() => {
+              addElement(newCircleElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+          <ShapeGridBtn
+            label="Line"
+            icon={ICONS.line}
+            color="#6B5FB5"
+            onClick={() => {
+              addElement(newLineElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+          <ShapeGridBtn
+            label="Star"
+            icon={<Icon.CircleTool />}
+            color="#C9A227"
+            onClick={() => {
+              addElement(newStarElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+          <ShapeGridBtn
+            label="Polygon"
+            icon={<Icon.RectTool />}
+            color="#3E9E8F"
+            onClick={() => {
+              addElement(newPolygonElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+          <ShapeGridBtn
+            label="Arrow"
+            icon={<Icon.AlignRight />}
+            color="#D06A4F"
+            onClick={() => {
+              addElement(newArrowElement());
+              setShapesDrawerOpen(false);
+            }}
+          />
+        </div>
+      </Drawer>
+
       {pickerOpen && (
         <ApprovedImagePicker
           allowMore
@@ -808,53 +872,33 @@ export default function BuilderClient({ template }: { template: any }) {
         />
       )}
 
-      {iconPickerOpen && (
-        <div
-          className="fixed inset-0 flex items-end lg:items-center justify-center lg:p-4 z-50"
-          style={{ background: "rgba(22,48,43,0.5)" }}
-          onClick={() => setIconPickerOpen(false)}
-        >
-          <div
-            className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto lg:max-w-sm lg:rounded-2xl lg:max-h-[80vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center mb-2 lg:hidden">
-              <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
-            </div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold">Choose an Icon</h3>
-              <button onClick={() => setIconPickerOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {ICON_LIBRARY.map((def) => (
-                <button
-                  key={def.id}
-                  onClick={() => {
-                    addElement(newIconElement(def.id));
-                    setIconPickerOpen(false);
-                  }}
-                  title={def.label}
-                  className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
-                  style={{ border: "1px solid var(--portal-line)" }}
-                >
-                  <svg viewBox="0 0 24 24" width="22" height="22">
-                    <path
-                      d={def.path}
-                      fill={def.mode === "filled" ? "#16302B" : "none"}
-                      stroke={def.mode === "stroke" ? "#16302B" : "none"}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </div>
+      <Drawer title="Choose an icon" open={iconPickerOpen} onClose={() => setIconPickerOpen(false)}>
+        <div className="grid grid-cols-5 gap-2">
+          {ICON_LIBRARY.map((def) => (
+            <button
+              key={def.id}
+              onClick={() => {
+                addElement(newIconElement(def.id));
+                setIconPickerOpen(false);
+              }}
+              title={def.label}
+              className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
+              style={{ border: "1px solid var(--portal-line)" }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path
+                  d={def.path}
+                  fill={def.mode === "filled" ? "#16302B" : "none"}
+                  stroke={def.mode === "stroke" ? "#16302B" : "none"}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ))}
         </div>
-      )}
+      </Drawer>
     </div>
   );
 }
@@ -956,6 +1000,79 @@ function DarkIconBtn({
       onMouseLeave={(e) => !active && (e.currentTarget.style.background = "transparent")}
     >
       <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
+    </button>
+  );
+}
+
+function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 flex items-end lg:items-center justify-center lg:p-4 z-50"
+      style={{ background: "rgba(22,48,43,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto lg:max-w-sm lg:rounded-2xl lg:max-h-[80vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center mb-2 lg:hidden">
+          <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+        </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold">{title}</h3>
+          <button onClick={onClose} className="text-sm cursor-pointer" style={{ color: DIM }}>
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// A row that launches a Drawer, replacing what used to be an inline
+// accordion Section - tapping it is the only way to reach that category's
+// controls now, keeping the properties panel itself down to a short list
+// of category names instead of every control being visible at once.
+function CategoryButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer transition-colors"
+      style={{ background: "#F7FAF8", border: "1px solid var(--portal-line)" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF4F0")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "#F7FAF8")}
+    >
+      <span className="text-[13px] font-bold" style={{ color: "#2F4A3E" }}>
+        {label}
+      </span>
+      <span style={{ width: 13, height: 13, color: "#8FA89A", transform: "rotate(-90deg)", flexShrink: 0 }}>
+        <Icon.Chevron />
+      </span>
+    </button>
+  );
+}
+
+function ShapeGridBtn({ onClick, label, icon, color }: { onClick: () => void; label: string; icon: React.ReactNode; color: string }) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 py-3 rounded-2xl cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150">
+      <span className="flex items-center justify-center rounded-2xl" style={{ width: 44, height: 44, background: `${color}22`, color }}>
+        <span style={{ width: 20, height: 20 }}>{icon}</span>
+      </span>
+      <span className="text-[11px] font-bold" style={{ color: "#7A9186" }}>
+        {label}
+      </span>
     </button>
   );
 }
