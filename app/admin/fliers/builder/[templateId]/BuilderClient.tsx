@@ -610,70 +610,79 @@ export default function BuilderClient({ template }: { template: any }) {
                   )}
 
                   {panelTab === "effects" && selected.type === "image" && (
-                    <>
-                      <PanelLabel>Shape mask</PanelLabel>
-                      <div className="flex gap-1.5">
-                        {(["rect", "rounded", "circle"] as const).map((m) => (
-                          <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
-                            {m}
-                          </SegBtn>
-                        ))}
-                      </div>
-                      {selected.maskShape === "rounded" && (
-                        <SliderRow
-                          label="Radius"
-                          min={0}
-                          max={Math.min(selected.width, selected.height) / 2}
-                          step={1}
-                          value={selected.maskCornerRadius}
-                          onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
-                          onCommit={(v) => updateSelected({ maskCornerRadius: v })}
-                        />
-                      )}
-
-                      <PanelDivider />
-                      <PanelLabel>Reposition in frame</PanelLabel>
-                      <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
-                      <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
-                      <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
-
-                      <PanelDivider />
-                      <PanelLabel>Filter</PanelLabel>
-                      <div className="flex gap-1.5 mb-1 flex-wrap">
-                        {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
-                          <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
-                            {f}
-                          </SegBtn>
-                        ))}
-                      </div>
-                      {selected.filter === "duotone" && (
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
-                            Shadow / Light
-                          </span>
-                          <input
-                            type="color"
-                            value={selected.duotoneShadow}
-                            onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
-                            className="w-6 h-6 rounded-full cursor-pointer"
-                          />
-                          <input
-                            type="color"
-                            value={selected.duotoneHighlight}
-                            onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
-                            className="w-6 h-6 rounded-full cursor-pointer"
-                          />
+                    <div className="-mx-4">
+                      <Section title="Shape" defaultOpen>
+                        <div className="flex gap-1.5">
+                          {(["rect", "rounded", "circle"] as const).map((m) => (
+                            <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
+                              {m}
+                            </SegBtn>
+                          ))}
                         </div>
-                      )}
-                      <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
-                      <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
-                      <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
-                      <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
-                      <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+                        {selected.maskShape === "rounded" && (
+                          <SliderRow
+                            label="Radius"
+                            min={0}
+                            max={Math.min(selected.width, selected.height) / 2}
+                            step={1}
+                            value={selected.maskCornerRadius}
+                            onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
+                            onCommit={(v) => updateSelected({ maskCornerRadius: v })}
+                          />
+                        )}
+                      </Section>
 
-                      <PanelDivider />
-                      <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
-                    </>
+                      <Section title="Crop & position">
+                        <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
+                        <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
+                        <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
+                      </Section>
+
+                      <Section title="Filter" defaultOpen>
+                        <div className="flex gap-1.5 mb-1 flex-wrap">
+                          {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
+                            <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
+                              {f}
+                            </SegBtn>
+                          ))}
+                        </div>
+                        {selected.filter === "duotone" && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
+                              Shadow / Light
+                            </span>
+                            <input
+                              type="color"
+                              value={selected.duotoneShadow}
+                              onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
+                              className="w-6 h-6 rounded-full cursor-pointer"
+                            />
+                            <input
+                              type="color"
+                              value={selected.duotoneHighlight}
+                              onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
+                              className="w-6 h-6 rounded-full cursor-pointer"
+                            />
+                          </div>
+                        )}
+
+                        {/* Fine-tune sliders nested one level deeper - these are the
+                            least-used controls for a typical flyer edit (pick a filter
+                            preset and move on), so they stay tucked away unless someone
+                            actually wants to hand-tune brightness/contrast/etc. */}
+                        <Section title="Adjust" nested>
+                          <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
+                          <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                          <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
+                          <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
+                          <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+                        </Section>
+                      </Section>
+
+                      <Section title="Border & shadow">
+                        <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />
+                      </Section>
+                    </div>
                   )}
 
                   {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
@@ -917,6 +926,48 @@ function DarkIconBtn({
   );
 }
 
+function Section({
+  title,
+  children,
+  defaultOpen = false,
+  nested = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  nested?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div
+      className={nested ? "mt-1" : "px-4"}
+      style={!nested ? { borderBottom: "1px solid var(--portal-line)" } : undefined}
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between cursor-pointer"
+        style={{ padding: nested ? "6px 0" : "10px 0" }}
+      >
+        <span className={nested ? "text-[11px] font-bold" : "text-[13px] font-bold"} style={{ color: nested ? "#7A9186" : "#2F4A3E" }}>
+          {title}
+        </span>
+        <span
+          style={{
+            width: 13,
+            height: 13,
+            color: "#8FA89A",
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 150ms",
+          }}
+        >
+          <Icon.Chevron />
+        </span>
+      </button>
+      {open && <div className={nested ? "pb-2 space-y-1.5 pl-1" : "pb-3 space-y-2"}>{children}</div>}
+    </div>
+  );
+}
+
 function PillGroup({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1 rounded-full px-2.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
@@ -1097,10 +1148,18 @@ function SliderRow({
   );
 }
 
-function BorderShadowOpacityControls({ selected, updateSelected }: { selected: any; updateSelected: (patch: any, commit?: boolean) => void }) {
+function BorderShadowOpacityControls({
+  selected,
+  updateSelected,
+  bare = false,
+}: {
+  selected: any;
+  updateSelected: (patch: any, commit?: boolean) => void;
+  bare?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <PanelLabel>Border &amp; shadow</PanelLabel>
+      {!bare && <PanelLabel>Border &amp; shadow</PanelLabel>}
       <div className="flex gap-2 items-center">
         <label className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
           Border
