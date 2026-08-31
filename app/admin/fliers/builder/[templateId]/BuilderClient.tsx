@@ -64,8 +64,7 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const [shapesDrawerOpen, setShapesDrawerOpen] = useState(false);
+  const [elementsOpen, setElementsOpen] = useState(false);
   const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border">(null);
   const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
@@ -247,6 +246,58 @@ export default function BuilderClient({ template }: { template: any }) {
 
   const hasEffectsTab = !!selected && selected.type !== "line";
 
+  // Shared between the desktop docked panel, the mobile bottom sheet, and
+  // (railButtons only) the mobile sticky bar - defined once at component
+  // scope so all three stay in sync rather than drifting apart. Mirrors
+  // Canva's own "Elements" tab: shapes and graphics/icons grouped under one
+  // category instead of each being its own top-level rail button. Doesn't
+  // close the panel/drawer after adding one, since Canva keeps it open so
+  // you can drop several shapes or icons onto the canvas in a row.
+  const elementsPanelContent = (
+    <div className="space-y-5">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+          Shapes
+        </p>
+        <div className="grid grid-cols-3 gap-1">
+          <ShapeGridBtn label="Rect" icon={ICONS.rect} color="#E2892F" onClick={() => addElement(newRectElement())} />
+          <ShapeGridBtn label="Circle" icon={ICONS.circle} color="#2F6D46" onClick={() => addElement(newCircleElement())} />
+          <ShapeGridBtn label="Line" icon={ICONS.line} color="#6B5FB5" onClick={() => addElement(newLineElement())} />
+          <ShapeGridBtn label="Star" icon={<Icon.CircleTool />} color="#C9A227" onClick={() => addElement(newStarElement())} />
+          <ShapeGridBtn label="Polygon" icon={<Icon.RectTool />} color="#3E9E8F" onClick={() => addElement(newPolygonElement())} />
+          <ShapeGridBtn label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" onClick={() => addElement(newArrowElement())} />
+        </div>
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+          Graphics
+        </p>
+        <div className="grid grid-cols-5 gap-2">
+          {ICON_LIBRARY.map((def) => (
+            <button
+              key={def.id}
+              onClick={() => addElement(newIconElement(def.id))}
+              title={def.label}
+              className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
+              style={{ border: "1px solid var(--portal-line)" }}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path
+                  d={def.path}
+                  fill={def.mode === "filled" ? "#16302B" : "none"}
+                  stroke={def.mode === "stroke" ? "#16302B" : "none"}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-2.5">
@@ -391,8 +442,14 @@ export default function BuilderClient({ template }: { template: any }) {
           <>
             <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
             <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
-            <RailBtn onClick={() => setShapesDrawerOpen(true)} label="Shapes" icon={ICONS.rect} color="#E2892F" />
-            <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
+            <RailBtn
+              onClick={() => setElementsOpen((o) => !o)}
+              label="Elements"
+              icon={ICONS.rect}
+              color="#E2892F"
+              active={elementsOpen}
+              title="Browse shapes & icons"
+            />
           </>
         );
         return (
@@ -400,6 +457,25 @@ export default function BuilderClient({ template }: { template: any }) {
             <div className="hidden lg:flex lg:flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
               {railButtons}
             </div>
+
+            {/* Docked panel, not an overlay - sits inline in the layout next
+                to the rail so the canvas stays interactive/visible while
+                browsing, matching Canva's own desktop side-panel behavior.
+                Mobile gets the bottom-sheet version further down instead. */}
+            {elementsOpen && (
+              <div
+                className="hidden lg:flex lg:flex-col w-[260px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
+                style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold">Elements</h3>
+                  <button onClick={() => setElementsOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {elementsPanelContent}
+              </div>
+            )}
 
         <div
           ref={canvasAreaRef}
@@ -869,64 +945,31 @@ export default function BuilderClient({ template }: { template: any }) {
         );
       })()}
 
-      <Drawer title="Shapes" open={shapesDrawerOpen} onClose={() => setShapesDrawerOpen(false)}>
-        <div className="grid grid-cols-3 gap-1">
-          <ShapeGridBtn
-            label="Rect"
-            icon={ICONS.rect}
-            color="#E2892F"
-            onClick={() => {
-              addElement(newRectElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
-          <ShapeGridBtn
-            label="Circle"
-            icon={ICONS.circle}
-            color="#2F6D46"
-            onClick={() => {
-              addElement(newCircleElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
-          <ShapeGridBtn
-            label="Line"
-            icon={ICONS.line}
-            color="#6B5FB5"
-            onClick={() => {
-              addElement(newLineElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
-          <ShapeGridBtn
-            label="Star"
-            icon={<Icon.CircleTool />}
-            color="#C9A227"
-            onClick={() => {
-              addElement(newStarElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
-          <ShapeGridBtn
-            label="Polygon"
-            icon={<Icon.RectTool />}
-            color="#3E9E8F"
-            onClick={() => {
-              addElement(newPolygonElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
-          <ShapeGridBtn
-            label="Arrow"
-            icon={<Icon.AlignRight />}
-            color="#D06A4F"
-            onClick={() => {
-              addElement(newArrowElement());
-              setShapesDrawerOpen(false);
-            }}
-          />
+      {/* Mobile-only bottom sheet for the same Elements content shown in the
+          desktop docked panel above (elementsPanelContent, defined once at
+          component scope). lg:hidden on the outer scrim, not the shared
+          Drawer component, since Drawer's desktop variant is a centered
+          overlay - that would duplicate/conflict with the docked panel. */}
+      {elementsOpen && (
+        <div
+          className="lg:hidden fixed inset-0 flex items-end justify-center z-50"
+          style={{ background: "rgba(22,48,43,0.5)" }}
+          onClick={() => setElementsOpen(false)}
+        >
+          <div className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center mb-2">
+              <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+            </div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold">Elements</h3>
+              <button onClick={() => setElementsOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                ✕
+              </button>
+            </div>
+            {elementsPanelContent}
+          </div>
         </div>
-      </Drawer>
+      )}
 
       {pickerOpen && (
         <ApprovedImagePicker
@@ -938,34 +981,6 @@ export default function BuilderClient({ template }: { template: any }) {
           }}
         />
       )}
-
-      <Drawer title="Choose an icon" open={iconPickerOpen} onClose={() => setIconPickerOpen(false)}>
-        <div className="grid grid-cols-5 gap-2">
-          {ICON_LIBRARY.map((def) => (
-            <button
-              key={def.id}
-              onClick={() => {
-                addElement(newIconElement(def.id));
-                setIconPickerOpen(false);
-              }}
-              title={def.label}
-              className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
-              style={{ border: "1px solid var(--portal-line)" }}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22">
-                <path
-                  d={def.path}
-                  fill={def.mode === "filled" ? "#16302B" : "none"}
-                  stroke={def.mode === "stroke" ? "#16302B" : "none"}
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ))}
-        </div>
-      </Drawer>
     </div>
   );
 }
@@ -1231,12 +1246,27 @@ function IconBtn({
   );
 }
 
-function RailBtn({ onClick, label, icon, color }: { onClick: () => void; label: string; icon: React.ReactNode; color: string }) {
+function RailBtn({
+  onClick,
+  label,
+  icon,
+  color,
+  active = false,
+  title,
+}: {
+  onClick: () => void;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  active?: boolean;
+  title?: string;
+}) {
   return (
     <button
       onClick={onClick}
-      title={`Add ${label}`}
-      className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group flex-shrink-0"
+      title={title ?? `Add ${label}`}
+      className="flex flex-col items-center gap-1.5 py-3 px-1.5 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group flex-shrink-0"
+      style={{ background: active ? "#EAF2ED" : "transparent" }}
     >
       <span
         className="flex items-center justify-center rounded-2xl transition-shadow duration-150 group-hover:shadow-md"
@@ -1244,7 +1274,7 @@ function RailBtn({ onClick, label, icon, color }: { onClick: () => void; label: 
       >
         <span style={{ width: 18, height: 18 }}>{icon}</span>
       </span>
-      <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: "#7A9186" }}>
+      <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: active ? "var(--portal-emerald)" : "#7A9186" }}>
         {label}
       </span>
     </button>
