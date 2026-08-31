@@ -23,7 +23,7 @@ export default function ApprovedImagePicker({
   // standalone modal behavior untouched.
   docked?: boolean;
 }) {
-  const [tab, setTab] = useState<"approved" | "stock" | "upload">("approved");
+  const [tab, setTab] = useState<"approved" | "stock" | "upload" | "ai">("approved");
   const [images, setImages] = useState<ApprovedImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +33,11 @@ export default function ApprovedImagePicker({
   const [stockError, setStockError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
+
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiImage, setAiImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/flier-images")
@@ -69,6 +74,38 @@ export default function ApprovedImagePicker({
     searchStock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function generateAiImage() {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiImage(null);
+    try {
+      const res = await fetch("/api/ai/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt.trim(), size: "1024x1024" }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      // Route returns a short-lived Azure url or raw b64 depending on
+      // config - normalize to a data: URI so the preview and the eventual
+      // onSelect both work the same way regardless of which one came back.
+      // Note: this means a generated image's actual pixel data ends up
+      // inlined into the flyer's element JSON (same as the URL Pexels
+      // stock photos use, but those stay small external links - this one
+      // doesn't). Fine for occasional use; if this gets used heavily,
+      // routing it through quick-upload's Dropbox flow instead (like file
+      // uploads already do) would be worth doing so the JSON stays lean.
+      const dataUri = body.b64 ? `data:image/png;base64,${body.b64}` : body.url;
+      if (!dataUri) throw new Error("Image generation returned no result.");
+      setAiImage(dataUri);
+    } catch (e: any) {
+      setAiError(e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -107,19 +144,19 @@ export default function ApprovedImagePicker({
       </div>
 
       {allowMore && (
-        <div className="flex gap-1 mb-4" style={{ borderBottom: "1px solid var(--portal-line)" }}>
-          {(["approved", "stock", "upload"] as const).map((t) => (
+        <div className="flex gap-1 mb-4 overflow-x-auto" style={{ borderBottom: "1px solid var(--portal-line)" }}>
+          {(["approved", "stock", "ai", "upload"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="text-xs font-semibold px-3 py-2 cursor-pointer capitalize"
+              className="text-xs font-semibold px-3 py-2 cursor-pointer capitalize flex-shrink-0"
               style={{
                 color: tab === t ? "var(--portal-emerald)" : "rgba(22,48,43,0.5)",
                 borderBottom: tab === t ? "2px solid var(--portal-emerald)" : "2px solid transparent",
                 marginBottom: -1,
               }}
             >
-              {t === "stock" ? "Stock Photos" : t}
+              {t === "stock" ? "Stock Photos" : t === "ai" ? "AI Generate" : t}
             </button>
           ))}
         </div>
@@ -195,6 +232,55 @@ export default function ApprovedImagePicker({
           {stockPhotos && stockPhotos.length > 0 && (
             <p className="text-[10px] mt-3" style={{ color: "rgba(22,48,43,0.4)" }}>
               Photos via Pexels.
+            </p>
+          )}
+        </>
+      )}
+
+      {tab === "ai" && allowMore && (
+        <>
+          <div className="flex gap-2 mb-3">
+            <input
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && generateAiImage()}
+              placeholder="Describe the image you want…"
+              className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm"
+              style={{ border: "1px solid var(--portal-line)" }}
+            />
+            <button
+              onClick={generateAiImage}
+              disabled={aiLoading || !aiPrompt.trim()}
+              className="text-xs px-4 py-2 rounded-lg text-white font-medium cursor-pointer flex-shrink-0 disabled:opacity-50"
+              style={{ background: "var(--portal-emerald)" }}
+            >
+              {aiLoading ? "Generating…" : "Generate"}
+            </button>
+          </div>
+          {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+          {aiLoading && (
+            <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
+              Generating - this can take a few seconds…
+            </p>
+          )}
+          {aiImage && !aiLoading && (
+            <div>
+              <button
+                onClick={() => onSelect({ dropbox_path: null, link: aiImage })}
+                className="rounded-lg overflow-hidden cursor-pointer w-full aspect-square block"
+                style={{ border: "1px solid var(--portal-line)" }}
+                title="Click to use this image"
+              >
+                <img src={aiImage} alt={aiPrompt} className="w-full h-full object-cover" />
+              </button>
+              <p className="text-[10px] mt-2" style={{ color: "rgba(22,48,43,0.4)" }}>
+                Click the image to use it. AI-generated - always give it a quick look before using on a real flyer.
+              </p>
+            </div>
+          )}
+          {!aiImage && !aiLoading && !aiError && (
+            <p className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
+              Describe an image and generate an on-brand illustration or background.
             </p>
           )}
         </>
