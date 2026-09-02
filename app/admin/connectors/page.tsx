@@ -194,6 +194,30 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        title="Background Removal (remove.bg)"
+        description="Powers 'Remove background' in the flier builder's Edit image panel. Azure's equivalent service was retired in 2025. Sign up for an API key at remove.bg/api."
+      >
+        <ConnectorKeyField settingKey="removebg_api_key" label="API Key" envFallbackKey="REMOVEBG_API_KEY" placeholder="Your remove.bg API key" />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="Social Media — YouTube"
+        description="Powers the Social Media tab's YouTube page - shows the channel's latest uploads. Get a free API key from Google Cloud Console (enable the 'YouTube Data API v3' for your project); no OAuth needed since a channel's uploads are public data. The channel ID is in YouTube Studio under Settings > Channel > Advanced settings, or from the channel's URL if it starts with /channel/."
+      >
+        <ConnectorKeyField settingKey="youtube_api_key" label="API Key" placeholder="From Google Cloud Console" />
+        <ConnectorKeyField settingKey="youtube_channel_id" label="Channel ID" placeholder="UC..." />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="Social Media — Facebook & Instagram"
+        description="Powers the Social Media tab's Facebook and Instagram pages, both through Meta's Graph API and the same Page access token below. Create an app at developers.facebook.com, add the Page as an app admin/tester (this keeps it in Development Mode - no public App Review needed, since it only ever reads this organization's own content), and generate a long-lived Page access token. For Instagram, the account must be a Business or Creator account linked to that same Facebook Page - the Business Account ID can be found via the Graph API Explorer (query the Page ID with field instagram_business_account)."
+      >
+        <ConnectorKeyField settingKey="facebook_page_id" label="Facebook Page ID" placeholder="e.g. 123456789012345" />
+        <ConnectorKeyField settingKey="facebook_page_access_token" label="Page Access Token" placeholder="Long-lived token from Graph API Explorer" />
+        <ConnectorKeyField settingKey="instagram_business_account_id" label="Instagram Business Account ID" placeholder="From the linked Facebook Page" />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Finance Tickets — CEO Routing"
         description="Where a Finance Ticket's approval goes when the requestor is C-suite and the amount is over the COO self-approval threshold ($10,000). Left blank, those tickets go on hold and notify Finance for manual routing instead of guessing who the CEO is."
       >
