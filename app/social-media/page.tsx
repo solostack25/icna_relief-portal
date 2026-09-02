@@ -31,6 +31,14 @@ export default async function SocialMediaPage() {
           See the latest from ICNA Relief's own accounts, all in one place.
         </p>
 
+        <Link
+          href="/social-media/create"
+          className="flex items-center justify-center gap-2 rounded-2xl p-4 mb-6 text-sm font-bold text-white transition-all hover:-translate-y-0.5"
+          style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.3)" }}
+        >
+          ✨ Create a Post
+        </Link>
+
         <div className="grid grid-cols-2 gap-3">
           {PLATFORMS.map((p) => (
             <Link
