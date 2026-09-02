@@ -8,6 +8,7 @@ import DistributeBackpackButton from "./DistributeBackpackButton";
 import AdmitToHousingButton from "./AdmitToHousingButton";
 import HungerPreventionBookings from "./HungerPreventionBookings";
 import LogServiceButton from "./LogServiceButton";
+import ApplyForZakatButton from "./ApplyForZakatButton";
 import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
 import IntakeInfoEditor from "./IntakeInfoEditor";
@@ -118,6 +119,12 @@ export default async function ClientProfilePage({
     .select("id, school_year, backpacks_distributed, notes, distributed_at, salesforce_synced, salesforce_case_id")
     .eq("client_id", id)
     .order("distributed_at", { ascending: false });
+
+  const { data: zakatApplications } = await supabase
+    .from("zakat_applications")
+    .select("id, application_number, category, amount_requested, amount_approved, status, submitted_at")
+    .eq("client_id", id)
+    .order("submitted_at", { ascending: false });
 
   const foodLog = (serviceLog ?? []).filter((e) => e.program_slug === "hunger-prevention");
   const drsLog = (serviceLog ?? []).filter((e) => e.program_slug === "drs");
@@ -459,6 +466,68 @@ export default async function ClientProfilePage({
                     alreadySynced={entry.salesforce_synced}
                     salesforceCaseId={entry.salesforce_case_id}
                   />
+                </span>
+              </div>
+            ))}
+          </div>
+        </ProgramSection>
+
+        <ProgramSection
+          title="Zakat / IRFAS"
+          statusBadge={
+            (zakatApplications ?? []).some((a) => a.status === "pending") ? (
+              <span className="text-xs font-medium text-[var(--color-accent-orange)] bg-[var(--color-accent-orange)]/10 rounded-full px-2 py-0.5">
+                Pending approval
+              </span>
+            ) : null
+          }
+          hasHistory={(zakatApplications ?? []).length > 0}
+          summary={
+            (zakatApplications ?? []).length > 0
+              ? `${(zakatApplications ?? []).length} application${(zakatApplications ?? []).length === 1 ? "" : "s"} on file`
+              : undefined
+          }
+          emptyText="No zakat/financial assistance applications yet."
+          action={
+            <ApplyForZakatButton
+              clientId={id}
+              applicantName={`${clientRecord.first_name} ${clientRecord.last_name}`}
+              applicantPhone={clientRecord.phone}
+              applicantAddress={
+                clientRecord.address_line1
+                  ? `${clientRecord.address_line1}${clientRecord.apt_unit_no ? ` #${clientRecord.apt_unit_no}` : ""}, ${clientRecord.city ?? ""} ${clientRecord.state ?? ""} ${clientRecord.zip ?? ""}`
+                  : null
+              }
+              householdSize={clientRecord.household_key ? (householdClients ?? []).length + 1 : null}
+            />
+          }
+        >
+          <div className="space-y-2">
+            {(zakatApplications ?? []).map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
+              >
+                <span>
+                  {a.category} · ${Number(a.amount_requested).toLocaleString()}
+                  {a.amount_approved != null ? ` (approved: $${Number(a.amount_approved).toLocaleString()})` : ""}
+                  <span className="text-[var(--color-text-dim)]"> · {a.application_number}</span>
+                </span>
+                <span className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="text-[var(--color-text-dim)]">{new Date(a.submitted_at).toLocaleDateString()}</span>
+                  <span
+                    className="text-xs font-semibold uppercase"
+                    style={{
+                      color:
+                        a.status === "approved" || a.status === "paid"
+                          ? "var(--color-accent)"
+                          : a.status === "rejected"
+                            ? "#B5566B"
+                            : "var(--color-accent-orange)",
+                    }}
+                  >
+                    {a.status}
+                  </span>
                 </span>
               </div>
             ))}
