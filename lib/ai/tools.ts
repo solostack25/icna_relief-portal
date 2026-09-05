@@ -211,6 +211,21 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "find_employee_info",
+      description:
+        "Looks up an employee by name and returns their job title, department, office location, email, phone, and manager, pulled live from Active Directory - works for anyone in the org. If the person is a member of ICNA Relief's national executive leadership, also includes their public bio from the ICNA Relief website (this only exists for a handful of leadership roles like CEO/CSO - regular staff won't have one, which is normal, not an error). If the response is an ambiguous_target error, ask which person they meant and call again with the exact full name.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: 'Full or partial name of the employee to look up, e.g. "Amir Saeed".' },
+        },
+        required: ["name"],
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -223,6 +238,7 @@ const TOOL_ROUTES: Record<string, string> = {
   list_my_helpdesk_tickets: "/api/copilot/helpdesk/my-tickets",
   get_office_info: "/api/copilot/office/info",
   list_upcoming_volunteer_events: "/api/copilot/volunteer/upcoming-events",
+  find_employee_info: "/api/copilot/directory/employee-info",
 };
 
 /**
