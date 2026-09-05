@@ -8,6 +8,16 @@ import { findIcnaTeamBio } from "@/lib/icnaTeamPage";
 // - reused here rather than duplicated logic with different
 // field selection, since the two callers just want different shaped
 // responses from the same underlying query.
+//
+// This route lives under /api/copilot/* alongside the portal's other
+// tool routes (helpdesk, calling, sms, fliers, etc.) - that naming is
+// historical, from when those routes were originally built for a
+// Copilot Studio custom connector. The Portal Assistant (lib/ai/)
+// that actually calls this today runs on Azure OpenAI directly, not
+// Copilot Studio - see lib/copilotStudio.ts for why. Whether the old
+// Copilot Studio connector for these specific tool routes is still
+// connected to anything in Power Platform is unconfirmed; either way
+// it doesn't change how this route itself works.
 async function searchDirectory(query: string) {
   const token = await getGraphToken();
   const search = `"displayName:${query}" OR "mail:${query}"`;
