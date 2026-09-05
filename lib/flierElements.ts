@@ -37,6 +37,7 @@ export type FlierImageElement = {
   imageUrl: string | null;
   editable: boolean;
   editableLabel?: string;
+  altText?: string; // accessibility description, optional - see Edit image panel's "Generate alt text"
   // Shape masking - "merge a square photo into a circle" and similar.
   maskShape: "rect" | "circle" | "rounded";
   maskCornerRadius: number; // used when maskShape === "rounded"
@@ -204,6 +205,35 @@ export type FlierElement =
 export const BRAND_FONTS = ["Manrope", "Fraunces", "IBM Plex Mono"];
 export const BRAND_COLORS = ["#16302B", "#1F6F54", "#C99A3D", "#FBF7EF", "#FFFFFF", "#3E7C9A", "#B55139"];
 
+// Broader font library for the Text panel's font list, beyond the 3 brand
+// fonts above (which stay first/pinned as "Brand"). Loaded via the Google
+// Fonts @import in globals.css - every family here must have a matching
+// entry there or it'll silently fall back to a system font on canvas.
+export type FontEntry = { family: string; category: "Brand" | "Script" | "Display" | "Serif" | "Sans" };
+export const FONT_LIBRARY: FontEntry[] = [
+  { family: "Manrope", category: "Brand" },
+  { family: "Fraunces", category: "Brand" },
+  { family: "IBM Plex Mono", category: "Brand" },
+  { family: "Pacifico", category: "Script" },
+  { family: "Dancing Script", category: "Script" },
+  { family: "Caveat", category: "Script" },
+  { family: "Permanent Marker", category: "Script" },
+  { family: "Sacramento", category: "Script" },
+  { family: "Bebas Neue", category: "Display" },
+  { family: "Anton", category: "Display" },
+  { family: "Righteous", category: "Display" },
+  { family: "Passion One", category: "Display" },
+  { family: "Alfa Slab One", category: "Display" },
+  { family: "Playfair Display", category: "Serif" },
+  { family: "Abril Fatface", category: "Serif" },
+  { family: "Cormorant Garamond", category: "Serif" },
+  { family: "Poppins", category: "Sans" },
+  { family: "Montserrat", category: "Sans" },
+  { family: "Oswald", category: "Sans" },
+  { family: "Raleway", category: "Sans" },
+  { family: "Work Sans", category: "Sans" },
+];
+
 export type SizePreset = { label: string; width: number; height: number; group: string };
 
 export const CANVAS_SIZE_PRESETS: SizePreset[] = [
@@ -239,6 +269,56 @@ export const CANVAS_SIZE_PRESETS: SizePreset[] = [
 // blank template at a given size) - this is for taking an EXISTING
 // design and adapting it to a different platform's dimensions as a
 // real starting point, not a from-scratch redo.
+export type BrandCheckResult = { offBrandFonts: string[]; offBrandColors: string[] };
+
+// Deterministic, not an AI call - "off-brand" here just means "not one of
+// the exact fonts/colors in BRAND_FONTS / BRAND_COLORS", which is a plain
+// set-membership check. An LLM call would add latency, cost, and a failure
+// mode for something a string/hex comparison already answers instantly and
+// for free - the "AI" in "AI features" doesn't have to mean every feature
+// routes through a model, just that this is part of that same feature set.
+export function checkBrandConsistency(elements: FlierElement[], background: string): BrandCheckResult {
+  const fontsInUse = new Set<string>();
+  const colorsInUse = new Set<string>();
+
+  const addColor = (c: unknown) => {
+    if (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c)) colorsInUse.add(c.toUpperCase());
+  };
+
+  addColor(background);
+  for (const el of elements) {
+    if (el.type === "text") {
+      fontsInUse.add(el.fontFamily);
+      addColor(el.fill);
+    } else if (el.type === "image") {
+      if (el.filter === "duotone") {
+        addColor(el.duotoneShadow);
+        addColor(el.duotoneHighlight);
+      }
+      if (el.borderWidth > 0) addColor(el.borderColor);
+    } else if (el.type === "rect" || el.type === "circle") {
+      addColor(el.fill);
+      if (el.gradient.enabled) {
+        addColor(el.gradient.from);
+        addColor(el.gradient.to);
+      }
+      if (el.borderWidth > 0) addColor(el.borderColor);
+    } else if (el.type === "line") {
+      addColor(el.stroke);
+    } else if (el.type === "star" || el.type === "polygon" || el.type === "arrow" || el.type === "icon") {
+      addColor((el as any).fill);
+    }
+  }
+
+  const brandFontsUpper = new Set(BRAND_FONTS.map((f) => f.toUpperCase()));
+  const brandColorsUpper = new Set(BRAND_COLORS.map((c) => c.toUpperCase()));
+
+  return {
+    offBrandFonts: [...fontsInUse].filter((f) => !brandFontsUpper.has(f.toUpperCase())).sort(),
+    offBrandColors: [...colorsInUse].filter((c) => !brandColorsUpper.has(c)).sort(),
+  };
+}
+
 export function resizeElementsToCanvas(
   elements: FlierElement[],
   oldWidth: number,

@@ -5,10 +5,13 @@ import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import {
   type FlierElement,
+  type FontEntry,
   BRAND_FONTS,
+  FONT_LIBRARY,
   BRAND_COLORS,
   CANVAS_SIZE_PRESETS,
   resizeElementsToCanvas,
+  checkBrandConsistency,
   newTextElement,
   newImageElement,
   newRectElement,
@@ -64,7 +67,15 @@ export default function BuilderClient({ template }: { template: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [activeRailPanel, setActiveRailPanel] = useState<null | "text" | "elements" | "photos" | "edit">(null);
+  const [fontSearch, setFontSearch] = useState("");
+  const [magicWriteOpen, setMagicWriteOpen] = useState(false);
+  const [magicWritePrompt, setMagicWritePrompt] = useState("");
+  const [magicWriteLoading, setMagicWriteLoading] = useState(false);
+  const [magicWriteSuggestions, setMagicWriteSuggestions] = useState<string[] | null>(null);
+  const [magicWriteError, setMagicWriteError] = useState<string | null>(null);
+  const [effectsDrawer, setEffectsDrawer] = useState<null | "shape" | "crop" | "filter" | "border" | "altText">(null);
+  const [styleDrawer, setStyleDrawer] = useState<null | "font" | "color" | "fill" | "rectShape">(null);
   const [zoom, setZoom] = useState(0.42);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
@@ -123,11 +134,61 @@ export default function BuilderClient({ template }: { template: any }) {
 
   useEffect(() => {
     setPanelTab("style");
+    setEffectsDrawer(null);
+    setStyleDrawer(null);
+    setRemoveBgError(null);
+    setAltTextError(null);
+    // The "Edit image" left panel only makes sense while an image is
+    // selected - close it automatically if selection changes away from
+    // one (including deselecting entirely) rather than leaving an empty
+    // panel open.
+    setActiveRailPanel((p) => (p === "edit" && (!selected || selected.type !== "image") ? null : p));
   }, [selectedId]);
 
   function addElement(el: FlierElement) {
     commit([...elements, el]);
     setSelectedId(el.id);
+  }
+  // Rail-triggered Photos panel always adds a new filled image element per
+  // click - matches Canva's actual behavior (clicking a thumbnail in the
+  // Photos tab drops a new photo on the canvas, it never silently replaces
+  // whatever happens to be selected). The Style panel's own "Choose/Change
+  // Image" button is the separate, deliberate "replace this specific
+  // element's photo" action and keeps its own pickerOpen + updateSelected
+  // flow untouched.
+  function addPhoto(img: { dropbox_path: string | null; link: string }) {
+    addElement(newImageElement({ dropboxPath: img.dropbox_path, imageUrl: img.link }));
+  }
+  // Font-list and Magic Write clicks share this: apply to the selected text
+  // element if there is one, otherwise create a new text box with it. Same
+  // "fill selected or add new" logic as Style tab's text editing already
+  // uses implicitly - this just extends it to two new entry points.
+  function applyText(patch: { text?: string; fontFamily?: string }) {
+    if (selected && selected.type === "text") {
+      updateSelected(patch as any);
+    } else {
+      addElement(newTextElement(patch));
+    }
+  }
+  async function runMagicWrite() {
+    if (!magicWritePrompt.trim()) return;
+    setMagicWriteLoading(true);
+    setMagicWriteError(null);
+    setMagicWriteSuggestions(null);
+    try {
+      const res = await fetch("/api/marketing/magic-write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: magicWritePrompt.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setMagicWriteSuggestions(body.suggestions);
+    } catch (e: any) {
+      setMagicWriteError(e.message);
+    } finally {
+      setMagicWriteLoading(false);
+    }
   }
   function updateSelected(patch: Partial<FlierElement>, shouldCommit = true) {
     if (!selected) return;
@@ -147,11 +208,88 @@ export default function BuilderClient({ template }: { template: any }) {
     setSelectedId(copy.id);
   }
 
+  const [smartResize, setSmartResize] = useState(false);
+  const [resizing, setResizing] = useState(false);
+  const [brandCheckOpen, setBrandCheckOpen] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [removeBgError, setRemoveBgError] = useState<string | null>(null);
+  const [altTextLoading, setAltTextLoading] = useState(false);
+  const [altTextError, setAltTextError] = useState<string | null>(null);
+
+  async function generateAltText() {
+    if (!selected || selected.type !== "image" || !selected.imageUrl) return;
+    setAltTextLoading(true);
+    setAltTextError(null);
+    try {
+      const res = await fetch("/api/marketing/generate-alt-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selected.imageUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      updateSelected({ altText: body.altText } as any);
+    } catch (e: any) {
+      setAltTextError(e.message);
+    } finally {
+      setAltTextLoading(false);
+    }
+  }
+
   function resizeTo(newWidth: number, newHeight: number) {
     const resized = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
     setCanvasWidth(newWidth);
     setCanvasHeight(newHeight);
     commit(resized);
+  }
+
+  // AI-repositioned alternative to the plain resizeTo above - see
+  // /api/marketing/smart-resize for why this exists as a separate path
+  // rather than replacing the plain one. Falls back to the plain resize
+  // for any element the model didn't return usable coordinates for (or
+  // if the whole request fails), so a bad/partial AI response never
+  // leaves elements missing or off-canvas.
+  async function smartResizeTo(newWidth: number, newHeight: number) {
+    setResizing(true);
+    try {
+      const simplified = elements.map((el) => ({
+        id: el.id,
+        type: el.type,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        ...(el.type === "text" ? { text: el.text.slice(0, 80) } : {}),
+      }));
+      const res = await fetch("/api/marketing/smart-resize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elements: simplified, oldWidth: canvasWidth, oldHeight: canvasHeight, newWidth, newHeight }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+
+      const layoutById = new Map<string, { x: number; y: number; width: number; height: number }>(
+        body.layout.map((l: any) => [l.id, l])
+      );
+      // Elements the model skipped still get the plain scale/letterbox
+      // treatment rather than being left at their old (now out-of-canvas)
+      // position - computed against the same old/new dimensions either way.
+      const fallback = resizeElementsToCanvas(elements, canvasWidth, canvasHeight, newWidth, newHeight);
+      const merged = elements.map((el, i) => {
+        const l = layoutById.get(el.id);
+        return l ? ({ ...el, x: l.x, y: l.y, width: l.width, height: l.height } as FlierElement) : fallback[i];
+      });
+
+      setCanvasWidth(newWidth);
+      setCanvasHeight(newHeight);
+      commit(merged);
+    } catch (e: any) {
+      alert(`Smart resize failed, using regular resize instead: ${e.message}`);
+      resizeTo(newWidth, newHeight);
+    } finally {
+      setResizing(false);
+    }
   }
 
   function reorder(dir: "front" | "back" | "forward" | "backward") {
@@ -240,7 +378,373 @@ export default function BuilderClient({ template }: { template: any }) {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const hasEffectsTab = !!selected && selected.type !== "line";
+  const hasEffectsTab = !!selected && selected.type !== "line" && selected.type !== "image";
+
+  // Shared between the desktop docked panel, the mobile bottom sheet, and
+  // (railButtons only) the mobile sticky bar - defined once at component
+  // scope so all three stay in sync rather than drifting apart. Mirrors
+  // Canva's own "Elements" tab: shapes and graphics/icons grouped under one
+  // category instead of each being its own top-level rail button. Doesn't
+  // close the panel/drawer after adding one, since Canva keeps it open so
+  // you can drop several shapes or icons onto the canvas in a row.
+  // Shared between the right panel's Effects tab (unchanged, existing entry
+  // point) and the new left-docked "Edit image" panel opened from the
+  // floating toolbar's Edit button - same CategoryButtons triggering the
+  // same effectsDrawer state either way, so there's exactly one set of
+  // Drawers rendered once in the tree regardless of which trigger opened it.
+  async function runRemoveBackground() {
+    if (!selected || selected.type !== "image" || !selected.imageUrl) return;
+    setRemovingBg(true);
+    setRemoveBgError(null);
+    try {
+      const res = await fetch("/api/marketing/remove-background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selected.imageUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      updateSelected({ imageUrl: body.dataUri, dropboxPath: null } as any);
+    } catch (e: any) {
+      setRemoveBgError(e.message);
+    } finally {
+      setRemovingBg(false);
+    }
+  }
+
+  const imageEditCategories = selected && selected.type === "image" && (
+    <div className="space-y-2">
+      <button
+        onClick={runRemoveBackground}
+        disabled={removingBg || !selected.imageUrl}
+        className="w-full flex items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-bold cursor-pointer text-white disabled:opacity-50"
+        style={{ background: "#8A5FB5" }}
+        title={!selected.imageUrl ? "Choose a photo first" : undefined}
+      >
+        ✨ {removingBg ? "Removing background…" : "Remove background"}
+      </button>
+      {removeBgError && <p className="text-xs text-red-600">{removeBgError}</p>}
+      <CategoryButton label="Shape" onClick={() => setEffectsDrawer("shape")} />
+      <CategoryButton label="Crop & position" onClick={() => setEffectsDrawer("crop")} />
+      <CategoryButton label="Filter" onClick={() => setEffectsDrawer("filter")} />
+      <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+      <CategoryButton label="Alt text" onClick={() => setEffectsDrawer("altText")} />
+    </div>
+  );
+
+  // Per-category content for the left "Edit image" panel - no Drawer/modal
+  // involved. Requires selected.type === "image", so only meaningful while
+  // effectsDrawer is non-null and an image is selected (guaranteed by the
+  // rendering site below); guarded here too so TypeScript's narrowing on
+  // `selected` holds within each block.
+  const imageEditContent: Record<"shape" | "crop" | "filter" | "border" | "altText", { title: string; body: React.ReactNode }> | null =
+    selected && selected.type === "image"
+      ? {
+          shape: {
+            title: "Shape",
+            body: (
+              <>
+                <div className="flex gap-1.5">
+                  {(["rect", "rounded", "circle"] as const).map((m) => (
+                    <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
+                      {m}
+                    </SegBtn>
+                  ))}
+                </div>
+                {selected.maskShape === "rounded" && (
+                  <SliderRow
+                    label="Radius"
+                    min={0}
+                    max={Math.min(selected.width, selected.height) / 2}
+                    step={1}
+                    value={selected.maskCornerRadius}
+                    onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
+                    onCommit={(v) => updateSelected({ maskCornerRadius: v })}
+                  />
+                )}
+              </>
+            ),
+          },
+          crop: {
+            title: "Crop & position",
+            body: (
+              <>
+                <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
+                <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
+                <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
+              </>
+            ),
+          },
+          filter: {
+            title: "Filter",
+            body: (
+              <>
+                <div className="flex gap-1.5 mb-1 flex-wrap">
+                  {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
+                    <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
+                      {f}
+                    </SegBtn>
+                  ))}
+                </div>
+                {selected.filter === "duotone" && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
+                      Shadow / Light
+                    </span>
+                    <input
+                      type="color"
+                      value={selected.duotoneShadow}
+                      onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
+                      className="w-6 h-6 rounded-full cursor-pointer"
+                    />
+                    <input
+                      type="color"
+                      value={selected.duotoneHighlight}
+                      onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
+                      className="w-6 h-6 rounded-full cursor-pointer"
+                    />
+                  </div>
+                )}
+                <Section title="Adjust" nested>
+                  <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
+                  <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
+                  <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
+                  <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
+                  <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
+                </Section>
+              </>
+            ),
+          },
+          border: {
+            title: "Border & shadow",
+            body: <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />,
+          },
+          altText: {
+            title: "Alt text",
+            body: (
+              <div className="space-y-2">
+                <p className="text-xs" style={{ color: DIM }}>
+                  Describes the image for accessibility and social posting.
+                </p>
+                <textarea
+                  value={selected.altText ?? ""}
+                  onChange={(e) => updateSelected({ altText: e.target.value } as any, false)}
+                  onBlur={(e) => updateSelected({ altText: e.target.value } as any)}
+                  rows={3}
+                  placeholder="e.g. Volunteers packing food boxes at a distribution event"
+                  className="w-full rounded-lg px-2.5 py-2 text-sm"
+                  style={{ border: "1px solid var(--portal-line)" }}
+                />
+                <button
+                  onClick={generateAltText}
+                  disabled={altTextLoading || !selected.imageUrl}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer disabled:opacity-50"
+                  style={{ border: "1px solid var(--portal-emerald)", color: "var(--portal-emerald)" }}
+                >
+                  ✨ {altTextLoading ? "Looking at the image…" : "Generate with AI"}
+                </button>
+                {altTextError && <p className="text-xs text-red-600">{altTextError}</p>}
+              </div>
+            ),
+          },
+        }
+      : null;
+
+  // The left "Edit image" panel itself - category list, or (once
+  // effectsDrawer is set) that category's controls with a back button.
+  // Rendered inline in whichever shell the caller wraps it in (desktop
+  // docked panel or mobile bottom sheet) - no separate modal/Drawer
+  // involved, so there's exactly one panel state to reason about instead
+  // of a panel plus an overlay stacked on top of it.
+  const editImagePanel = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        {effectsDrawer && imageEditContent ? (
+          <button onClick={() => setEffectsDrawer(null)} className="flex items-center gap-1.5 text-sm font-bold cursor-pointer" style={{ color: "#2F4A3E" }}>
+            <span style={{ width: 13, height: 13, transform: "rotate(90deg)" }}>
+              <Icon.Chevron />
+            </span>
+            {imageEditContent[effectsDrawer].title}
+          </button>
+        ) : (
+          <h3 className="text-sm font-bold">Edit image</h3>
+        )}
+        <button
+          onClick={() => {
+            setActiveRailPanel(null);
+            setEffectsDrawer(null);
+          }}
+          className="text-sm cursor-pointer"
+          style={{ color: DIM }}
+        >
+          ✕
+        </button>
+      </div>
+      {effectsDrawer && imageEditContent ? imageEditContent[effectsDrawer].body : imageEditCategories}
+    </>
+  );
+
+  // Text panel: search + Add a text box + Magic Write (AI copy suggestions)
+  // + a browsable font list grouped by category, each rendered in its own
+  // font-family so what you see is what you'll get. Brand fonts (the 3
+  // portal-brand choices) stay pinned first regardless of search/category
+  // grouping, matching how BRAND_FONTS is treated everywhere else in the
+  // builder - they're the safe/expected default, not just one more option.
+  const filteredFontLibrary = FONT_LIBRARY.filter((f) => f.family.toLowerCase().includes(fontSearch.trim().toLowerCase()));
+  const fontCategories: FontEntry["category"][] = ["Brand", "Script", "Display", "Serif", "Sans"];
+  const textPanelContent = (
+    <div className="space-y-4">
+      <input
+        value={fontSearch}
+        onChange={(e) => setFontSearch(e.target.value)}
+        placeholder="Search fonts…"
+        className="w-full rounded-lg px-3 py-2 text-sm"
+        style={{ border: "1px solid var(--portal-line)" }}
+      />
+
+      <button
+        onClick={() => addElement(newTextElement())}
+        className="w-full flex items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-bold cursor-pointer text-white"
+        style={{ background: "var(--portal-emerald)" }}
+      >
+        <span style={{ width: 14, height: 14 }}>
+          <Icon.TextTool />
+        </span>
+        Add a text box
+      </button>
+
+      <div className="rounded-xl" style={{ border: "1px solid var(--portal-line)" }}>
+        <button
+          onClick={() => setMagicWriteOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-3 py-2.5 cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "#2F4A3E" }}>
+            <span style={{ width: 14, height: 14 }}>
+              <Icon.Effects />
+            </span>
+            Magic Write
+          </span>
+          <span style={{ width: 13, height: 13, color: "#8FA89A", transform: magicWriteOpen ? "rotate(180deg)" : "none", transition: "transform 150ms" }}>
+            <Icon.Chevron />
+          </span>
+        </button>
+        {magicWriteOpen && (
+          <div className="px-3 pb-3 space-y-2">
+            <p className="text-xs" style={{ color: DIM }}>
+              Describe what the flyer's for and get short copy suggestions.
+            </p>
+            <div className="flex gap-1.5">
+              <input
+                value={magicWritePrompt}
+                onChange={(e) => setMagicWritePrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runMagicWrite()}
+                placeholder="e.g. blood drive next Saturday"
+                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                style={{ border: "1px solid var(--portal-line)" }}
+              />
+              <button
+                onClick={runMagicWrite}
+                disabled={magicWriteLoading || !magicWritePrompt.trim()}
+                className="text-xs px-3 py-1.5 rounded-lg text-white font-medium cursor-pointer flex-shrink-0 disabled:opacity-50"
+                style={{ background: "var(--portal-emerald)" }}
+              >
+                {magicWriteLoading ? "…" : "Generate"}
+              </button>
+            </div>
+            {magicWriteError && <p className="text-xs text-red-600">{magicWriteError}</p>}
+            {magicWriteSuggestions && (
+              <div className="space-y-1.5">
+                {magicWriteSuggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => applyText({ text: s })}
+                    className="w-full text-left text-xs px-2.5 py-2 rounded-lg cursor-pointer hover:bg-black/[0.03] transition-colors"
+                    style={{ border: "1px solid var(--portal-line)", color: "#2F4A3E" }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {fontCategories.map((cat) => {
+        const inCat = filteredFontLibrary.filter((f) => f.category === cat);
+        if (inCat.length === 0) return null;
+        return (
+          <div key={cat}>
+            <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+              {cat}
+            </p>
+            <div className="space-y-1">
+              {inCat.map((f) => (
+                <button
+                  key={f.family}
+                  onClick={() => applyText({ fontFamily: f.family })}
+                  className="w-full text-left px-3 py-2.5 rounded-lg cursor-pointer hover:bg-black/[0.03] transition-colors"
+                  style={{ border: "1px solid var(--portal-line)", fontFamily: f.family, fontSize: 17, color: "#16302B" }}
+                >
+                  {f.family}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {filteredFontLibrary.length === 0 && (
+        <p className="text-xs" style={{ color: DIM }}>
+          No fonts match "{fontSearch}".
+        </p>
+      )}
+    </div>
+  );
+
+  const elementsPanelContent = (
+    <div className="space-y-5">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+          Shapes
+        </p>
+        <div className="grid grid-cols-3 gap-1">
+          <ShapeGridBtn label="Rect" icon={ICONS.rect} color="#E2892F" onClick={() => addElement(newRectElement())} />
+          <ShapeGridBtn label="Circle" icon={ICONS.circle} color="#2F6D46" onClick={() => addElement(newCircleElement())} />
+          <ShapeGridBtn label="Line" icon={ICONS.line} color="#6B5FB5" onClick={() => addElement(newLineElement())} />
+          <ShapeGridBtn label="Star" icon={<Icon.CircleTool />} color="#C9A227" onClick={() => addElement(newStarElement())} />
+          <ShapeGridBtn label="Polygon" icon={<Icon.RectTool />} color="#3E9E8F" onClick={() => addElement(newPolygonElement())} />
+          <ShapeGridBtn label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" onClick={() => addElement(newArrowElement())} />
+        </div>
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "#7A9186" }}>
+          Graphics
+        </p>
+        <div className="grid grid-cols-5 gap-2">
+          {ICON_LIBRARY.map((def) => (
+            <button
+              key={def.id}
+              onClick={() => addElement(newIconElement(def.id))}
+              title={def.label}
+              className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
+              style={{ border: "1px solid var(--portal-line)" }}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path
+                  d={def.path}
+                  fill={def.mode === "filled" ? "#16302B" : "none"}
+                  stroke={def.mode === "stroke" ? "#16302B" : "none"}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -290,16 +794,20 @@ export default function BuilderClient({ template }: { template: any }) {
           <select
             onChange={(e) => {
               const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
-              if (preset) resizeTo(preset.width, preset.height);
+              if (preset) {
+                if (smartResize) smartResizeTo(preset.width, preset.height);
+                else resizeTo(preset.width, preset.height);
+              }
               e.target.value = "";
             }}
-            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5"
+            disabled={resizing}
+            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5 disabled:opacity-60"
             style={{ color: "#fff", background: "var(--portal-amber, #E2892F)" }}
             defaultValue=""
             title="Rescale the current design to fit a different platform size"
           >
             <option value="" disabled>
-              Resize to…
+              {resizing ? "Resizing…" : "Resize to…"}
             </option>
             {presetGroups.map((group) => (
               <optgroup key={group} label={group}>
@@ -313,6 +821,14 @@ export default function BuilderClient({ template }: { template: any }) {
               </optgroup>
             ))}
           </select>
+          <label
+            className="flex items-center gap-1.5 text-xs font-bold rounded-full px-3 py-2 cursor-pointer"
+            style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)", color: smartResize ? "var(--portal-emerald)" : "#7A9186" }}
+            title="When on, resizing repositions elements to fit the new shape instead of just scaling with empty margins"
+          >
+            <input type="checkbox" checked={smartResize} onChange={(e) => setSmartResize(e.target.checked)} className="cursor-pointer" />
+            ✨ AI resize
+          </label>
           <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
             <span className="text-xs font-bold" style={{ color: "#7A9186" }}>
               Background
@@ -333,6 +849,14 @@ export default function BuilderClient({ template }: { template: any }) {
             </span>
           )}
           <button
+            onClick={() => setBrandCheckOpen(true)}
+            className="text-sm px-4 py-2.5 rounded-full font-bold cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150"
+            style={{ color: "var(--portal-emerald)", border: "1.5px solid var(--portal-emerald)", background: "#fff" }}
+            title="Check fonts and colors used against the brand kit"
+          >
+            ✨ Brand check
+          </button>
+          <button
             onClick={save}
             disabled={saving}
             className="text-sm px-6 py-2.5 rounded-full text-white font-bold cursor-pointer disabled:opacity-60 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-transform duration-150"
@@ -343,14 +867,66 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
       </div>
 
+      <Drawer title="Brand check" open={brandCheckOpen} onClose={() => setBrandCheckOpen(false)}>
+        {(() => {
+          const { offBrandFonts, offBrandColors } = checkBrandConsistency(elements, background);
+          if (offBrandFonts.length === 0 && offBrandColors.length === 0) {
+            return (
+              <p className="text-sm" style={{ color: "var(--portal-emerald)" }}>
+                ✓ Every font and color in this flyer is from the brand kit.
+              </p>
+            );
+          }
+          return (
+            <div className="space-y-4">
+              {offBrandFonts.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#7A9186" }}>
+                    Off-brand fonts
+                  </p>
+                  <div className="space-y-1">
+                    {offBrandFonts.map((f) => (
+                      <div key={f} className="text-sm px-2.5 py-1.5 rounded-lg" style={{ background: "#FCEFDD", fontFamily: f }}>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-1.5" style={{ color: DIM }}>
+                    Brand fonts: {BRAND_FONTS.join(", ")}
+                  </p>
+                </div>
+              )}
+              {offBrandColors.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#7A9186" }}>
+                    Off-brand colors
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {offBrandColors.map((c) => (
+                      <div key={c} className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg" style={{ background: "#FCEFDD" }}>
+                        <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: c, border: "1px solid var(--portal-line)" }} />
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-1.5" style={{ color: DIM }}>
+                    Brand colors: {BRAND_COLORS.join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </Drawer>
+
       {showTip && (
         <div
           className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 mb-3"
           style={{ background: "#FCEFDD", border: "1px solid #F0D5A8" }}
         >
           <span className="text-sm" style={{ color: "#8A5A1E" }}>
-            <span className="font-bold">New here?</span> Click a shape on the left to add it to your flier, then
-            style it using the panel on the right.
+            <span className="font-bold">New here?</span> Click Text, Photos, or Elements on the left to add
+            something to your flier, then style it using the panel on the right.
           </span>
           <button onClick={dismissTip} className="text-xs font-bold cursor-pointer flex-shrink-0" style={{ color: "#8A5A1E" }}>
             Got it
@@ -358,28 +934,16 @@ export default function BuilderClient({ template }: { template: any }) {
         </div>
       )}
 
-      <div className="flex items-start gap-2 mb-3 flex-wrap">
+      {/* Only global, non-selection-dependent controls live in the persistent
+          bar now. Everything that only makes sense once something is selected
+          (duplicate/delete/align/layer order) moved to the floating toolbar
+          that appears directly above the selected element - see renderToolbar
+          below. Static always-on rows of disabled icon buttons is the "Paint"
+          tell we're moving away from. */}
+      <div className="flex items-center justify-between mb-3">
         <LabeledGroup label="Undo / Redo">
           <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
           <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Copy / Delete">
-          <IconBtn onClick={duplicateSelected} disabled={!selected} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></IconBtn>
-          <IconBtn onClick={deleteSelected} disabled={!selected} title="Delete"><Icon.Delete /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Align">
-          <IconBtn onClick={() => align("left")} disabled={!selected} title="Align left"><Icon.AlignLeft /></IconBtn>
-          <IconBtn onClick={() => align("hcenter")} disabled={!selected} title="Align center"><Icon.AlignCenterH /></IconBtn>
-          <IconBtn onClick={() => align("right")} disabled={!selected} title="Align right"><Icon.AlignRight /></IconBtn>
-          <IconBtn onClick={() => align("top")} disabled={!selected} title="Align top"><Icon.AlignTop /></IconBtn>
-          <IconBtn onClick={() => align("vcenter")} disabled={!selected} title="Align middle"><Icon.AlignCenterV /></IconBtn>
-          <IconBtn onClick={() => align("bottom")} disabled={!selected} title="Align bottom"><Icon.AlignBottom /></IconBtn>
-        </LabeledGroup>
-        <LabeledGroup label="Layer Order">
-          <IconBtn onClick={() => reorder("front")} disabled={!selected} title="Bring to front"><Icon.BringFront /></IconBtn>
-          <IconBtn onClick={() => reorder("forward")} disabled={!selected} title="Bring forward"><Icon.BringForward /></IconBtn>
-          <IconBtn onClick={() => reorder("backward")} disabled={!selected} title="Send backward"><Icon.SendBackward /></IconBtn>
-          <IconBtn onClick={() => reorder("back")} disabled={!selected} title="Send to back"><Icon.SendBack /></IconBtn>
         </LabeledGroup>
         <LabeledGroup label="Zoom">
           <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
@@ -391,23 +955,88 @@ export default function BuilderClient({ template }: { template: any }) {
         </LabeledGroup>
       </div>
 
-      <div className="flex gap-3 items-start">
-        <div className="flex flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
-          <RailBtn onClick={() => addElement(newTextElement())} label="Text" icon={ICONS.text} color="#3E7FBF" />
-          <RailBtn onClick={() => addElement(newImageElement())} label="Image" icon={ICONS.image} color="#B5566B" />
-          <RailBtn onClick={() => addElement(newRectElement())} label="Rect" icon={ICONS.rect} color="#E2892F" />
-          <RailBtn onClick={() => addElement(newCircleElement())} label="Circle" icon={ICONS.circle} color="#2F6D46" />
-          <RailBtn onClick={() => addElement(newLineElement())} label="Line" icon={ICONS.line} color="#6B5FB5" />
-          <RailBtn onClick={() => addElement(newStarElement())} label="Star" icon={<Icon.CircleTool />} color="#C9A227" />
-          <RailBtn onClick={() => addElement(newPolygonElement())} label="Shape" icon={<Icon.RectTool />} color="#3E9E8F" />
-          <RailBtn onClick={() => addElement(newArrowElement())} label="Arrow" icon={<Icon.AlignRight />} color="#D06A4F" />
-          <RailBtn onClick={() => setIconPickerOpen(true)} label="Icons" icon={<Icon.Style />} color="#8A5FB5" />
-        </div>
+      {(() => {
+        // Shared between the desktop static rail and the mobile docked one
+        // below so the two don't drift out of sync.
+        const railButtons = (
+          <>
+            <RailBtn
+              onClick={() => setActiveRailPanel((p) => (p === "text" ? null : "text"))}
+              label="Text"
+              icon={ICONS.text}
+              color="#3E7FBF"
+              active={activeRailPanel === "text"}
+              title="Add or style text"
+            />
+            <RailBtn
+              onClick={() => setActiveRailPanel((p) => (p === "photos" ? null : "photos"))}
+              label="Photos"
+              icon={ICONS.image}
+              color="#B5566B"
+              active={activeRailPanel === "photos"}
+              title="Browse photos"
+            />
+            <RailBtn
+              onClick={() => setActiveRailPanel((p) => (p === "elements" ? null : "elements"))}
+              label="Elements"
+              icon={ICONS.rect}
+              color="#E2892F"
+              active={activeRailPanel === "elements"}
+              title="Browse shapes & icons"
+            />
+          </>
+        );
+        return (
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-start">
+            <div className="hidden lg:flex lg:flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
+              {railButtons}
+            </div>
+
+            {/* Docked panel, not an overlay - sits inline in the layout next
+                to the rail so the canvas stays interactive/visible while
+                browsing, matching Canva's own desktop side-panel behavior.
+                Mobile gets the bottom-sheet version further down instead.
+                Single panel swapping content by activeRailPanel, rather than
+                two independent panels, so Elements and Photos can't both be
+                open at once - matches Canva only ever showing one tab's
+                panel at a time. */}
+            {activeRailPanel && (
+              <div
+                className="hidden lg:flex lg:flex-col w-[340px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto"
+                style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}
+              >
+                {activeRailPanel === "text" ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold">Text</h3>
+                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                        ✕
+                      </button>
+                    </div>
+                    {textPanelContent}
+                  </>
+                ) : activeRailPanel === "elements" ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold">Elements</h3>
+                      <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                        ✕
+                      </button>
+                    </div>
+                    {elementsPanelContent}
+                  </>
+                ) : activeRailPanel === "edit" ? (
+                  editImagePanel
+                ) : (
+                  <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
+                )}
+              </div>
+            )}
 
         <div
           ref={canvasAreaRef}
-          className="flex-1 rounded-3xl overflow-auto flex items-center justify-center p-8"
-          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)", height: "calc(100vh - 300px)", minHeight: 560 }}
+          className="flex-1 min-w-0 rounded-3xl overflow-auto flex items-center justify-center p-4 sm:p-8 h-[46vh] min-h-[300px] lg:h-[calc(100vh-300px)] lg:min-h-[560px]"
+          style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)" }}
         >
           <div style={{ boxShadow: "0 16px 44px rgba(31,74,48,0.18)", borderRadius: 10, overflow: "hidden" }}>
             <FlierCanvas
@@ -421,11 +1050,21 @@ export default function BuilderClient({ template }: { template: any }) {
               onChange={setElements}
               onCommit={commit}
               scale={zoom}
+              renderToolbar={(el) => (
+                <FloatingToolbar
+                  el={el}
+                  onDuplicate={duplicateSelected}
+                  onDelete={deleteSelected}
+                  onAlign={align}
+                  onReorder={reorder}
+                  onEdit={() => setActiveRailPanel("edit")}
+                />
+              )}
             />
           </div>
         </div>
 
-        <div className="w-[268px] flex-shrink-0 space-y-3">
+        <div className="w-full lg:w-[268px] flex-shrink-0 space-y-3">
           <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
             {!selected ? (
               <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
@@ -454,52 +1093,66 @@ export default function BuilderClient({ template }: { template: any }) {
                             className="w-full rounded-lg px-2.5 py-2 text-sm"
                             style={{ border: "1px solid var(--portal-line)" }}
                           />
-                          <select
-                            value={selected.fontFamily}
-                            onChange={(e) => updateSelected({ fontFamily: e.target.value })}
-                            className="w-full rounded-lg px-2.5 py-2 text-sm"
-                            style={{ border: "1px solid var(--portal-line)" }}
-                          >
-                            {BRAND_FONTS.map((f) => (
-                              <option key={f} value={f}>
-                                {f}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              value={selected.fontSize}
-                              onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
-                              className="w-1/2 rounded-lg px-2.5 py-2 text-sm"
-                              style={{ border: "1px solid var(--portal-line)" }}
-                            />
-                            <div className="flex flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--portal-line)" }}>
-                              <ToggleIconBtn
-                                active={selected.fontStyle.includes("bold")}
-                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "bold") as any })}
-                                icon={<Icon.Bold />}
-                              />
-                              <ToggleIconBtn
-                                active={selected.fontStyle.includes("italic")}
-                                onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "italic") as any })}
-                                icon={<Icon.Italic />}
-                              />
-                              <ToggleIconBtn active={selected.align === "left"} onClick={() => updateSelected({ align: "left" })} icon={<Icon.AlignLeft />} />
-                              <ToggleIconBtn active={selected.align === "center"} onClick={() => updateSelected({ align: "center" })} icon={<Icon.AlignCenterH />} />
-                              <ToggleIconBtn active={selected.align === "right"} onClick={() => updateSelected({ align: "right" })} icon={<Icon.AlignRight />} />
-                            </div>
+                          <div className="space-y-2 mt-2">
+                            <CategoryButton label="Font" onClick={() => setStyleDrawer("font")} />
+                            <CategoryButton label="Color & spacing" onClick={() => setStyleDrawer("color")} />
                           </div>
-                          <SliderRow
-                            label="Letter sp."
-                            min={-2}
-                            max={20}
-                            step={1}
-                            value={selected.letterSpacing}
-                            onChange={(v) => updateSelected({ letterSpacing: v }, false)}
-                            onCommit={(v) => updateSelected({ letterSpacing: v })}
-                          />
-                          <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+
+                          <Drawer title="Font" open={styleDrawer === "font"} onClose={() => setStyleDrawer(null)}>
+                            <select
+                              value={selected.fontFamily}
+                              onChange={(e) => updateSelected({ fontFamily: e.target.value })}
+                              className="w-full rounded-lg px-2.5 py-2 text-sm mb-2"
+                              style={{ border: "1px solid var(--portal-line)" }}
+                            >
+                              {(["Brand", "Script", "Display", "Serif", "Sans"] as const).map((cat) => (
+                                <optgroup key={cat} label={cat}>
+                                  {FONT_LIBRARY.filter((f) => f.category === cat).map((f) => (
+                                    <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+                                      {f.family}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={selected.fontSize}
+                                onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
+                                className="w-1/2 rounded-lg px-2.5 py-2 text-sm"
+                                style={{ border: "1px solid var(--portal-line)" }}
+                              />
+                              <div className="flex flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--portal-line)" }}>
+                                <ToggleIconBtn
+                                  active={selected.fontStyle.includes("bold")}
+                                  onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "bold") as any })}
+                                  icon={<Icon.Bold />}
+                                />
+                                <ToggleIconBtn
+                                  active={selected.fontStyle.includes("italic")}
+                                  onClick={() => updateSelected({ fontStyle: toggleStyle(selected.fontStyle, "italic") as any })}
+                                  icon={<Icon.Italic />}
+                                />
+                                <ToggleIconBtn active={selected.align === "left"} onClick={() => updateSelected({ align: "left" })} icon={<Icon.AlignLeft />} />
+                                <ToggleIconBtn active={selected.align === "center"} onClick={() => updateSelected({ align: "center" })} icon={<Icon.AlignCenterH />} />
+                                <ToggleIconBtn active={selected.align === "right"} onClick={() => updateSelected({ align: "right" })} icon={<Icon.AlignRight />} />
+                              </div>
+                            </div>
+                          </Drawer>
+
+                          <Drawer title="Color & spacing" open={styleDrawer === "color"} onClose={() => setStyleDrawer(null)}>
+                            <SliderRow
+                              label="Letter sp."
+                              min={-2}
+                              max={20}
+                              step={1}
+                              value={selected.letterSpacing}
+                              onChange={(v) => updateSelected({ letterSpacing: v }, false)}
+                              onCommit={(v) => updateSelected({ letterSpacing: v })}
+                            />
+                            <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                          </Drawer>
                         </>
                       )}
 
@@ -516,47 +1169,109 @@ export default function BuilderClient({ template }: { template: any }) {
                         </button>
                       )}
 
-                      {(selected.type === "rect" || selected.type === "circle" || selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
-                        <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
+                      {selected.type === "circle" && (
+                        <div>
+                          <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                          <div className="pt-2">
+                            <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selected.gradient.enabled}
+                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
+                              />
+                              Gradient fill
+                            </label>
+                            {selected.gradient.enabled && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={selected.gradient.from}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
+                                  className="w-6 h-6 rounded-full cursor-pointer"
+                                />
+                                <input
+                                  type="color"
+                                  value={selected.gradient.to}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
+                                  className="w-6 h-6 rounded-full cursor-pointer"
+                                />
+                                <select
+                                  value={selected.gradient.direction}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
+                                  className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+                                  style={{ border: "1px solid var(--portal-line)" }}
+                                >
+                                  <option value="horizontal">Horizontal</option>
+                                  <option value="vertical">Vertical</option>
+                                  <option value="diagonal">Diagonal</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
 
-                      {(selected.type === "rect" || selected.type === "circle") && (
-                        <div className="pt-1">
-                          <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selected.gradient.enabled}
-                              onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
-                            />
-                            Gradient fill
-                          </label>
-                          {selected.gradient.enabled && (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="color"
-                                value={selected.gradient.from}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
-                                className="w-6 h-6 rounded-full cursor-pointer"
-                              />
-                              <input
-                                type="color"
-                                value={selected.gradient.to}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
-                                className="w-6 h-6 rounded-full cursor-pointer"
-                              />
-                              <select
-                                value={selected.gradient.direction}
-                                onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
-                                className="flex-1 rounded-lg px-2 py-1.5 text-xs"
-                                style={{ border: "1px solid var(--portal-line)" }}
-                              >
-                                <option value="horizontal">Horizontal</option>
-                                <option value="vertical">Vertical</option>
-                                <option value="diagonal">Diagonal</option>
-                              </select>
+                      {selected.type === "rect" && (
+                        <div className="space-y-2">
+                          <CategoryButton label="Fill" onClick={() => setStyleDrawer("fill")} />
+                          <CategoryButton label="Shape" onClick={() => setStyleDrawer("rectShape")} />
+
+                          <Drawer title="Fill" open={styleDrawer === "fill"} onClose={() => setStyleDrawer(null)}>
+                            <ColorSwatchRow value={selected.fill} onChange={(c) => updateSelected({ fill: c })} />
+                            <div className="pt-2">
+                              <label className="flex items-center gap-2 text-xs mb-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selected.gradient.enabled}
+                                  onChange={(e) => updateSelected({ gradient: { ...selected.gradient, enabled: e.target.checked } })}
+                                />
+                                Gradient fill
+                              </label>
+                              {selected.gradient.enabled && (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={selected.gradient.from}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, from: e.target.value } })}
+                                    className="w-6 h-6 rounded-full cursor-pointer"
+                                  />
+                                  <input
+                                    type="color"
+                                    value={selected.gradient.to}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, to: e.target.value } })}
+                                    className="w-6 h-6 rounded-full cursor-pointer"
+                                  />
+                                  <select
+                                    value={selected.gradient.direction}
+                                    onChange={(e) => updateSelected({ gradient: { ...selected.gradient, direction: e.target.value as any } })}
+                                    className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+                                    style={{ border: "1px solid var(--portal-line)" }}
+                                  >
+                                    <option value="horizontal">Horizontal</option>
+                                    <option value="vertical">Vertical</option>
+                                    <option value="diagonal">Diagonal</option>
+                                  </select>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </Drawer>
+
+                          <Drawer title="Shape" open={styleDrawer === "rectShape"} onClose={() => setStyleDrawer(null)}>
+                            <SliderRow
+                              label="Corners"
+                              min={0}
+                              max={Math.min(selected.width, selected.height) / 2}
+                              step={1}
+                              value={selected.cornerRadius}
+                              onChange={(v) => updateSelected({ cornerRadius: v }, false)}
+                              onCommit={(v) => updateSelected({ cornerRadius: v })}
+                            />
+                          </Drawer>
                         </div>
+                      )}
+
+                      {(selected.type === "star" || selected.type === "polygon" || selected.type === "arrow" || selected.type === "icon") && (
+                        <ColorSwatchRow value={(selected as any).fill} onChange={(c) => updateSelected({ fill: c })} />
                       )}
 
                       {selected.type === "star" && (
@@ -583,18 +1298,6 @@ export default function BuilderClient({ template }: { template: any }) {
                         />
                       )}
 
-                      {selected.type === "rect" && (
-                        <SliderRow
-                          label="Corners"
-                          min={0}
-                          max={Math.min(selected.width, selected.height) / 2}
-                          step={1}
-                          value={selected.cornerRadius}
-                          onChange={(v) => updateSelected({ cornerRadius: v }, false)}
-                          onCommit={(v) => updateSelected({ cornerRadius: v })}
-                        />
-                      )}
-
                       {selected.type === "line" && (
                         <>
                           <ColorSwatchRow value={selected.stroke} onChange={(c) => updateSelected({ stroke: c })} />
@@ -612,75 +1315,13 @@ export default function BuilderClient({ template }: { template: any }) {
                     </>
                   )}
 
-                  {panelTab === "effects" && selected.type === "image" && (
-                    <>
-                      <PanelLabel>Shape mask</PanelLabel>
-                      <div className="flex gap-1.5">
-                        {(["rect", "rounded", "circle"] as const).map((m) => (
-                          <SegBtn key={m} active={selected.maskShape === m} onClick={() => updateSelected({ maskShape: m })}>
-                            {m}
-                          </SegBtn>
-                        ))}
-                      </div>
-                      {selected.maskShape === "rounded" && (
-                        <SliderRow
-                          label="Radius"
-                          min={0}
-                          max={Math.min(selected.width, selected.height) / 2}
-                          step={1}
-                          value={selected.maskCornerRadius}
-                          onChange={(v) => updateSelected({ maskCornerRadius: v }, false)}
-                          onCommit={(v) => updateSelected({ maskCornerRadius: v })}
-                        />
-                      )}
-
-                      <PanelDivider />
-                      <PanelLabel>Reposition in frame</PanelLabel>
-                      <SliderRow label="Zoom" min={1} max={3} step={0.05} value={selected.cropZoom} onChange={(v) => updateSelected({ cropZoom: v }, false)} onCommit={(v) => updateSelected({ cropZoom: v })} />
-                      <SliderRow label="Pan X" min={-1} max={1} step={0.05} value={selected.cropOffsetX} onChange={(v) => updateSelected({ cropOffsetX: v }, false)} onCommit={(v) => updateSelected({ cropOffsetX: v })} />
-                      <SliderRow label="Pan Y" min={-1} max={1} step={0.05} value={selected.cropOffsetY} onChange={(v) => updateSelected({ cropOffsetY: v }, false)} onCommit={(v) => updateSelected({ cropOffsetY: v })} />
-
-                      <PanelDivider />
-                      <PanelLabel>Filter</PanelLabel>
-                      <div className="flex gap-1.5 mb-1 flex-wrap">
-                        {(["none", "grayscale", "sepia", "invert", "posterize", "duotone"] as const).map((f) => (
-                          <SegBtn key={f} active={selected.filter === f} onClick={() => updateSelected({ filter: f })}>
-                            {f}
-                          </SegBtn>
-                        ))}
-                      </div>
-                      {selected.filter === "duotone" && (
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
-                            Shadow / Light
-                          </span>
-                          <input
-                            type="color"
-                            value={selected.duotoneShadow}
-                            onChange={(e) => updateSelected({ duotoneShadow: e.target.value })}
-                            className="w-6 h-6 rounded-full cursor-pointer"
-                          />
-                          <input
-                            type="color"
-                            value={selected.duotoneHighlight}
-                            onChange={(e) => updateSelected({ duotoneHighlight: e.target.value })}
-                            className="w-6 h-6 rounded-full cursor-pointer"
-                          />
-                        </div>
-                      )}
-                      <SliderRow label="Bright." min={-1} max={1} step={0.05} value={selected.brightness} onChange={(v) => updateSelected({ brightness: v }, false)} onCommit={(v) => updateSelected({ brightness: v })} />
-                      <SliderRow label="Contrast" min={-50} max={50} step={1} value={selected.contrast} onChange={(v) => updateSelected({ contrast: v }, false)} onCommit={(v) => updateSelected({ contrast: v })} />
-                      <SliderRow label="Saturate" min={-2} max={2} step={0.1} value={selected.saturation} onChange={(v) => updateSelected({ saturation: v }, false)} onCommit={(v) => updateSelected({ saturation: v })} />
-                      <SliderRow label="Hue" min={0} max={360} step={5} value={selected.hue} onChange={(v) => updateSelected({ hue: v }, false)} onCommit={(v) => updateSelected({ hue: v })} />
-                      <SliderRow label="Blur" min={0} max={15} step={0.5} value={selected.blur} onChange={(v) => updateSelected({ blur: v }, false)} onCommit={(v) => updateSelected({ blur: v })} />
-
-                      <PanelDivider />
-                      <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
-                    </>
-                  )}
-
                   {panelTab === "effects" && (selected.type === "rect" || selected.type === "circle") && (
-                    <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} />
+                    <>
+                      <CategoryButton label="Border & shadow" onClick={() => setEffectsDrawer("border")} />
+                      <Drawer title="Border & shadow" open={effectsDrawer === "border"} onClose={() => setEffectsDrawer(null)}>
+                        <BorderShadowOpacityControls selected={selected} updateSelected={updateSelected} bare />
+                      </Drawer>
+                    </>
                   )}
 
                   {panelTab === "effects" &&
@@ -758,7 +1399,75 @@ export default function BuilderClient({ template }: { template: any }) {
             </div>
           </div>
         </div>
-      </div>
+
+            {/* Mobile-only: docked at the bottom of the viewport (sticky, so
+                it reserves its own layout space - no manual spacer needed)
+                instead of floating over the tiny zoomed-out canvas. Negative
+                margins cancel AdminLayout's page gutter (px-4 sm:px-10) so
+                this sits flush with the screen edges like a native bottom
+                nav, matching the reference recording. */}
+            <div className="lg:hidden sticky bottom-0 z-30 -mx-4 sm:-mx-10">
+              {selected && (
+                <div className="flex justify-center py-2">
+                  <FloatingToolbar el={selected} onDuplicate={duplicateSelected} onDelete={deleteSelected} onAlign={align} onReorder={reorder} onEdit={() => setActiveRailPanel("edit")} />
+                </div>
+              )}
+              <div
+                className="flex flex-row gap-1 overflow-x-auto rounded-t-3xl p-2.5"
+                style={{ background: "#fff", boxShadow: "0 -4px 16px rgba(22,48,43,0.08)", paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}
+              >
+                {railButtons}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Mobile-only bottom sheet mirroring the desktop docked panel above -
+          single sheet swapping content by activeRailPanel, same content
+          sources (elementsPanelContent / docked ApprovedImagePicker) so
+          desktop and mobile can't drift apart. lg:hidden on the outer scrim,
+          not the shared Drawer component, since Drawer's desktop variant is
+          a centered overlay that would duplicate/conflict with the docked
+          panel above. */}
+      {activeRailPanel && (
+        <div
+          className="lg:hidden fixed inset-0 flex items-end justify-center z-50"
+          style={{ background: "rgba(22,48,43,0.5)" }}
+          onClick={() => setActiveRailPanel(null)}
+        >
+          <div className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center mb-2">
+              <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+            </div>
+            {activeRailPanel === "text" ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold">Text</h3>
+                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {textPanelContent}
+              </>
+            ) : activeRailPanel === "elements" ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold">Elements</h3>
+                  <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
+                    ✕
+                  </button>
+                </div>
+                {elementsPanelContent}
+              </>
+            ) : activeRailPanel === "edit" ? (
+              editImagePanel
+            ) : (
+              <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />
+            )}
+          </div>
+        </div>
+      )}
 
       {pickerOpen && (
         <ApprovedImagePicker
@@ -769,51 +1478,6 @@ export default function BuilderClient({ template }: { template: any }) {
             setPickerOpen(false);
           }}
         />
-      )}
-
-      {iconPickerOpen && (
-        <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-50"
-          style={{ background: "rgba(22,48,43,0.5)" }}
-          onClick={() => setIconPickerOpen(false)}
-        >
-          <div
-            className="rounded-2xl bg-white p-5 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold">Choose an Icon</h3>
-              <button onClick={() => setIconPickerOpen(false)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {ICON_LIBRARY.map((def) => (
-                <button
-                  key={def.id}
-                  onClick={() => {
-                    addElement(newIconElement(def.id));
-                    setIconPickerOpen(false);
-                  }}
-                  title={def.label}
-                  className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:bg-black/[0.04] transition-colors"
-                  style={{ border: "1px solid var(--portal-line)" }}
-                >
-                  <svg viewBox="0 0 24 24" width="22" height="22">
-                    <path
-                      d={def.path}
-                      fill={def.mode === "filled" ? "#16302B" : "none"}
-                      stroke={def.mode === "stroke" ? "#16302B" : "none"}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -828,6 +1492,221 @@ function toggleStyle(current: string, kind: "bold" | "italic"): string {
   if (nextBold) return "bold";
   if (nextItalic) return "italic";
   return "normal";
+}
+
+// The floating contextual toolbar - positioned by FlierCanvas, content owned
+// here. Kept to a single compact pill (Canva's floating toolbar is narrow)
+// with Align and Layer order tucked behind small popovers rather than the
+// old approach of spelling every option out inline.
+function FloatingToolbar({
+  el,
+  onDuplicate,
+  onDelete,
+  onAlign,
+  onReorder,
+  onEdit,
+}: {
+  el: FlierElement;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onAlign: (pos: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") => void;
+  onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
+  onEdit: () => void;
+}) {
+  const [open, setOpen] = useState<"align" | "layer" | null>(null);
+
+  return (
+    <div className="relative">
+      <div
+        className="flex items-center gap-0.5 rounded-full px-1.5 py-1.5"
+        style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        onMouseLeave={() => setOpen(null)}
+      >
+        {el.type === "image" && (
+          <>
+            <DarkIconBtn onClick={onEdit} title="Edit image">
+              <Icon.Effects />
+            </DarkIconBtn>
+            <div className="w-px h-5 mx-0.5" style={{ background: "rgba(255,255,255,0.15)" }} />
+          </>
+        )}
+        <DarkIconBtn onClick={onDuplicate} title="Duplicate (Ctrl+D)"><Icon.Duplicate /></DarkIconBtn>
+        <DarkIconBtn onClick={onDelete} title="Delete"><Icon.Delete /></DarkIconBtn>
+        <div className="w-px h-5 mx-0.5" style={{ background: "rgba(255,255,255,0.15)" }} />
+        <DarkIconBtn onClick={() => setOpen(open === "align" ? null : "align")} title="Align" active={open === "align"}>
+          <Icon.AlignCenterH />
+        </DarkIconBtn>
+        <DarkIconBtn onClick={() => setOpen(open === "layer" ? null : "layer")} title="Layer order" active={open === "layer"}>
+          <Icon.BringFront />
+        </DarkIconBtn>
+      </div>
+
+      {open === "align" && (
+        <div
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full px-1.5 py-1.5 z-10"
+          style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        >
+          <DarkIconBtn onClick={() => onAlign("left")} title="Align left"><Icon.AlignLeft /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("hcenter")} title="Align center"><Icon.AlignCenterH /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("right")} title="Align right"><Icon.AlignRight /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("top")} title="Align top"><Icon.AlignTop /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("vcenter")} title="Align middle"><Icon.AlignCenterV /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onAlign("bottom")} title="Align bottom"><Icon.AlignBottom /></DarkIconBtn>
+        </div>
+      )}
+      {open === "layer" && (
+        <div
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full px-1.5 py-1.5 z-10"
+          style={{ background: "#1F2A24", boxShadow: "0 6px 20px rgba(0,0,0,0.28)" }}
+        >
+          <DarkIconBtn onClick={() => onReorder("front")} title="Bring to front"><Icon.BringFront /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("forward")} title="Bring forward"><Icon.BringForward /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("backward")} title="Send backward"><Icon.SendBackward /></DarkIconBtn>
+          <DarkIconBtn onClick={() => onReorder("back")} title="Send to back"><Icon.SendBack /></DarkIconBtn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DarkIconBtn({
+  children,
+  onClick,
+  title,
+  active,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors duration-100"
+      style={{ color: "#fff", background: active ? "rgba(255,255,255,0.18)" : "transparent" }}
+      onMouseEnter={(e) => !active && (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+      onMouseLeave={(e) => !active && (e.currentTarget.style.background = "transparent")}
+    >
+      <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
+    </button>
+  );
+}
+
+function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 flex items-end lg:items-center justify-center lg:p-4 z-50"
+      style={{ background: "rgba(22,48,43,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white p-5 w-full rounded-t-3xl max-h-[75vh] overflow-y-auto lg:max-w-sm lg:rounded-2xl lg:max-h-[80vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center mb-2 lg:hidden">
+          <div className="w-9 h-1 rounded-full" style={{ background: "var(--portal-line)" }} />
+        </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold">{title}</h3>
+          <button onClick={onClose} className="text-sm cursor-pointer" style={{ color: DIM }}>
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// A row that launches a Drawer, replacing what used to be an inline
+// accordion Section - tapping it is the only way to reach that category's
+// controls now, keeping the properties panel itself down to a short list
+// of category names instead of every control being visible at once.
+function CategoryButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer transition-colors"
+      style={{ background: "#F7FAF8", border: "1px solid var(--portal-line)" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF4F0")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "#F7FAF8")}
+    >
+      <span className="text-[13px] font-bold" style={{ color: "#2F4A3E" }}>
+        {label}
+      </span>
+      <span style={{ width: 13, height: 13, color: "#8FA89A", transform: "rotate(-90deg)", flexShrink: 0 }}>
+        <Icon.Chevron />
+      </span>
+    </button>
+  );
+}
+
+function ShapeGridBtn({ onClick, label, icon, color }: { onClick: () => void; label: string; icon: React.ReactNode; color: string }) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 py-3 rounded-2xl cursor-pointer hover:scale-105 active:scale-95 transition-all duration-150">
+      <span className="flex items-center justify-center rounded-2xl" style={{ width: 44, height: 44, background: `${color}22`, color }}>
+        <span style={{ width: 20, height: 20 }}>{icon}</span>
+      </span>
+      <span className="text-[11px] font-bold" style={{ color: "#7A9186" }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function Section({
+  title,
+  children,
+  defaultOpen = false,
+  nested = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  nested?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div
+      className={nested ? "mt-1" : "px-4"}
+      style={!nested ? { borderBottom: "1px solid var(--portal-line)" } : undefined}
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between cursor-pointer"
+        style={{ padding: nested ? "6px 0" : "10px 0" }}
+      >
+        <span className={nested ? "text-[11px] font-bold" : "text-[13px] font-bold"} style={{ color: nested ? "#7A9186" : "#2F4A3E" }}>
+          {title}
+        </span>
+        <span
+          style={{
+            width: 13,
+            height: 13,
+            color: "#8FA89A",
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 150ms",
+          }}
+        >
+          <Icon.Chevron />
+        </span>
+      </button>
+      {open && <div className={nested ? "pb-2 space-y-1.5 pl-1" : "pb-3 space-y-2"}>{children}</div>}
+    </div>
+  );
 }
 
 function PillGroup({ children }: { children: React.ReactNode }) {
@@ -875,20 +1754,35 @@ function IconBtn({
   );
 }
 
-function RailBtn({ onClick, label, icon, color }: { onClick: () => void; label: string; icon: React.ReactNode; color: string }) {
+function RailBtn({
+  onClick,
+  label,
+  icon,
+  color,
+  active = false,
+  title,
+}: {
+  onClick: () => void;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  active?: boolean;
+  title?: string;
+}) {
   return (
     <button
       onClick={onClick}
-      title={`Add ${label}`}
-      className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group"
+      title={title ?? `Add ${label}`}
+      className="flex flex-col items-center gap-1.5 py-3 px-1.5 rounded-2xl cursor-pointer hover:scale-110 active:scale-95 transition-all duration-150 group flex-shrink-0"
+      style={{ background: active ? "#EAF2ED" : "transparent" }}
     >
       <span
         className="flex items-center justify-center rounded-2xl transition-shadow duration-150 group-hover:shadow-md"
-        style={{ width: 38, height: 38, background: `${color}22`, color }}
+        style={{ width: 40, height: 40, background: `${color}22`, color }}
       >
         <span style={{ width: 18, height: 18 }}>{icon}</span>
       </span>
-      <span className="text-[10px] font-bold" style={{ color: "#7A9186" }}>
+      <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: active ? "var(--portal-emerald)" : "#7A9186" }}>
         {label}
       </span>
     </button>
@@ -1010,10 +1904,18 @@ function SliderRow({
   );
 }
 
-function BorderShadowOpacityControls({ selected, updateSelected }: { selected: any; updateSelected: (patch: any, commit?: boolean) => void }) {
+function BorderShadowOpacityControls({
+  selected,
+  updateSelected,
+  bare = false,
+}: {
+  selected: any;
+  updateSelected: (patch: any, commit?: boolean) => void;
+  bare?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <PanelLabel>Border &amp; shadow</PanelLabel>
+      {!bare && <PanelLabel>Border &amp; shadow</PanelLabel>}
       <div className="flex gap-2 items-center">
         <label className="text-[10px] w-14 flex-shrink-0" style={{ color: DIM }}>
           Border

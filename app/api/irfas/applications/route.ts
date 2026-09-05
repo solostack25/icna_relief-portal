@@ -22,7 +22,7 @@ export async function GET() {
   // sees everything.
   const { data, error } = await auth.supabase
     .from("zakat_applications")
-    .select("id, application_number, applicant_name, category, amount_requested, amount_approved, status, submitted_at, decided_at")
+    .select("id, application_number, applicant_name, category, amount_requested, amount_approved, status, submitted_at, decided_at, client_id")
     .order("submitted_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Stage, Layer, Rect, Text as KonvaText, Image as KonvaImage, Ellipse, Line, Group, Transformer, Star, RegularPolygon, Arrow, Path } from "react-konva";
 import Konva from "konva";
 import type { FlierElement, FlierImageElement } from "@/lib/flierElements";
@@ -137,6 +137,14 @@ function FilteredImage({ el, img, ...konvaProps }: { el: FlierImageElement; img:
   );
 }
 
+// Toolbar floats ~14px above the selection's bounding box, in the same
+// scaled screen-pixel space as the inline text-edit overlay below. Clamped
+// to stay within the stage horizontally so it doesn't clip off-canvas for
+// elements near the left/right edge, and flips below the element if there's
+// no room above (element pinned to the top of the canvas).
+const TOOLBAR_GAP = 14;
+const TOOLBAR_HEIGHT = 44;
+
 export default function FlierCanvas({
   width,
   height,
@@ -148,6 +156,7 @@ export default function FlierCanvas({
   onChange,
   onCommit,
   scale = 1,
+  renderToolbar,
 }: {
   width: number;
   height: number;
@@ -159,13 +168,66 @@ export default function FlierCanvas({
   onChange?: (elements: FlierElement[]) => void;
   onCommit?: (elements: FlierElement[]) => void;
   scale?: number;
+  // Render-prop so BuilderClient owns the buttons/content (duplicate,
+  // delete, align, reorder) while FlierCanvas only owns positioning -
+  // it's the one place that actually knows the selected node's on-screen
+  // bounding box across drag/transform/scale.
+  renderToolbar?: (el: FlierElement) => ReactNode;
 }) {
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef<Record<string, any>>({});
+  const layerRef = useRef<Konva.Layer>(null);
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [toolbarBox, setToolbarBox] = useState<{ left: number; top: number; width: number; flip: boolean } | null>(null);
+
+  // Konva draws text straight to canvas and does NOT wait for a web font
+  // to finish loading - if a text element's fontFamily hasn't actually
+  // loaded into the browser's font set yet, Konva silently falls back to
+  // a system font and won't redraw once the real font arrives, unless
+  // something else happens to trigger a redraw first. This became a real
+  // issue once the Text panel's font library grew well past the 3 brand
+  // fonts (which "worked" mostly by luck - they're `@import`ed in
+  // globals.css, so by the time the builder page had mounted at all they
+  // were usually already cached from an earlier page load). Explicitly
+  // loading whatever fonts are actually in use and redrawing once they
+  // resolve closes that gap for every font in the library, not just the
+  // ones that happened to load in time before.
+  useEffect(() => {
+    const families = Array.from(
+      new Set(elements.filter((el): el is Extract<FlierElement, { type: "text" }> => el.type === "text").map((el) => el.fontFamily))
+    );
+    if (families.length === 0 || typeof document === "undefined" || !("fonts" in document)) return;
+    Promise.all(families.map((f) => document.fonts.load(`16px "${f}"`).catch(() => null))).then(() => {
+      layerRef.current?.batchDraw();
+    });
+  }, [elements]);
+
+  const recomputeToolbarBox = () => {
+    if (mode !== "builder" || !selectedId) {
+      setToolbarBox(null);
+      return;
+    }
+    const node = shapeRefs.current[selectedId];
+    if (!node) {
+      setToolbarBox(null);
+      return;
+    }
+    // getClientRect is already in stage pixels post-transform (rotation,
+    // scale from resize handles); multiplying by our own `scale` maps
+    // that into the screen space the Stage itself is rendered at.
+    const rect = node.getClientRect({ relativeTo: stageRef.current });
+    const top = rect.y * scale;
+    const flip = top - TOOLBAR_GAP - TOOLBAR_HEIGHT < 0;
+    setToolbarBox({
+      left: rect.x * scale + (rect.width * scale) / 2,
+      top: flip ? (rect.y + rect.height) * scale + TOOLBAR_GAP : top - TOOLBAR_GAP,
+      width: rect.width * scale,
+      flip,
+    });
+  };
 
   useEffect(() => {
     if (mode !== "builder" || !trRef.current) return;
@@ -176,7 +238,21 @@ export default function FlierCanvas({
     } else {
       trRef.current.nodes([]);
     }
-  }, [selectedId, mode, elements.length]);
+    recomputeToolbarBox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, mode, elements.length, scale]);
+
+  // Keep the toolbar glued to the node through drag and resize/rotate -
+  // Konva's Transformer fires these directly on the node it's attached to.
+  useEffect(() => {
+    if (mode !== "builder" || !selectedId) return;
+    const node = shapeRefs.current[selectedId];
+    if (!node) return;
+    const handler = () => recomputeToolbarBox();
+    node.on("dragmove.toolbar transform.toolbar dragend.toolbar transformend.toolbar", handler);
+    return () => node.off(".toolbar");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, mode]);
 
   function updateElement(id: string, patch: Partial<FlierElement>, commit = true) {
     const next = elements.map((el) => (el.id === id ? ({ ...el, ...patch } as FlierElement) : el)) as FlierElement[];
@@ -226,7 +302,7 @@ export default function FlierCanvas({
         }}
         style={{ background, borderRadius: 4 }}
       >
-        <Layer>
+        <Layer ref={layerRef}>
           <Rect x={0} y={0} width={width} height={height} fill={background} listening={false} />
           {elements.map((el) => {
             if (el.id === editingId) return null; // covered by the HTML overlay instead
@@ -454,6 +530,27 @@ export default function FlierCanvas({
         </Layer>
       </Stage>
 
+      {mode === "builder" && toolbarBox && selectedId && renderToolbar && !editingId && (
+        <div
+          // Floating-over-the-element toolbar only makes sense at desktop
+          // zoom levels - on a phone the canvas is scaled down small enough
+          // (and covered by the user's own thumb while dragging) that this
+          // would be unreliable to tap. Mobile instead gets a full-width bar
+          // docked above the bottom tool rail - see BuilderClient.
+          className="hidden lg:block"
+          style={{
+            position: "absolute",
+            left: toolbarBox.left,
+            top: toolbarBox.top,
+            transform: `translate(-50%, ${toolbarBox.flip ? "0" : "-100%"})`,
+            zIndex: 20,
+            pointerEvents: "auto",
+          }}
+        >
+          {renderToolbar(elements.find((e) => e.id === selectedId)!)}
+        </div>
+      )}
+
       {editingEl && (
         <textarea
           autoFocus
@@ -548,6 +645,13 @@ function ImageWithMask({
 
   return (
     <Group {...common} x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation} clipFunc={el.maskShape !== "rect" ? maskClipFunc(el) : undefined}>
+      {/* Every visible child below is listening={false} (avoids per-pixel
+          hit quirks on a cached/filtered image), which meant the Group had
+          no hit region at all once an image loaded - it couldn't be clicked
+          or dragged, only the pre-load placeholder Rect could. This invisible
+          rect restores a normal full-frame hit target; clipFunc above still
+          confines it to the masked shape (e.g. circle) same as the visuals. */}
+      <Rect x={0} y={0} width={el.width} height={el.height} fill="transparent" />
       <FilteredImage el={el} img={img} x={0} y={0} listening={false} />
       {el.maskShape === "circle" && el.borderWidth > 0 && (
         <Ellipse
