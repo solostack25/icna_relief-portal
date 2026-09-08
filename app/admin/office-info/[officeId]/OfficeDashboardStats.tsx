@@ -9,6 +9,7 @@ type Stats = {
   fundraisers: { active: { id: string; title: string; goal: number; raised: number }[]; total_raised: number };
   clients: { total_active: number; new_this_month: number; backpacks_distributed_this_year: number };
   finance: { pending_count: number; pending_total: number; recent: { id: string; amount: number; title: string | null; created_at: string }[] };
+  zakat: { limit: number | null; given: number };
 };
 
 const cardStyle: React.CSSProperties = {
@@ -65,6 +66,30 @@ export default function OfficeDashboardStats({ officeId }: { officeId: string })
 
   return (
     <div className="mb-10">
+      {(stats.zakat.limit !== null || stats.zakat.given > 0) && (
+        <div
+          style={{
+            ...cardStyle,
+            marginBottom: 20,
+            background: stats.zakat.limit !== null && stats.zakat.given > stats.zakat.limit ? "rgba(181,86,107,0.08)" : "#F4F3EE",
+            border: "1px solid rgba(22,48,43,0.08)",
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(22,48,43,0.5)", letterSpacing: 0.3, marginBottom: 4 }}>
+            IRFAS ZAKAT LIMIT
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#16302B" }}>
+            {money(stats.zakat.given)}
+            <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(22,48,43,0.5)" }}>
+              {stats.zakat.limit !== null ? ` of ${money(stats.zakat.limit)} given` : " given in zakat"}
+            </span>
+          </div>
+          {stats.zakat.limit !== null && stats.zakat.given > stats.zakat.limit && (
+            <div style={{ fontSize: 12, color: "#B5566B", fontWeight: 600, marginTop: 2 }}>Over this office&apos;s zakat limit</div>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
         <div style={cardStyle}>
           <div style={statNumStyle}>{stats.helpdesk.open_count}</div>
@@ -162,7 +187,7 @@ export default function OfficeDashboardStats({ officeId }: { officeId: string })
         Need more detail? <Link href="/admin/helpdesk/manage" style={{ textDecoration: "underline" }}>Help Desk</Link>,{" "}
         <Link href="/volunteer" style={{ textDecoration: "underline" }}>Volunteer</Link>,{" "}
         <Link href="/fundraisers" style={{ textDecoration: "underline" }}>Fundraisers</Link>, and{" "}
-        <Link href="/admin/finance" style={{ textDecoration: "underline" }}>Finance</Link> have the full views.
+        <Link href="/admin/finance-tickets" style={{ textDecoration: "underline" }}>Finance</Link> have the full views.
       </p>
     </div>
   );

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 // Powers the office dashboard's stat cards. Auth-gated (not public like
 // /api/office-info) since it surfaces internal operational data, not
 // public-facing content. Access is enforced here explicitly rather than
-// relying only on RLS, since several of the underlying tables (helpdesk,
-// finance) aren't office-scoped at the RLS level at all — they're
-// scoped here in application code by joining through the submitter's
-// assigned_office_id.
+// relying only on RLS. Helpdesk requests aren't office-scoped at the
+// RLS level at all - scoped here in application code by joining
+// through the submitter's assigned_office_id. Finance Tickets and
+// IRFAS applications both carry their own office_id/billing_office_id
+// directly, so no such join is needed for those.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ officeId: string }> }) {
   const { officeId } = await params;
   const supabase = await createClient();
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: officeEmployees } = await supabase.from("employees").select("email").eq("assigned_office_id", officeId);
   const officeEmails = (officeEmployees ?? []).map((e) => e.email?.toLowerCase()).filter(Boolean) as string[];
 
-  const [openTickets, upcomingEventsRaw, fundraisersRaw, clientStats, backpackStats, financeRaw] = await Promise.all([
+  const [openTickets, upcomingEventsRaw, fundraisersRaw, clientStats, backpackStats, financeRaw, zakatLimitRaw, zakatApplicationsRaw] = await Promise.all([
     // 1. Open help desk tickets submitted by anyone at this office
     officeEmails.length > 0
       ? supabase
@@ -69,15 +70,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select("backpacks_distributed, eligible_children_count, clients!inner(office_id)")
       .eq("clients.office_id", officeId),
 
-    // 6. Finance approvals pending, submitted by this office (via helpdesk_requests join)
-    officeEmails.length > 0
-      ? supabase
-          .from("finance_approval_requests")
-          .select("id, amount, status, created_at, helpdesk_requests!inner(submitted_by_email, title)")
-          .eq("status", "pending")
-          .in("helpdesk_requests.submitted_by_email", officeEmails)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
+    // 6. Finance Tickets pending, billed to this office (Finance Tickets
+    //    is billing_office_id-scoped directly - no submitter-email join
+    //    needed here, unlike helpdesk above. Uses the admin client since
+    //    finance_tickets RLS only allows the requestor/technician/admin
+    //    to read a row - there's no office-scoped read policy on that
+    //    table, unlike zakat_applications below - and this route
+    //    already gates access explicitly above, same as the header
+    //    comment's stated approach.)
+    createAdminClient()
+      .from("finance_tickets")
+      .select("id, title, total, created_at")
+      .eq("billing_office_id", officeId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
+
+    // 7. IRFAS (zakat) limit for this office, if one's been set
+    supabase.from("zakat_office_limits").select("limit_amount").eq("office_id", officeId).maybeSingle(),
+
+    // 8. IRFAS (zakat) given so far - approved or paid applications for this office
+    supabase.from("zakat_applications").select("amount_requested, amount_approved").eq("office_id", officeId).in("status", ["approved", "paid"]),
   ]);
 
   // Volunteer signup counts per event (via slots)
@@ -151,13 +163,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     },
     finance: {
       pending_count: (financeRaw.data ?? []).length,
-      pending_total: (financeRaw.data ?? []).reduce((sum: number, r: any) => sum + Number(r.amount ?? 0), 0),
+      pending_total: (financeRaw.data ?? []).reduce((sum: number, r: any) => sum + Number(r.total ?? 0), 0),
       recent: (financeRaw.data ?? []).slice(0, 5).map((r: any) => ({
         id: r.id,
-        amount: r.amount,
-        title: r.helpdesk_requests?.title ?? null,
+        amount: r.total,
+        title: r.title,
         created_at: r.created_at,
       })),
+    },
+    zakat: {
+      limit: zakatLimitRaw.data ? Number(zakatLimitRaw.data.limit_amount) : null,
+      given: (zakatApplicationsRaw.data ?? []).reduce((sum: number, a: any) => sum + Number(a.amount_approved ?? a.amount_requested ?? 0), 0),
     },
   });
 }
