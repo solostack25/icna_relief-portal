@@ -43,7 +43,7 @@ export default function FinanceTicketsPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28, margin: 0 }}>
           Finance Tickets
         </h1>
@@ -62,6 +62,9 @@ export default function FinanceTicketsPage() {
           + New Ticket
         </Link>
       </div>
+      <Link href="/finance-ticket-approvals" style={{ fontSize: 13, color: "rgba(22,48,43,0.5)" }}>
+        Approvals waiting on you →
+      </Link>
 
       {loaded && tickets.length === 0 && <div style={{ fontSize: 14, color: "rgba(22,48,43,0.5)", marginTop: 20 }}>No tickets yet.</div>}
 

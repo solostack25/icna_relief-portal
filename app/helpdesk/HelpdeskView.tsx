@@ -144,9 +144,14 @@ export async function HelpdeskView({
 
           {pendingApprovals.length > 0 && (
             <>
-              <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
-                Pending Your Approval
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-[var(--color-text-dim)] uppercase tracking-wide">
+                  Pending Your Approval
+                </h2>
+                <Link href="/finance-ticket-approvals" className="text-xs text-[var(--color-accent)] hover:underline">
+                  View all →
+                </Link>
+              </div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden mb-8">
                 {pendingApprovals.map((a) => (
                   <Link
