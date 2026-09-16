@@ -89,6 +89,17 @@ export const UTILITY_FIELDS: TicketField[] = [
   { key: "notes", label: "Notes", type: "textarea" },
 ];
 
+// The subset of UTILITY_FIELDS an office's SAVED utility template
+// asks for - everything static/recurring about a bill. Deliberately
+// excludes billing_office_id (implied - it's whichever office the
+// template belongs to) and expense_date (set at payment time, not
+// when the template is saved). Used by the office dashboard's
+// "Utility Bills" section (app/admin/office-info/[officeId]) instead
+// of the full UTILITY_FIELDS list a one-off ticket uses.
+export const SAVED_UTILITY_TEMPLATE_FIELDS: TicketField[] = UTILITY_FIELDS.filter(
+  (f) => f.key !== "billing_office_id" && f.key !== "expense_date"
+);
+
 export const VENDOR_FIELDS: TicketField[] = [
   { key: "vendor_name", label: "Vendor Name", type: "text", required: true },
   {

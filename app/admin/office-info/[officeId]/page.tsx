@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
 import OfficeDashboardStats from "./OfficeDashboardStats";
+import OfficeUtilityBills from "./OfficeUtilityBills";
 
 export default async function OfficeInfoEditorPage({ params }: { params: Promise<{ officeId: string }> }) {
   const { officeId } = await params;
@@ -48,6 +49,8 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
       </p>
 
       <OfficeDashboardStats officeId={office.id} />
+
+      <OfficeUtilityBills officeId={office.id} />
 
       <OfficeInfoEditorClient officeId={office.id} initialHours={hoursRows ?? []} initialNotes={notesRows ?? []} />
     </div>
