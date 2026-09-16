@@ -226,6 +226,21 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_employee_availability",
+      description:
+        "Checks whether a coworker is currently busy or free on their calendar, and when they'll next be available today. Deliberately returns ONLY busy/free status and a time - never meeting titles, locations, or other details, out of respect for the coworker's privacy. Use this alongside find_employee_info whenever an employee asks who someone is (so you can mention their current availability too, the way Microsoft 365 Copilot does), or on its own when they ask if someone is free/available right now. If the response is an ambiguous_target error, ask which person they meant and call again with the exact full name.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: 'Full or partial name of the coworker to check, e.g. "Amir Saeed".' },
+        },
+        required: ["name"],
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -239,6 +254,7 @@ const TOOL_ROUTES: Record<string, string> = {
   get_office_info: "/api/copilot/office/info",
   list_upcoming_volunteer_events: "/api/copilot/volunteer/upcoming-events",
   find_employee_info: "/api/copilot/directory/employee-info",
+  get_employee_availability: "/api/copilot/directory/employee-availability",
 };
 
 /**
