@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
+import {
+  FINANCE_TICKET_STATUS_COLORS,
+  financeTicketStatusLabel,
+  FINANCE_APPROVAL_STATUS_COLORS,
+  financeApprovalStatusLabel,
+} from "@/lib/financeTicketStatus";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -22,13 +28,6 @@ const pillButton = (active: boolean): React.CSSProperties => ({
   fontWeight: 600,
   cursor: "pointer",
 });
-const STATUS_COLOR: Record<string, string> = {
-  approved: "#1F6F54",
-  rejected: "#B5566B",
-  denied: "#B5566B",
-  pending: "#A57420",
-  fix: "#B5566B",
-};
 
 // ============================================================
 // Types
@@ -141,7 +140,7 @@ function ApprovalChainsTab() {
                   {t.requestor ? `${t.requestor.first_name} ${t.requestor.last_name}` : "Unknown"} · {new Date(t.created_at).toLocaleDateString()}
                 </div>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[t.status] ?? "#666" }}>{t.status.replace("_", " ").toUpperCase()}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: FINANCE_TICKET_STATUS_COLORS[t.status] ?? "#666" }}>{financeTicketStatusLabel(t.status)}</span>
             </div>
 
             {/* Full step-by-step trail - the "who approved, who's it
@@ -156,8 +155,8 @@ function ApprovalChainsTab() {
                       {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
                       {s.acting_as_delegate_for_email ? " (covering)" : ""}
                     </span>
-                    <span style={{ fontWeight: 600, color: STATUS_COLOR[s.approval_status] ?? "#8A5FB5" }}>
-                      {s.approval_status === "pending" ? "Awaiting response" : s.approval_status}
+                    <span style={{ fontWeight: 600, color: FINANCE_APPROVAL_STATUS_COLORS[s.approval_status] ?? "#8A5FB5" }}>
+                      {financeApprovalStatusLabel(s.approval_status)}
                     </span>
                   </div>
                 ))}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
+import { FINANCE_TICKET_STATUS_COLORS, financeTicketStatusLabel } from "@/lib/financeTicketStatus";
 
 type Ticket = {
   id: string;
@@ -14,18 +15,6 @@ type Ticket = {
   status: string;
   priority: string;
   submitted_at: string | null;
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  draft: "#999",
-  open: "#1F6F54",
-  pending: "#A57420",
-  in_progress: "#3B6EA5",
-  on_hold: "#B5566B",
-  fixing: "#B5566B",
-  processed: "#16302B",
-  denied: "#B5566B",
-  duplicate: "#999",
 };
 
 export default function FinanceTicketsPage() {
@@ -78,7 +67,7 @@ export default function FinanceTicketsPage() {
                   {t.ticket_number} · {CATEGORY_LABELS[t.category] ?? t.category}
                 </div>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[t.status] ?? "#666" }}>{t.status.replace("_", " ").toUpperCase()}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: FINANCE_TICKET_STATUS_COLORS[t.status] ?? "#666" }}>{financeTicketStatusLabel(t.status)}</div>
             </div>
             <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginTop: 4 }}>${t.total.toLocaleString()}</div>
           </Link>

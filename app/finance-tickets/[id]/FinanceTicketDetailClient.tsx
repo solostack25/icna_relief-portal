@@ -6,6 +6,7 @@ import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 import FinanceTicketFieldInput, { type FinanceOffice, type FinancePexCard, type FinanceGrant } from "@/components/FinanceTicketFieldInput";
 import { CreditCardBatchEditor, MileageBatchEditor, type GrantAllocation } from "@/components/FinanceBatchEditors";
 import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
+import { FINANCE_TICKET_STATUS_COLORS, financeTicketStatusLabel, financeApprovalStatusLabel } from "@/lib/financeTicketStatus";
 
 type Data = {
   ticket: {
@@ -38,17 +39,6 @@ const pillButton = (active: boolean): React.CSSProperties => ({
   fontWeight: 600,
   cursor: "pointer",
 });
-const STATUS_COLOR: Record<string, string> = {
-  open: "#1F6F54",
-  pending: "#A57420",
-  in_progress: "#3B6EA5",
-  on_hold: "#B5566B",
-  fixing: "#B5566B",
-  processed: "#16302B",
-  denied: "#B5566B",
-  duplicate: "#999",
-};
-
 const BATCH_CATEGORIES = new Set(["credit_card_reimbursement", "mileage_reimbursement"]);
 
 export default function FinanceTicketDetailClient({
@@ -200,8 +190,8 @@ export default function FinanceTicketDetailClient({
           </div>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{ticket.title}</div>
           <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>${ticket.total.toLocaleString()}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLOR[ticket.status] ?? "#666", marginTop: 6 }}>
-            {ticket.status.replace("_", " ").toUpperCase()}
+          <div style={{ fontSize: 13, fontWeight: 700, color: FINANCE_TICKET_STATUS_COLORS[ticket.status] ?? "#666", marginTop: 6 }}>
+            {financeTicketStatusLabel(ticket.status)}
           </div>
         </div>
 
@@ -269,7 +259,7 @@ export default function FinanceTicketDetailClient({
             <div style={{ display: "grid", gap: 4 }}>
               {data.approvals.map((a, i) => (
                 <div key={i} style={{ fontSize: 13, color: "rgba(22,48,43,0.6)" }}>
-                  Level {a.approval_level} — {a.chain_person_name}: <strong>{a.approval_status}</strong>
+                  Level {a.approval_level} — {a.chain_person_name}: <strong>{financeApprovalStatusLabel(a.approval_status)}</strong>
                   {a.comments ? ` ("${a.comments}")` : ""}
                 </div>
               ))}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
+import { financeApprovalStatusLabel } from "@/lib/financeTicketStatus";
 
 type Data = {
   step: {
@@ -122,7 +123,7 @@ export default function FinanceTicketApprovalPage({ params }: { params: Promise<
                 <div className="space-y-1 text-sm text-gray-600">
                   {data.priorSteps.map((s, i) => (
                     <div key={i}>
-                      Level {s.approval_level} — {s.chain_person_name}: {s.approval_status}
+                      Level {s.approval_level} — {s.chain_person_name}: {financeApprovalStatusLabel(s.approval_status)}
                       {s.comments ? ` ("${s.comments}")` : ""}
                     </div>
                   ))}

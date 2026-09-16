@@ -11,6 +11,7 @@ import {
   type Department,
   type LegStatus,
 } from "@/lib/helpdesk";
+import { financeTicketStatusLabel } from "@/lib/financeTicketStatus";
 
 const DIFFICULTY_BY_PRIORITY: Record<string, { label: string; cls: string }> = {
   low: { label: "EASY", cls: "easy" },
@@ -221,17 +222,6 @@ export async function HelpdeskView({
     statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold", "quality_assurance"];
   const requestMap = new Map<string, { id: string; title: string; submitted_by: string; submitted_by_email: string }>();
 
-  const FINANCE_STATUS_LABELS: Record<string, string> = {
-    pending: "Pending Approval",
-    open: "Approved — Ready to Pay",
-    in_progress: "Being Processed",
-    fixing: "Needs Changes",
-    on_hold: "On Hold",
-    processed: "Paid",
-    denied: "Denied",
-    duplicate: "Duplicate",
-  };
-
   if (activeDept === "finance") {
     // Finance's queue IS the Finance Tickets approval engine
     // (finance_tickets/finance_approvals), not helpdesk_requests --
@@ -290,7 +280,7 @@ export async function HelpdeskView({
         // ticket is actually still routing. Once open, fall through
         // to the technician (assignee) lookup below instead.
         _approverLabel: step && !["open", "in_progress"].includes(t.status) ? `Awaiting: ${step.approver_name}` : undefined,
-        _financeStatusLabel: FINANCE_STATUS_LABELS[t.status] ?? t.status,
+        _financeStatusLabel: financeTicketStatusLabel(t.status),
       };
     });
   } else if (activeDept) {

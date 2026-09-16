@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
+import { FINANCE_TICKET_STATUS_COLORS, financeTicketStatusLabel } from "@/lib/financeTicketStatus";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 
 type Ticket = {
@@ -20,16 +21,6 @@ type Ticket = {
 };
 
 const STATUS_OPTIONS = ["open", "pending", "in_progress", "on_hold", "fixing", "processed", "denied", "duplicate"];
-const STATUS_COLOR: Record<string, string> = {
-  open: "#1F6F54",
-  pending: "#A57420",
-  in_progress: "#3B6EA5",
-  on_hold: "#B5566B",
-  fixing: "#B5566B",
-  processed: "#16302B",
-  denied: "#B5566B",
-  duplicate: "#999",
-};
 
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 3px 12px rgba(22,48,43,0.06)" };
 const inputStyle: React.CSSProperties = {
@@ -127,7 +118,7 @@ export default function FinanceTicketQueueClient() {
             onClick={() => setStatusFilter(s)}
             style={{ ...pillButton, ...(statusFilter === s ? { borderColor: "#8A5FB5", color: "#8A5FB5" } : {}) }}
           >
-            {s.replace("_", " ")}
+            {financeTicketStatusLabel(s)}
           </button>
         ))}
       </div>
@@ -146,7 +137,7 @@ export default function FinanceTicketQueueClient() {
                 {t.technician && <div style={{ fontSize: 12, color: "rgba(22,48,43,0.5)" }}>Assigned: {t.technician.first_name} {t.technician.last_name}</div>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[t.status] ?? "#666" }}>{t.status.replace("_", " ").toUpperCase()}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: FINANCE_TICKET_STATUS_COLORS[t.status] ?? "#666" }}>{financeTicketStatusLabel(t.status)}</span>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => toggleExpand(t.id)} style={pillButton}>
                     {expandedId === t.id ? "Hide" : "Details"}
@@ -159,7 +150,7 @@ export default function FinanceTicketQueueClient() {
                   <select value={t.status} onChange={(e) => setStatus(t.id, e.target.value)} disabled={saving === t.id} style={inputStyle}>
                     {STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>
-                        {s.replace("_", " ")}
+                        {financeTicketStatusLabel(s)}
                       </option>
                     ))}
                   </select>
