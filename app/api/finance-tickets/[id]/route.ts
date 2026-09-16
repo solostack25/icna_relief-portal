@@ -11,12 +11,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { id } = await params;
 
-  // RLS (finance_tickets own or admin) already scopes this to what
-  // the caller is allowed to see.
+  // RLS (finance_tickets own, admin, or finance dept access) already
+  // scopes this to what the caller is allowed to see.
   const { data: ticket, error } = await supabase
     .from("finance_tickets")
     .select(
-      "id, ticket_number, title, category, total, status, priority, grant_eligible, submitted_at, credit_card_statement_id, mileage_batch_id, honorarium_id, utility_id, vendor_id, pex_new_request_id, pex_recharge_request_id"
+      "id, ticket_number, title, category, total, status, priority, grant_eligible, submitted_at, credit_card_statement_id, mileage_batch_id, honorarium_id, utility_id, vendor_id, pex_new_request_id, pex_recharge_request_id, technician_id, technician:technician_id(first_name, last_name)"
     )
     .eq("id", id)
     .single();

@@ -219,6 +219,7 @@ export async function HelpdeskView({
   const FINANCE_STATUS_LABELS: Record<string, string> = {
     pending: "Pending Approval",
     open: "Approved — Ready to Pay",
+    in_progress: "Being Processed",
     fixing: "Needs Changes",
     on_hold: "On Hold",
     processed: "Paid",
@@ -233,7 +234,7 @@ export async function HelpdeskView({
     // grant that lets a "helpdesk-finance" access holder see every
     // ticket here, not just their own.
     const financeStatuses =
-      statusFilter === "closed" ? ["processed", "denied", "duplicate"] : ["pending", "open", "fixing", "on_hold"];
+      statusFilter === "closed" ? ["processed", "denied", "duplicate"] : ["pending", "open", "in_progress", "fixing", "on_hold"];
     const { data: tickets, error } = await supabase
       .from("finance_tickets")
       .select(
@@ -274,11 +275,16 @@ export async function HelpdeskView({
         // technician_id is finance's own "who's processing payment"
         // field, same shape as a Help Desk leg's assignee, so the
         // existing assigneeMap lookup below picks it up for free.
-        assigned_to_employee_id: t.status === "open" ? t.technician_id : null,
+        assigned_to_employee_id: ["open", "in_progress"].includes(t.status) ? t.technician_id : null,
         assigned_to_raw_name: null,
         handed_off_from_leg_id: null,
         _href: `/finance-tickets/${t.id}`,
-        _approverLabel: step ? `Awaiting: ${step.approver_name}` : undefined,
+        // The final approval step's is_current_step never gets
+        // cleared once a ticket reaches "open" (fully approved) - so
+        // only trust this as "still awaiting someone" while the
+        // ticket is actually still routing. Once open, fall through
+        // to the technician (assignee) lookup below instead.
+        _approverLabel: step && !["open", "in_progress"].includes(t.status) ? `Awaiting: ${step.approver_name}` : undefined,
         _financeStatusLabel: FINANCE_STATUS_LABELS[t.status] ?? t.status,
       };
     });

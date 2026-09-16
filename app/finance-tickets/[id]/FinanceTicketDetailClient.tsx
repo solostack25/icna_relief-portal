@@ -18,6 +18,8 @@ type Data = {
     priority: string;
     grant_eligible: boolean;
     submitted_at: string | null;
+    technician_id: string | null;
+    technician: { first_name: string; last_name: string } | null;
   };
   detail: unknown;
   approvals: { approval_level: number; chain_person_name: string; approval_status: string; decision_date: string | null; comments: string | null }[];
@@ -49,7 +51,17 @@ const STATUS_COLOR: Record<string, string> = {
 
 const BATCH_CATEGORIES = new Set(["credit_card_reimbursement", "mileage_reimbursement"]);
 
-export default function FinanceTicketDetailClient({ id, offices }: { id: string; offices: FinanceOffice[] }) {
+export default function FinanceTicketDetailClient({
+  id,
+  offices,
+  financeAccess = false,
+  currentEmployeeId = null,
+}: {
+  id: string;
+  offices: FinanceOffice[];
+  financeAccess?: boolean;
+  currentEmployeeId?: string | null;
+}) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
@@ -58,6 +70,7 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
   const [editedDetail, setEditedDetail] = useState<Record<string, unknown>>({});
   const [pexCards, setPexCards] = useState<FinancePexCard[]>([]);
   const [grants, setGrants] = useState<FinanceGrant[]>([]);
+  const [claiming, setClaiming] = useState(false);
 
   // Batch-category edit state (Credit Card / Mileage).
   const [batchHeader, setBatchHeader] = useState<Row>({});
@@ -144,6 +157,25 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
       await load();
     } finally {
       setResubmitting(false);
+    }
+  }
+
+  async function claimOrMarkPaid(body: Record<string, unknown>) {
+    setClaiming(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/finance-tickets/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const resBody = await res.json();
+      if (!res.ok) throw new Error(resBody.error ?? "Something went wrong");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setClaiming(false);
     }
   }
 
@@ -241,6 +273,38 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
                   {a.comments ? ` ("${a.comments}")` : ""}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {(ticket.status === "open" || ticket.status === "in_progress") && financeAccess && (
+          <div style={{ borderTop: "1px solid rgba(22,48,43,0.08)", paddingTop: 16 }}>
+            <p style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginBottom: 12 }}>
+              {ticket.technician_id
+                ? ticket.technician_id === currentEmployeeId
+                  ? "You're processing this payment."
+                  : `${ticket.technician?.first_name ?? "Someone"} ${ticket.technician?.last_name ?? ""} is processing this payment.`
+                : "Approved and ready to pay — claim it to start processing."}
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              {!ticket.technician_id && (
+                <button
+                  onClick={() => claimOrMarkPaid({ assign_to_me: true })}
+                  disabled={claiming}
+                  style={pillButton(true)}
+                >
+                  {claiming ? "Claiming…" : "Claim to Process"}
+                </button>
+              )}
+              {ticket.technician_id === currentEmployeeId && (
+                <button
+                  onClick={() => claimOrMarkPaid({ status: "processed" })}
+                  disabled={claiming}
+                  style={pillButton(true)}
+                >
+                  {claiming ? "Saving…" : "Mark as Paid"}
+                </button>
+              )}
             </div>
           </div>
         )}
