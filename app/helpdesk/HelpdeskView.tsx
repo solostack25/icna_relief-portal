@@ -81,33 +81,29 @@ export async function HelpdeskView({
       .order("created_at", { ascending: false })
       .limit(20);
 
-    const { data: pendingApprovalSteps } = await supabase
-      .from("finance_approval_steps")
-      .select("id, approval_token, chain_person_job_title, finance_approval_request_id")
-      .eq("status", "pending")
+    // Real engine (finance_tickets/finance_approvals) - the old
+    // finance_approval_steps/finance_approval_requests tables this
+    // used to query were the PREVIOUS approval system, replaced when
+    // Finance Tickets was built. This widget kept pointing at the
+    // dead tables and had been silently empty ever since.
+    const { data: pendingSteps } = await supabase
+      .from("finance_approvals")
+      .select("id, approval_token, finance_ticket_id")
+      .eq("is_current_step", true)
+      .eq("approval_status", "pending")
       .ilike("approver_email", me.email);
 
-    const farIds = [...new Set((pendingApprovalSteps ?? []).map((s) => s.finance_approval_request_id))];
-    const { data: pendingFars } = await supabase
-      .from("finance_approval_requests")
-      .select("id, amount, request_id")
-      .in("id", farIds.length ? farIds : ["00000000-0000-0000-0000-000000000000"]);
-    const farMap = new Map((pendingFars ?? []).map((f) => [f.id, f]));
-
-    const pendingRequestIds = [...new Set((pendingFars ?? []).map((f) => f.request_id))];
+    const pendingTicketIds = [...new Set((pendingSteps ?? []).map((s) => s.finance_ticket_id))];
     const { data: pendingTickets } = await supabase
-      .from("helpdesk_requests")
-      .select("id, title")
-      .in("id", pendingRequestIds.length ? pendingRequestIds : ["00000000-0000-0000-0000-000000000000"]);
+      .from("finance_tickets")
+      .select("id, title, total")
+      .in("id", pendingTicketIds.length ? pendingTicketIds : ["00000000-0000-0000-0000-000000000000"]);
     const ticketMap = new Map((pendingTickets ?? []).map((t) => [t.id, t]));
 
-    const pendingApprovals = (pendingApprovalSteps ?? [])
+    const pendingApprovals = (pendingSteps ?? [])
       .map((s) => {
-        const far = farMap.get(s.finance_approval_request_id);
-        const ticket = far ? ticketMap.get(far.request_id) : null;
-        return far && ticket
-          ? { ...s, amount: far.amount, ticketTitle: ticket.title }
-          : null;
+        const ticket = ticketMap.get(s.finance_ticket_id);
+        return ticket ? { ...s, amount: ticket.total, ticketTitle: ticket.title } : null;
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -155,7 +151,7 @@ export async function HelpdeskView({
                 {pendingApprovals.map((a) => (
                   <Link
                     key={a.id}
-                    href={`/finance-approvals/${a.approval_token}`}
+                    href={`/finance-ticket-approvals/${a.approval_token}`}
                     className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
                   >
                     <span className="text-sm font-medium truncate">{a.ticketTitle}</span>
@@ -218,8 +214,75 @@ export async function HelpdeskView({
   const statusFilter: "open" | "closed" = status === "closed" ? "closed" : "open";
   const statusesForFilter =
     statusFilter === "closed" ? ["closed", "handed_off"] : ["open", "in_progress", "on_hold", "quality_assurance"];
+  const requestMap = new Map<string, { id: string; title: string; submitted_by: string; submitted_by_email: string }>();
 
-  if (activeDept) {
+  const FINANCE_STATUS_LABELS: Record<string, string> = {
+    pending: "Pending Approval",
+    open: "Approved — Ready to Pay",
+    fixing: "Needs Changes",
+    on_hold: "On Hold",
+    processed: "Paid",
+    denied: "Denied",
+    duplicate: "Duplicate",
+  };
+
+  if (activeDept === "finance") {
+    // Finance's queue IS the Finance Tickets approval engine
+    // (finance_tickets/finance_approvals), not helpdesk_requests --
+    // see finance_tickets_helpdesk_access_migration.sql for the RLS
+    // grant that lets a "helpdesk-finance" access holder see every
+    // ticket here, not just their own.
+    const financeStatuses =
+      statusFilter === "closed" ? ["processed", "denied", "duplicate"] : ["pending", "open", "fixing", "on_hold"];
+    const { data: tickets, error } = await supabase
+      .from("finance_tickets")
+      .select(
+        "id, ticket_number, title, priority, status, total, created_at, technician_id, employees:requestor_id(first_name, last_name, email)"
+      )
+      .in("status", financeStatuses)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    legsError = error?.message ?? null;
+
+    const tickets_ = tickets ?? [];
+    const ticketIds = tickets_.map((t) => t.id);
+    const { data: currentSteps } = await supabase
+      .from("finance_approvals")
+      .select("finance_ticket_id, approver_name")
+      .eq("is_current_step", true)
+      .in("finance_ticket_id", ticketIds.length ? ticketIds : ["00000000-0000-0000-0000-000000000000"]);
+    const currentStepMap = new Map((currentSteps ?? []).map((s) => [s.finance_ticket_id, s]));
+
+    legs = tickets_.map((t) => {
+      const requestor = (t as unknown as { employees: { first_name: string; last_name: string; email: string } | null })
+        .employees;
+      requestMap.set(t.id, {
+        id: t.id,
+        title: `${t.ticket_number} — ${t.title}`,
+        submitted_by: requestor ? `${requestor.first_name} ${requestor.last_name}` : "Unknown",
+        submitted_by_email: requestor?.email ?? "",
+      });
+      const step = currentStepMap.get(t.id);
+      return {
+        id: `ft-${t.id}`,
+        department: "finance",
+        status: ["processed", "denied", "duplicate"].includes(t.status) ? "closed" : "open",
+        priority: t.priority,
+        created_at: t.created_at,
+        request_id: t.id,
+        // Only real once a ticket is fully approved (status "open") --
+        // technician_id is finance's own "who's processing payment"
+        // field, same shape as a Help Desk leg's assignee, so the
+        // existing assigneeMap lookup below picks it up for free.
+        assigned_to_employee_id: t.status === "open" ? t.technician_id : null,
+        assigned_to_raw_name: null,
+        handed_off_from_leg_id: null,
+        _href: `/finance-tickets/${t.id}`,
+        _approverLabel: step ? `Awaiting: ${step.approver_name}` : undefined,
+        _financeStatusLabel: FINANCE_STATUS_LABELS[t.status] ?? t.status,
+      };
+    });
+  } else if (activeDept) {
     const { data, error } = await supabase
       .from("helpdesk_request_legs")
       .select(
@@ -234,6 +297,13 @@ export async function HelpdeskView({
     // before its migration has run) instead of silently rendering an
     // empty queue that looks identical to "nothing's open right now."
     legsError = error?.message ?? null;
+
+    const requestIds = [...new Set(legs.map((l) => l.request_id))];
+    const { data: requests } = await supabase
+      .from("helpdesk_requests")
+      .select("id, title, submitted_by, submitted_by_email")
+      .in("id", requestIds.length ? requestIds : ["00000000-0000-0000-0000-000000000000"]);
+    (requests ?? []).forEach((r) => requestMap.set(r.id, r));
   }
 
   // Overdue (open >48h) tickets bubble to the top regardless of
@@ -245,13 +315,6 @@ export async function HelpdeskView({
     const bOverdue = isOverdue(b.created_at, b.status as LegStatus) ? 1 : 0;
     return bOverdue - aOverdue;
   });
-
-  const requestIds = [...new Set(legs.map((l) => l.request_id))];
-  const { data: requests } = await supabase
-    .from("helpdesk_requests")
-    .select("id, title, submitted_by, submitted_by_email")
-    .in("id", requestIds.length ? requestIds : ["00000000-0000-0000-0000-000000000000"]);
-  const requestMap = new Map((requests ?? []).map((r) => [r.id, r]));
 
   const assigneeIds = [
     ...new Set(legs.map((l) => l.assigned_to_employee_id).filter(Boolean)),
@@ -466,17 +529,19 @@ export async function HelpdeskView({
               const req = requestMap.get(leg.request_id);
               const diff = DIFFICULTY_BY_PRIORITY[leg.priority] ?? DIFFICULTY_BY_PRIORITY.normal;
               const assignee = leg.assigned_to_employee_id ? assigneeMap.get(leg.assigned_to_employee_id) : null;
-              const assigneeLabel = assignee
-                ? `${assignee.first_name} ${assignee.last_name}`
-                : leg.assigned_to_raw_name
-                  ? `${leg.assigned_to_raw_name} (legacy)`
-                  : "Unclaimed";
+              const assigneeLabel =
+                leg._approverLabel ??
+                (assignee
+                  ? `${assignee.first_name} ${assignee.last_name}`
+                  : leg.assigned_to_raw_name
+                    ? `${leg.assigned_to_raw_name} (legacy)`
+                    : "Unclaimed");
               const overdue = isOverdue(leg.created_at, leg.status as LegStatus);
 
               return (
                 <Link
                   key={leg.id}
-                  href={`/helpdesk/${leg.request_id}`}
+                  href={leg._href ?? `/helpdesk/${leg.request_id}`}
                   style={{
                     display: "block",
                     background: "rgba(255,255,255,0.05)",
@@ -627,7 +692,7 @@ export async function HelpdeskView({
               return (
                 <Link
                   key={leg.id}
-                  href={`/helpdesk/${leg.request_id}`}
+                  href={leg._href ?? `/helpdesk/${leg.request_id}`}
                   className={`block px-5 py-4 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors ${
                     overdue ? "bg-red-50/50" : ""
                   }`}
@@ -654,17 +719,18 @@ export async function HelpdeskView({
                       </div>
                       <div className="text-xs text-[var(--color-text-dim)]">
                         {req?.submitted_by} ·{" "}
-                        {assignee
-                          ? `${assignee.first_name} ${assignee.last_name}`
-                          : leg.assigned_to_raw_name
-                            ? `${leg.assigned_to_raw_name} (legacy)`
-                            : "Unassigned"}
+                        {leg._approverLabel ??
+                          (assignee
+                            ? `${assignee.first_name} ${assignee.last_name}`
+                            : leg.assigned_to_raw_name
+                              ? `${leg.assigned_to_raw_name} (legacy)`
+                              : "Unassigned")}
                         {" · "}
                         {formatTicketAge(leg.created_at)}
                       </div>
                     </div>
                     <span className="text-xs whitespace-nowrap px-2 py-1 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
-                      {LEG_STATUS_LABELS[leg.status as keyof typeof LEG_STATUS_LABELS]}
+                      {leg._financeStatusLabel ?? LEG_STATUS_LABELS[leg.status as keyof typeof LEG_STATUS_LABELS]}
                     </span>
                   </div>
                 </Link>
