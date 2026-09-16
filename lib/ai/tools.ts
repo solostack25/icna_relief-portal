@@ -274,6 +274,38 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "set_finance_approval_delegate",
+      description:
+        "Sets up someone to cover the requester's OWN finance ticket approvals while they're out - e.g. \"I'll be out next week, have Sarah cover my finance approvals.\" Applies automatically at every approval level, for every finance ticket category, the same as the admin-managed Temporary Coverage tool - this is the self-service version, and can ONLY set coverage for the requester's own approvals, never someone else's. ALWAYS confirm who's covering and the date range with the employee before calling this. If the response is an ambiguous_target error, list the candidate names and ask which one they meant.",
+      parameters: {
+        type: "object",
+        properties: {
+          delegateName: { type: "string", description: 'Full or partial name of the coworker who will cover approvals, e.g. "Sarah Khan".' },
+          startsAt: { type: "string", description: "Start date, YYYY-MM-DD. Defaults to today if not specified." },
+          endsAt: { type: "string", description: "End date, YYYY-MM-DD. Omit if the employee doesn't know yet or wants it to run until manually removed." },
+          note: { type: "string", description: "Optional short note, e.g. reason for being out." },
+        },
+        required: ["delegateName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remove_finance_approval_delegate",
+      description:
+        "Cancels coverage the requester previously set up for their OWN finance ticket approvals (undoes set_finance_approval_delegate) - e.g. \"I'm back, remove Sarah's coverage.\" Can only remove the requester's own coverage arrangements, never someone else's. If they have more than one active arrangement, pass delegateName to narrow it down, or you'll get an ambiguous_target error listing the candidates.",
+      parameters: {
+        type: "object",
+        properties: {
+          delegateName: { type: "string", description: "Optional - narrows to a specific coverage arrangement if the employee has more than one on file." },
+        },
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -290,6 +322,8 @@ const TOOL_ROUTES: Record<string, string> = {
   get_employee_availability: "/api/copilot/directory/employee-availability",
   list_my_finance_tickets: "/api/copilot/finance/my-tickets",
   pay_utility_bill: "/api/copilot/finance/pay-utility",
+  set_finance_approval_delegate: "/api/copilot/finance/set-delegate",
+  remove_finance_approval_delegate: "/api/copilot/finance/remove-delegate",
 };
 
 /**
