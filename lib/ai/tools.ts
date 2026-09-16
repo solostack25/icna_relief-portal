@@ -241,6 +241,39 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_my_finance_tickets",
+      description:
+        "Lists the requester's own Finance Tickets (reimbursements, utility payments, vendor payments, etc. they submitted), most recent first. Defaults to open (not yet paid/denied) tickets only.",
+      parameters: {
+        type: "object",
+        properties: {
+          statusFilter: { type: "string", enum: ["open", "all"], description: "Defaults to 'open' if not specified." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "pay_utility_bill",
+      description:
+        "Pays one of the requester's OWN office's saved utility bills (set up in advance on the office dashboard's Utility Bills section) by submitting a real Finance Ticket for it, routed for approval exactly like submitting one by hand. Only works for utilities already saved for the requester's own assigned office - it can't pay an office's bill for someone who doesn't work there, and it can't pay a utility that hasn't been saved yet (point them to the office dashboard to add it first in that case). ALWAYS confirm the vendor and exact amount with the employee before calling this - it submits a real ticket. If the response is an ambiguous_target error, list the candidate vendor names and ask which one they meant.",
+      parameters: {
+        type: "object",
+        properties: {
+          utility: {
+            type: "string",
+            description: 'Which saved utility to pay - a vendor name ("Spectrum", "FPL") or a general type ("internet", "electric", "water", "trash", "security"). Matched against the office\'s saved utilities.',
+          },
+          amount: { type: "number", description: "The exact dollar amount due this billing period, as confirmed by the employee." },
+        },
+        required: ["utility", "amount"],
+      },
+    },
+  },
 ];
 
 const TOOL_ROUTES: Record<string, string> = {
@@ -255,6 +288,8 @@ const TOOL_ROUTES: Record<string, string> = {
   list_upcoming_volunteer_events: "/api/copilot/volunteer/upcoming-events",
   find_employee_info: "/api/copilot/directory/employee-info",
   get_employee_availability: "/api/copilot/directory/employee-availability",
+  list_my_finance_tickets: "/api/copilot/finance/my-tickets",
+  pay_utility_bill: "/api/copilot/finance/pay-utility",
 };
 
 /**
