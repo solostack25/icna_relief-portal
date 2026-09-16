@@ -54,6 +54,11 @@ export const HONORARIUM_FIELDS: TicketField[] = [
   { key: "lodging_cost", label: "Lodging Cost", type: "number" },
   { key: "miscellaneous_cost", label: "Miscellaneous Cost", type: "number" },
   { key: "miscellaneous_name", label: "Miscellaneous Cost Description", type: "text" },
+  // finance_honorariums.total_amount exists but nothing wrote to it
+  // before this field was added - the cost breakdown fields above are
+  // informational detail only, never summed automatically, so this is
+  // the actual number the ticket is submitted and approved for.
+  { key: "total_amount", label: "Total Amount", type: "number", required: true },
   { key: "notes", label: "Notes", type: "textarea" },
 ];
 
@@ -86,6 +91,13 @@ export const UTILITY_FIELDS: TicketField[] = [
   { key: "service_city", label: "Service City", type: "text" },
   { key: "service_zip_code", label: "Service Zip Code", type: "text" },
   { key: "pin_number", label: "Pin Number", type: "text" },
+  // finance_utilities.total_amount exists but nothing wrote to it
+  // before this field was added - the amount due varies every billing
+  // period, so this is entered fresh on each ticket (the office
+  // dashboard's "Pay My Bills" flow asks for it separately, per bill,
+  // rather than through this field - see SAVED_UTILITY_TEMPLATE_FIELDS
+  // below, which excludes it for that reason).
+  { key: "total_amount", label: "Total Amount", type: "number", required: true },
   { key: "notes", label: "Notes", type: "textarea" },
 ];
 
@@ -97,7 +109,7 @@ export const UTILITY_FIELDS: TicketField[] = [
 // "Utility Bills" section (app/admin/office-info/[officeId]) instead
 // of the full UTILITY_FIELDS list a one-off ticket uses.
 export const SAVED_UTILITY_TEMPLATE_FIELDS: TicketField[] = UTILITY_FIELDS.filter(
-  (f) => f.key !== "billing_office_id" && f.key !== "expense_date"
+  (f) => f.key !== "billing_office_id" && f.key !== "expense_date" && f.key !== "total_amount"
 );
 
 export const VENDOR_FIELDS: TicketField[] = [
@@ -129,6 +141,9 @@ export const VENDOR_FIELDS: TicketField[] = [
   { key: "service_location_name", label: "Service Location Name", type: "text" },
   { key: "service_address_line1", label: "Service Address", type: "text" },
   { key: "service_zip_code", label: "Service Zip Code", type: "text" },
+  // finance_vendors.total_amount exists but nothing wrote to it before
+  // this field was added - same gap as Honorarium and Utility above.
+  { key: "total_amount", label: "Total Amount", type: "number", required: true },
   { key: "notes", label: "Notes", type: "textarea" },
 ];
 

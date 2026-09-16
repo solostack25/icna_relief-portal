@@ -116,7 +116,18 @@ export default function FinanceTicketDetailClient({ id, offices }: { id: string;
         } else if (data.ticket.category === "mileage_reimbursement") {
           payload = { batch: batchHeader, trips: batchRows.map((r, i) => ({ ...r, grant_allocations: batchAllocations[i], office_ids: batchOfficeIds[i] })) };
         } else {
-          payload = { detail: editedDetail };
+          // Single-record categories (Honorarium/Utility/Vendor/PEX) now
+          // collect total_amount (or amount_to_add for PEX Recharge) as
+          // a normal field in editedDetail - carry it into payload.total
+          // too, or an edit that changes the amount would update the
+          // detail row but leave finance_tickets.total (what approvers
+          // actually see and approve against) stale.
+          const totalField = SINGLE_RECORD_CATEGORIES[data.ticket.category]?.totalField;
+          const editedTotal = totalField ? editedDetail[totalField] : undefined;
+          payload = {
+            detail: editedDetail,
+            ...(editedTotal !== undefined && editedTotal !== "" ? { total: Number(editedTotal) } : {}),
+          };
         }
       }
       const res = await fetch(`/api/finance-tickets/${id}/resubmit`, {
