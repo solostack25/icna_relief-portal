@@ -386,3 +386,98 @@ export async function setAdUserManager(userId: string, managerId: string): Promi
     throw new Error(`Graph PUT manager/$ref failed: ${res.status} ${await res.text()}`);
   }
 }
+
+// ============================================================
+// Calendar / Teams meetings — "my meetings" widget on the home page
+// and the full /calendar page. Requires the Calendars.Read
+// Application permission on the "Portal" app registration, granted +
+// admin-consented in Entra ID — NOT granted as of this writing, same
+// situation Mail.Send and the directory permissions were in. Calls
+// here will 403 until that's done.
+//
+// App-only auth means this can technically read ANY mailbox in the
+// tenant, not just the caller's. Every caller in this codebase is
+// expected to pass the signed-in employee's own email — never one
+// looked up for someone else — which is what keeps this a personal
+// "my calendar" feature instead of an org-wide surveillance one. The
+// enforcement point is app/api/me/calendar/route.ts, which resolves
+// the email from the session rather than accepting one as input.
+// ============================================================
+
+export type CalendarEvent = {
+  id: string;
+  subject: string;
+  // Wall-clock "YYYY-MM-DDTHH:mm:ss..." in Central time (see the
+  // Prefer header below) — NOT a UTC instant. Format these by slicing
+  // the string directly rather than passing through `new Date()`,
+  // which would silently reinterpret them using the server's own
+  // timezone (UTC on Vercel) and shift every time by several hours.
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  isOnlineMeeting: boolean;
+  joinUrl: string | null;
+  location: string | null;
+  organizerName: string | null;
+};
+
+// YYYY-MM-DD in Central time, regardless of the server's own timezone.
+function centralDateString(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(d);
+}
+
+// startDateTime/endDateTime below are naive local strings (no "Z", no
+// offset) on purpose. Per Graph's calendarView behavior, when a
+// Prefer: outlook.timezone header is present, BOTH the query
+// parameters and the returned start/end values are interpreted in
+// that timezone — so passing e.g. "2026-09-16T00:00:00" here means
+// midnight Central, not midnight UTC. Dropping the Prefer header
+// would silently break this (everything would shift to UTC).
+export async function getUserCalendarView(
+  email: string,
+  startDateTime: string,
+  endDateTime: string
+): Promise<CalendarEvent[]> {
+  const token = await getGraphToken();
+  const select = "subject,start,end,isAllDay,isOnlineMeeting,onlineMeeting,location,organizer";
+  const path =
+    `/users/${encodeURIComponent(email)}/calendarView` +
+    `?startDateTime=${encodeURIComponent(startDateTime)}&endDateTime=${encodeURIComponent(endDateTime)}` +
+    `&$select=${select}&$orderby=start/dateTime&$top=50`;
+
+  let results: any[] = [];
+  let next: string | null = `https://graph.microsoft.com/v1.0${path}`;
+
+  while (next) {
+    const res: Response = await fetch(next, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Prefer: 'outlook.timezone="Central Standard Time"',
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Graph calendarView failed: ${res.status} ${await res.text()}`);
+    }
+    const data = await res.json();
+    results = results.concat(data.value ?? []);
+    next = data["@odata.nextLink"] ?? null;
+  }
+
+  return results.map((e: any) => ({
+    id: e.id,
+    subject: e.subject || "(No subject)",
+    start: e.start?.dateTime ?? "",
+    end: e.end?.dateTime ?? "",
+    isAllDay: !!e.isAllDay,
+    isOnlineMeeting: !!e.isOnlineMeeting,
+    joinUrl: e.onlineMeeting?.joinUrl ?? null,
+    location: e.location?.displayName || null,
+    organizerName: e.organizer?.emailAddress?.name ?? null,
+  }));
+}
+
+// Convenience used by the home-page widget: just today, Central time.
+export async function getTodayCalendarView(email: string): Promise<CalendarEvent[]> {
+  const today = centralDateString(new Date());
+  return getUserCalendarView(email, `${today}T00:00:00`, `${today}T23:59:59`);
+}

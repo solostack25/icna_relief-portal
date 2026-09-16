@@ -16,6 +16,7 @@ export default function SelectAppView({
   pendingApprovalsCount,
   trainingDueCount,
   itTicketSlot,
+  meetingsSlot,
   showClientIntake,
   visibleApps,
   programStats,
@@ -31,6 +32,7 @@ export default function SelectAppView({
   pendingApprovalsCount: number;
   trainingDueCount: number;
   itTicketSlot: React.ReactNode;
+  meetingsSlot: React.ReactNode;
   showClientIntake: boolean;
   visibleApps: ProgramApp[];
   programStats: Record<string, string>;
@@ -147,6 +149,19 @@ export default function SelectAppView({
             }
           />
           <QuickCard
+            href="/calendar"
+            title="Calendar"
+            desc="This week's meetings, pulled from your Outlook/Teams calendar"
+            tint="#EAF3EF"
+            iconColor="var(--portal-emerald)"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M3 10h18M8 2v4M16 2v4" />
+              </svg>
+            }
+          />
+          <QuickCard
             href="/office-apps"
             title={t("selectApp.card.officeApps.title")}
             desc={t("selectApp.card.officeApps.desc")}
@@ -223,6 +238,9 @@ export default function SelectAppView({
             }
           />
         </div>
+
+        {/* ---------- TODAY'S MEETINGS ---------- */}
+        <div className="mb-10">{meetingsSlot}</div>
 
         {/* ---------- YOUR PROGRAMS ---------- */}
         {(visibleApps.length > 0 || employeeIsAdmin) && (

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import { getCoursesWithStatus } from "@/lib/lms";
 import SelectAppView, { HeroStat } from "./SelectAppView";
+import MyMeetingsCard, { MyMeetingsSkeleton } from "./MyMeetingsCard";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -141,6 +142,11 @@ export default async function SelectAppPage() {
       itTicketSlot={
         <Suspense fallback={<HeroStatSkeleton label="Help Desk (IT)" />}>
           <ItTicketHeroStat fullName={`${employee.first_name} ${employee.last_name}`} />
+        </Suspense>
+      }
+      meetingsSlot={
+        <Suspense fallback={<MyMeetingsSkeleton />}>
+          <MyMeetingsCard email={employee.email} />
         </Suspense>
       }
       showClientIntake={showClientIntake}
