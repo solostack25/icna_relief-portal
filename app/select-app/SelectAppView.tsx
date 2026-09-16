@@ -17,6 +17,7 @@ export default function SelectAppView({
   trainingDueCount,
   itTicketSlot,
   meetingsSlot,
+  meetingsTodaySlot,
   showClientIntake,
   visibleApps,
   programStats,
@@ -33,6 +34,7 @@ export default function SelectAppView({
   trainingDueCount: number;
   itTicketSlot: React.ReactNode;
   meetingsSlot: React.ReactNode;
+  meetingsTodaySlot: React.ReactNode;
   showClientIntake: boolean;
   visibleApps: ProgramApp[];
   programStats: Record<string, string>;
@@ -100,6 +102,7 @@ export default function SelectAppView({
               <p className="text-sm max-w-md" style={{ color: "rgba(251,247,239,0.78)" }}>
                 {t("selectApp.subtitle")}
               </p>
+              <div className="mt-3">{meetingsTodaySlot}</div>
               <div className="mt-4">
                 <ClockControl employeeId={employeeId} initialOpenEntry={openClockEntry} />
               </div>

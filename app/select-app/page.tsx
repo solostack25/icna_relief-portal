@@ -5,6 +5,7 @@ import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import { getCoursesWithStatus } from "@/lib/lms";
 import SelectAppView, { HeroStat } from "./SelectAppView";
 import MyMeetingsCard, { MyMeetingsSkeleton } from "./MyMeetingsCard";
+import MeetingsTodayLink, { MeetingsTodayLinkSkeleton } from "./MeetingsTodayLink";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -147,6 +148,11 @@ export default async function SelectAppPage() {
       meetingsSlot={
         <Suspense fallback={<MyMeetingsSkeleton />}>
           <MyMeetingsCard email={employee.email} />
+        </Suspense>
+      }
+      meetingsTodaySlot={
+        <Suspense fallback={<MeetingsTodayLinkSkeleton />}>
+          <MeetingsTodayLink email={employee.email} />
         </Suspense>
       }
       showClientIntake={showClientIntake}
