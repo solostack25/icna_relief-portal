@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     clientIds.length
       ? admin
           .from("clients")
-          .select("id, first_name, last_name, client_number, dob, phone, zip, household_key, dietary_preference")
+          .select("id, first_name, last_name, client_number, dob, phone, zip, household_key, dietary_preference, food_bank_client_id")
           .in("id", clientIds)
       : Promise.resolve({ data: [] }),
     distIds.length
@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
       client_phone: client.phone ?? null,
       client_zip: client.zip ?? null,
       client_dietary_preference: client.dietary_preference ?? null,
+      food_bank_client_id: client.food_bank_client_id ?? null,
       household_size: client.household_key ? householdSize.get(client.household_key as string) ?? 1 : 1,
     };
 

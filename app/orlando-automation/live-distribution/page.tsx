@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ORLANDO_OFFICE_ID } from "@/lib/orlandoAutomation/config";
 import { logAudit } from "@/lib/orlandoAutomation/audit";
-import FoodBankQrSettings from "./FoodBankQrSettings";
 
 type Distribution = {
   id: string;
@@ -172,8 +171,6 @@ export default function LiveDistributionHome() {
             {starting ? "Starting…" : "Start Live Distribution"}
           </button>
         </form>
-
-        <FoodBankQrSettings />
 
         {loading ? (
           <p className="text-sm text-[var(--color-text-dim)]">Loading…</p>

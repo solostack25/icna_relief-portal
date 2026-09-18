@@ -8,6 +8,7 @@ import BackpackDistribution from "@/app/orlando-automation/_components/BackpackD
 import ClientIdCard from "@/app/orlando-automation/_components/ClientIdCard";
 import HouseholdMembers from "@/app/orlando-automation/_components/HouseholdMembers";
 import HouseholdClients from "@/app/orlando-automation/_components/HouseholdClients";
+import FoodBankIdCard from "@/app/orlando-automation/_components/FoodBankIdCard";
 import CommsActionBar from "@/app/orlando-automation/_components/CommsActionBar";
 import CommsHistory from "@/app/orlando-automation/_components/CommsHistory";
 import { useLanguage } from "@/lib/orlandoAutomation/i18n";
@@ -28,6 +29,7 @@ type Client = {
   is_blocked: boolean | null;
   blocked_reason: string | null;
   household_key: string | null;
+  food_bank_client_id: string | null;
 };
 
 export default function ClientProfileView({
@@ -120,6 +122,8 @@ export default function ClientProfileView({
             </dd>
           </dl>
         </section>
+
+        <FoodBankIdCard clientId={id} initialValue={client.food_bank_client_id} />
 
         <ClientIdCard
           clientNumber={client.client_number}

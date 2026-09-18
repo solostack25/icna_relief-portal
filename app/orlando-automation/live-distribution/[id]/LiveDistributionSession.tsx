@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ORLANDO_OFFICE_ID } from "@/lib/orlandoAutomation/config";
 import { logAudit } from "@/lib/orlandoAutomation/audit";
-import { foodBankQrSrc, type FoodBankSettings } from "../FoodBankQrSettings";
+import { foodBankQrSrc } from "@/lib/orlandoAutomation/foodBankQr";
 import CameraScanner from "./CameraScanner";
 
 type Distribution = {
@@ -23,6 +23,7 @@ type Client = {
   dietary_preference: string | null;
   is_blocked: boolean | null;
   blocked_reason: string | null;
+  food_bank_client_id: string | null;
 };
 
 type Entry = {
@@ -44,7 +45,7 @@ const WEIGHTS: { field: WeightField; label: string }[] = [
   { field: "grocery_lbs", label: "Groceries" },
 ];
 
-const CLIENT_COLUMNS = "id, first_name, last_name, client_number, dietary_preference, is_blocked, blocked_reason";
+const CLIENT_COLUMNS = "id, first_name, last_name, client_number, dietary_preference, is_blocked, blocked_reason, food_bank_client_id";
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -59,7 +60,8 @@ export default function LiveDistributionSession({ distributionId }: { distributi
 
   const [dist, setDist] = useState<Distribution | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [settings, setSettings] = useState<FoodBankSettings | null>(null);
+  const [fbIdInput, setFbIdInput] = useState("");
+  const [savingFbId, setSavingFbId] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [clients, setClients] = useState<Map<string, Client>>(new Map());
   const [employeeId, setEmployeeId] = useState<string | null>(null);
@@ -117,13 +119,6 @@ export default function LiveDistributionSession({ distributionId }: { distributi
         return;
       }
       setDist(data as Distribution);
-
-      const { data: s } = await supabase
-        .from("live_distribution_settings")
-        .select("food_bank_name, qr_value, qr_image")
-        .eq("office_id", ORLANDO_OFFICE_ID)
-        .maybeSingle();
-      setSettings(s ?? null);
 
       const {
         data: { user },
@@ -281,8 +276,32 @@ export default function LiveDistributionSession({ distributionId }: { distributi
     refocus();
   }
 
+  // Lets staff add a missing food bank ID right at the curb; it's saved to
+  // the client profile, so next time the QR is already there.
+  async function saveFoodBankId() {
+    const value = fbIdInput.trim();
+    const entry = modal ? entries.find((e) => e.id === modal.entryId) : undefined;
+    if (!value || !entry) return;
+    setSavingFbId(true);
+    const { error } = await supabase.from("clients").update({ food_bank_client_id: value }).eq("id", entry.client_id);
+    setSavingFbId(false);
+    if (error) {
+      setScanMsg({ text: error.message, ok: false });
+      return;
+    }
+    setClients((prev) => {
+      const next = new Map(prev);
+      const c = next.get(entry.client_id);
+      if (c) next.set(entry.client_id, { ...c, food_bank_client_id: value });
+      return next;
+    });
+    await logAudit(supabase, employeeId, "set_food_bank_id", "client", entry.client_id, { food_bank_client_id: value });
+    setFbIdInput("");
+  }
+
   function closeModal() {
     setModal(null);
+    setFbIdInput("");
     refocus();
   }
 
@@ -446,7 +465,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
 
   const modalEntry = modal ? entries.find((e) => e.id === modal.entryId) : undefined;
   const modalClient = modalEntry ? clients.get(modalEntry.client_id) : undefined;
-  const qrSrc = foodBankQrSrc(settings);
+  const qrSrc = foodBankQrSrc(modalClient?.food_bank_client_id);
 
   const inputClass =
     "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
@@ -519,15 +538,6 @@ export default function LiveDistributionSession({ distributionId }: { distributi
 
         {tab === "scan" ? (
           <div className="max-w-xl">
-            {!qrSrc && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-                The food bank&apos;s QR code isn&apos;t set up yet, so the scan popup won&apos;t show it.{" "}
-                <Link href="/orlando-automation/live-distribution" className="underline">
-                  Set it up
-                </Link>
-              </p>
-            )}
-
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -792,11 +802,36 @@ export default function LiveDistributionSession({ distributionId }: { distributi
               {qrSrc ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSrc} alt={`${settings?.food_bank_name ?? "Food bank"} QR code`} className="w-56 h-56 object-contain" />
-                  <p className="text-xs text-[#5f6e68] mt-2">{settings?.food_bank_name ?? "Food bank"} — scan into their system</p>
+                  <img src={qrSrc} alt={`Food bank QR code for ID ${modalClient?.food_bank_client_id}`} className="w-56 h-56 object-contain" />
+                  <p className="text-xs text-[#5f6e68] mt-2" dir="ltr">
+                    Food bank ID {modalClient?.food_bank_client_id} — scan into their system
+                  </p>
                 </>
               ) : (
-                <p className="text-sm text-amber-700 py-8">Food bank QR code isn&apos;t set up yet.</p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveFoodBankId();
+                  }}
+                  className="w-full py-2"
+                >
+                  <p className="text-sm text-amber-700 mb-2 text-center">No food bank ID on file for this client.</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={fbIdInput}
+                      onChange={(e) => setFbIdInput(e.target.value)}
+                      placeholder="Enter their food bank ID"
+                      className="flex-1 rounded-lg border border-[#dde4df] bg-white px-3 py-2 text-sm text-[#16302b] outline-none focus:border-[#1f6f54]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingFbId || !fbIdInput.trim()}
+                      className="rounded-lg bg-[#1f6f54] text-white text-sm font-medium px-3 py-2 disabled:opacity-50"
+                    >
+                      {savingFbId ? "Saving…" : "Save & show QR"}
+                    </button>
+                  </div>
+                </form>
               )}
             </div>
 
