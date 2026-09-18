@@ -24,6 +24,8 @@ type Client = {
   is_blocked: boolean | null;
   blocked_reason: string | null;
   food_bank_client_id: string | null;
+  phone: string | null;
+  address_line1: string | null;
 };
 
 type Entry = {
@@ -45,7 +47,8 @@ const WEIGHTS: { field: WeightField; label: string }[] = [
   { field: "grocery_lbs", label: "Groceries" },
 ];
 
-const CLIENT_COLUMNS = "id, first_name, last_name, client_number, dietary_preference, is_blocked, blocked_reason, food_bank_client_id";
+const CLIENT_COLUMNS =
+  "id, first_name, last_name, client_number, dietary_preference, is_blocked, blocked_reason, food_bank_client_id, phone, address_line1";
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -71,6 +74,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
   const [scanValue, setScanValue] = useState("");
   const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [candidates, setCandidates] = useState<Client[] | null>(null);
   const [camera, setCamera] = useState(false);
   const [modal, setModal] = useState<{ entryId: string; repeat: boolean } | null>(null);
   const [answering, setAnswering] = useState(false);
@@ -157,12 +161,17 @@ export default function LiveDistributionSession({ distributionId }: { distributi
 
   // ---------- Scanning ----------
 
-  async function findOrlandoClient(term: string): Promise<Client | null> {
+  function escapeLike(v: string) {
+    return v.replace(/[%_\\]/g, (ch) => `\\${ch}`);
+  }
+
+  // Exact hit from an ID card: client number, or an active card number.
+  async function findByIdCard(term: string): Promise<Client | null> {
     const { data: byNumber } = await supabase
       .from("clients")
       .select(CLIENT_COLUMNS)
       .eq("office_id", ORLANDO_OFFICE_ID)
-      .ilike("client_number", term.replace(/[%_\\]/g, (ch) => `\\${ch}`))
+      .ilike("client_number", escapeLike(term))
       .limit(1)
       .maybeSingle();
     if (byNumber) return byNumber as Client;
@@ -185,6 +194,33 @@ export default function LiveDistributionSession({ distributionId }: { distributi
     return null;
   }
 
+  // No card? Look the person up by what they can tell you at the car
+  // window: email (contains @), phone (7+ digits, any formatting), or
+  // street address. Orlando clients only.
+  async function searchClients(term: string): Promise<Client[]> {
+    const base = () => supabase.from("clients").select(CLIENT_COLUMNS).eq("office_id", ORLANDO_OFFICE_ID).limit(10);
+
+    if (term.includes("@")) {
+      const { data } = await base().ilike("email", escapeLike(term));
+      return (data ?? []) as Client[];
+    }
+
+    const digits = term.replace(/\D/g, "");
+    const looksLikePhone = /^[\d\s()+.\-]+$/.test(term) && digits.length >= 7;
+    if (looksLikePhone) {
+      // Phones are stored however they were typed ("(407) 555-1234",
+      // "407.555.1234", "+14075551234") - match the digits in order with
+      // anything between them. Last 10 digits drops a leading country code.
+      const pattern = `%${digits.slice(-10).split("").join("%")}%`;
+      const { data } = await base().ilike("phone", pattern);
+      return (data ?? []) as Client[];
+    }
+
+    if (term.length < 3) return [];
+    const { data } = await base().ilike("address_line1", `%${escapeLike(term)}%`);
+    return (data ?? []) as Client[];
+  }
+
   async function handleScan(raw: string) {
     const term = raw.trim();
     if (!term || lookingUp || modal) return;
@@ -194,25 +230,45 @@ export default function LiveDistributionSession({ distributionId }: { distributi
     }
     setLookingUp(true);
     setScanMsg(null);
+    setCandidates(null);
 
-    const client = await findOrlandoClient(term);
-    if (!client) {
+    const carded = await findByIdCard(term);
+    if (carded) {
       setLookingUp(false);
-      setScanMsg({ text: `No Orlando client found for "${term}".`, ok: false });
+      setScanValue("");
+      await recordScan(carded);
+      return;
+    }
+
+    const matches = await searchClients(term);
+    setLookingUp(false);
+
+    if (matches.length === 0) {
+      setScanMsg({ text: `No Orlando client found for "${term}" (client number, card, phone, email, or street address).`, ok: false });
       setScanValue("");
       refocus();
       return;
     }
+    setScanValue("");
+    if (matches.length === 1) {
+      await recordScan(matches[0]);
+      return;
+    }
+    // Several people share that phone/address (households) - let staff pick.
+    setCandidates(matches);
+  }
+
+  async function recordScan(client: Client) {
+    setCandidates(null);
     setClients((prev) => new Map(prev).set(client.id, client));
 
     const existing = entries.find((e) => e.client_id === client.id);
     if (existing) {
-      setLookingUp(false);
-      setScanValue("");
       setModal({ entryId: existing.id, repeat: true });
       return;
     }
 
+    setLookingUp(true);
     const { data: inserted, error } = await supabase
       .from("live_distribution_entries")
       .insert({
@@ -223,12 +279,10 @@ export default function LiveDistributionSession({ distributionId }: { distributi
       })
       .select("id, client_id, food_distributed, poultry_lbs, meat_lbs, grocery_lbs, scanned_at, salesforce_status, salesforce_error")
       .single();
-
     setLookingUp(false);
-    setScanValue("");
 
     if (error || !inserted) {
-      // Another station may have scanned the same card a moment ago.
+      // Another station may have scanned the same person a moment ago.
       if (error?.code === "23505") {
         await loadEntries();
         const { data: row } = await supabase
@@ -546,7 +600,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3"
             >
               <label htmlFor="ld-scan" className="block text-sm font-medium">
-                Scan client ID card
+                Scan ID card or look up a client
               </label>
               <input
                 id="ld-scan"
@@ -556,7 +610,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
                 value={scanValue}
                 onChange={(e) => setScanValue(e.target.value)}
                 disabled={!isOpen}
-                placeholder={isOpen ? "Scan, or type a client number and press Enter" : "Distribution is closed"}
+                placeholder={isOpen ? "Scan, or type client number, phone, email, or street address" : "Distribution is closed"}
                 className={`${inputClass} text-base py-3`}
               />
               <div className="flex items-center gap-3">
@@ -578,6 +632,47 @@ export default function LiveDistributionSession({ distributionId }: { distributi
               </div>
               {camera && isOpen && <CameraScanner onScan={handleScan} paused={!!modal || lookingUp} />}
             </form>
+
+            {candidates && (
+              <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <p className="text-sm font-medium">{candidates.length} matches — pick the client at the car</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCandidates(null);
+                      refocus();
+                    }}
+                    className="text-xs text-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {candidates.map((c) => {
+                    const scanned = entries.some((e) => e.client_id === c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => recordScan(c)}
+                        className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-[var(--color-bg)]"
+                      >
+                        <span>
+                          <span className="text-sm font-medium">
+                            {c.first_name} {c.last_name}
+                          </span>
+                          <span className="block text-xs text-[var(--color-text-dim)]">
+                            {[c.client_number, c.phone, c.address_line1].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        {scanned && <span className="text-xs text-[var(--color-text-dim)]">Already scanned</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {scanMsg && (
               <p
