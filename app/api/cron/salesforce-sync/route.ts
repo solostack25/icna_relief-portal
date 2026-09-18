@@ -22,6 +22,10 @@ async function runSalesforceSync() {
   const results: { target_id: string; food_bank_name: string; status: string; pushed?: number; failed?: number }[] = [];
 
   for (const target of targets ?? []) {
+    // Live Distribution rows are pushed by hand from the Served list once
+    // pounds are entered (app/api/orlando-automation/live-distribution/push)
+    // - a batch run could send a row before its weights exist.
+    if (target.source_module === "live-distribution") continue;
     if (!isDueToday(target.schedule)) continue;
 
     const mod = getReportModule(target.source_module);

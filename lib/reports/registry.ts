@@ -126,6 +126,31 @@ export const REPORT_MODULES: ReportModule[] = [
     allowedRoles: ["staff", "regional_director", "program_director", "admin"],
   },
   {
+    // Orlando Automation's drive-through Live Distribution - one row per
+    // client scanned. Also the source_module a food bank's
+    // salesforce_sync_targets row uses to receive these (pushed manually
+    // from the Served list, never by the daily cron - see
+    // app/api/cron/salesforce-sync).
+    slug: "live-distribution",
+    label: "Live Distribution — Clients Served",
+    table: "live_distribution_entries",
+    defaultDateColumn: "scanned_at",
+    scope: { type: "direct", officeColumn: "office_id" },
+    dimensions: [
+      { key: "food_distributed", label: "Food Distributed", column: "food_distributed" },
+      { key: "distribution", label: "Distribution", column: "distribution_id", lookup: { table: "live_distributions", labelColumns: ["name"] } },
+      { key: "scanned_day", label: "Day", column: "scanned_at", truncate: "day" },
+      { key: "scanned_month", label: "Month", column: "scanned_at", truncate: "month" },
+    ],
+    metrics: [
+      { key: "served_count", label: "Clients Scanned", column: "id", agg: "count" },
+      { key: "poultry_lbs", label: "Poultry (lbs)", column: "poultry_lbs", agg: "sum" },
+      { key: "meat_lbs", label: "Meat (lbs)", column: "meat_lbs", agg: "sum" },
+      { key: "grocery_lbs", label: "Groceries (lbs)", column: "grocery_lbs", agg: "sum" },
+    ],
+    allowedRoles: ["staff", "regional_director", "program_director", "admin"],
+  },
+  {
     slug: "transitional-housing",
     label: "Transitional Housing — Intakes",
     table: "th_intakes",

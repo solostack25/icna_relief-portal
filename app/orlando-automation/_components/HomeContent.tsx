@@ -14,6 +14,7 @@ import {
   BarChart3,
   ScrollText,
   Settings,
+  Truck,
   type LucideIcon,
 } from "lucide-react";
 import DashboardStats from "@/app/orlando-automation/_components/DashboardStats";
@@ -36,6 +37,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/orlando-automation/live-distribution", titleKey: "home.liveDistribution.title", icon: Truck, category: "green" },
   { href: "/orlando-automation/distribution/new", titleKey: "home.newDistribution.title", icon: CalendarPlus, category: "green" },
   { href: "/orlando-automation/appointments", titleKey: "home.appointments.title", icon: ClipboardCheck, category: "amber" },
   { href: "/orlando-automation/salesforce", titleKey: "home.salesforce.title", icon: UploadCloud, category: "purple" },

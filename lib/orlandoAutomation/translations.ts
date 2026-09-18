@@ -37,6 +37,7 @@ const en: Dict = {
 
   // Home
   "home.title": "Orlando Automation",
+  "home.liveDistribution.title": "Live Distribution",
   "home.signedInAs": "Signed in as {name}",
   "home.noEmployee": "No employee record found for this account. Contact an admin.",
   "home.newDistribution.title": "Create a New Distribution",
