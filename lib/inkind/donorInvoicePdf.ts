@@ -28,6 +28,8 @@ export type DonorInvoiceData = {
   office: string | null;
   dateReceived: string | null;
   donorLabel: string;
+  donorPhone?: string | null;
+  donorEmail?: string | null;
   lines: DonorInvoiceLine[];
   totalItems: number;
   signatureDataUrl: string | null;
@@ -76,6 +78,15 @@ function wrapParagraphs(font: PDFFont, str: string, maxWidth: number, size: numb
   return out;
 }
 
+// Donor phone/email under the donor name on the invoice header. Long
+// values (emails especially) shrink to fit the right-hand column instead
+// of running off the page.
+function fitSize(f: PDFFont, value: string, maxWidth: number, size: number, min = 7): number {
+  let s = size;
+  while (s > min && f.widthOfTextAtSize(value, s) > maxWidth) s -= 0.5;
+  return s;
+}
+
 export async function renderDonorInvoicePdf(data: DonorInvoiceData): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -104,8 +115,16 @@ export async function renderDonorInvoicePdf(data: DonorInvoiceData): Promise<Uin
   text(`Office: ${data.office ?? "—"}`, MARGIN, 10, font, GRAY);
 
   y = startY;
-  page.drawText(`Donor: ${data.donorLabel}`, { x: rightX, y, size: 10, font: bold });
-  y -= 28;
+  page.drawText(`Donor: ${data.donorLabel}`, { x: rightX, y, size: fitSize(bold, `Donor: ${data.donorLabel}`, 200, 10), font: bold });
+  const contact = [data.donorPhone ? `Phone: ${data.donorPhone}` : null, data.donorEmail ? `Email: ${data.donorEmail}` : null].filter(
+    (v): v is string => !!v
+  );
+  contact.forEach((line) => {
+    y -= 14;
+    page.drawText(line, { x: rightX, y, size: fitSize(font, line, 200, 10), font, color: GRAY });
+  });
+  // Left column is 3 lines (28pt); drop below whichever column is taller.
+  y = startY - 28 - (contact.length === 2 ? 12 : 0);
 
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1, color: LIGHT });
   y -= 20;

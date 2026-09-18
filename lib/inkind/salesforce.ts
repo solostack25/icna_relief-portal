@@ -11,6 +11,7 @@ import { getSalesforceAuth, isSalesforceConfigured, type SalesforceAuth } from "
 import { findOrCreateDonorContact, findOrCreateDonorAccount } from "./salesforceDonor";
 import { renderBackendInvoicesPdf } from "./renderInvoicePdf";
 import type { BackendInvoiceData } from "./invoices";
+import { donorContactFor } from "./invoices";
 
 export { isSalesforceConfigured };
 
@@ -262,6 +263,7 @@ export async function pushSessionToSalesforce(
           office: session.office,
           dateReceived: session.date_received,
           donorLabel: donorLabelFor(session, donor),
+          ...donorContactFor(session, donor),
           lines: programLines.map((l) => ({
             name: l.item_name,
             condition: l.condition,

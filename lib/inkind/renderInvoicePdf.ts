@@ -86,9 +86,26 @@ async function makeCtx(): Promise<Ctx> {
   return { doc, page, font, bold, logo, y: PAGE_H - MARGIN };
 }
 
+// Donor phone/email under the donor name on the invoice header. Long
+// values (emails especially) shrink to fit the right-hand column instead
+// of running off the page.
+function fitSize(f: PDFFont, value: string, maxWidth: number, size: number, min = 7): number {
+  let s = size;
+  while (s > min && f.widthOfTextAtSize(value, s) > maxWidth) s -= 0.5;
+  return s;
+}
+
 function drawInvoiceHeader(
   ctx: Ctx,
-  opts: { title: string; invoiceNumber: string; office: string | null; dateReceived: string | null; donorLabel: string }
+  opts: {
+    title: string;
+    invoiceNumber: string;
+    office: string | null;
+    dateReceived: string | null;
+    donorLabel: string;
+    donorPhone?: string | null;
+    donorEmail?: string | null;
+  }
 ) {
   const logoW = 130;
   const logoH = logoW * LOGO_ASPECT;
@@ -106,8 +123,16 @@ function drawInvoiceHeader(
   text(ctx, `Office: ${opts.office ?? "—"}`, MARGIN, 10, ctx.font, GRAY);
 
   ctx.y = startY;
-  ctx.page.drawText(`Donor: ${opts.donorLabel}`, { x: rightX, y: ctx.y, size: 10, font: ctx.bold });
-  ctx.y -= 28;
+  ctx.page.drawText(`Donor: ${opts.donorLabel}`, { x: rightX, y: ctx.y, size: fitSize(ctx.bold, `Donor: ${opts.donorLabel}`, 200, 10), font: ctx.bold });
+  const contact = [opts.donorPhone ? `Phone: ${opts.donorPhone}` : null, opts.donorEmail ? `Email: ${opts.donorEmail}` : null].filter(
+    (v): v is string => !!v
+  );
+  contact.forEach((line) => {
+    ctx.y -= 14;
+    ctx.page.drawText(line, { x: rightX, y: ctx.y, size: fitSize(ctx.font, line, 200, 10), font: ctx.font, color: GRAY });
+  });
+  // Left column is 3 lines (28pt); drop below whichever column is taller.
+  ctx.y = startY - 28 - (contact.length === 2 ? 12 : 0);
 
   ctx.page.drawLine({
     start: { x: MARGIN, y: ctx.y },
@@ -141,6 +166,8 @@ export async function renderDonorInvoicePdf(data: DonorInvoiceData): Promise<Uin
     office: data.office,
     dateReceived: data.dateReceived,
     donorLabel: data.donorLabel,
+    donorPhone: data.donorPhone,
+    donorEmail: data.donorEmail,
   });
 
   const cols = [
@@ -232,6 +259,8 @@ export async function renderBackendInvoicesPdf(invoices: BackendInvoiceData[]): 
       office: inv.office,
       dateReceived: inv.dateReceived,
       donorLabel: inv.donorLabel,
+      donorPhone: inv.donorPhone,
+      donorEmail: inv.donorEmail,
     });
 
     const cols = [

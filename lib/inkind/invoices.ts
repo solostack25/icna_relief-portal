@@ -27,6 +27,7 @@ export type SessionForInvoice = {
 export type DonorForInvoice = {
   name: string | null;
   email: string | null;
+  phone?: string | null;
   address: string | null;
   signature_data: string | null;
 } | null;
@@ -49,6 +50,8 @@ export type DonorInvoiceData = {
   office: string | null;
   dateReceived: string | null;
   donorLabel: string;
+  donorPhone: string | null;
+  donorEmail: string | null;
   lines: InvoiceLine[];
   totalItems: number;
   signatureDataUrl: string | null;
@@ -62,9 +65,21 @@ export type BackendInvoiceData = {
   office: string | null;
   dateReceived: string | null;
   donorLabel: string;
+  donorPhone: string | null;
+  donorEmail: string | null;
   lines: PricedInvoiceLine[];
   subtotal: number;
 };
+
+// Contact info printed under the donor name. Never shown for anonymous
+// donors, even if something was typed in.
+export function donorContactFor(
+  session: { donor_kind: string | null },
+  donor: { email: string | null; phone?: string | null } | null
+): { donorPhone: string | null; donorEmail: string | null } {
+  if (session.donor_kind === "anonymous") return { donorPhone: null, donorEmail: null };
+  return { donorPhone: donor?.phone?.trim() || null, donorEmail: donor?.email?.trim() || null };
+}
 
 function donorLabelFor(session: SessionForInvoice, donor: DonorForInvoice): string {
   if (session.donor_kind === "anonymous") return "Anonymous Individual";
@@ -87,6 +102,7 @@ export function buildDonorInvoice(
     office: session.office,
     dateReceived: session.date_received,
     donorLabel: donorLabelFor(session, donor),
+    ...donorContactFor(session, donor),
     lines,
     totalItems: lines.reduce((a, l) => a + l.qty, 0),
     signatureDataUrl: donor?.signature_data ?? null,
@@ -110,6 +126,7 @@ export function buildBackendInvoices(
 
   const baseInvoiceNumber = session.invoice_id ?? session.id.slice(0, 8);
   const donorLabel = donorLabelFor(session, donor);
+  const donorContact = donorContactFor(session, donor);
 
   return Array.from(byProgram.entries())
     .sort(([a], [b]) => a.localeCompare(b))
@@ -134,6 +151,7 @@ export function buildBackendInvoices(
         office: session.office,
         dateReceived: session.date_received,
         donorLabel,
+        ...donorContact,
         lines,
         subtotal: lines.reduce((a, l) => a + l.total, 0),
       };

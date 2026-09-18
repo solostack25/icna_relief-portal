@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   const [{ data: session }, { data: donor }, { data: donations }, { data: settings }] = await Promise.all([
     supabase.from("sessions").select("invoice_id, office, date_received, donor_kind, donor_org_name").eq("id", sessionId).single(),
-    supabase.from("donors").select("name, email, signature_data").eq("session_id", sessionId).maybeSingle(),
+    supabase.from("donors").select("name, email, phone, signature_data").eq("session_id", sessionId).maybeSingle(),
     supabase.from("donations").select("item_name, condition, qty, notes").eq("session_id", sessionId),
     supabase.from("settings").select("invoice_disclaimer, email_subject, email_body").eq("id", "global").maybeSingle(),
   ]);
@@ -74,6 +74,9 @@ export async function POST(req: Request) {
     office: session.office,
     dateReceived: session.date_received,
     donorLabel,
+    // Anonymous donors never get contact info printed.
+    donorPhone: session.donor_kind === "anonymous" ? null : donor.phone?.trim() || null,
+    donorEmail: session.donor_kind === "anonymous" ? null : donor.email?.trim() || null,
     lines,
     totalItems: lines.reduce((a, l) => a + l.qty, 0),
     signatureDataUrl: donor.signature_data ?? null,
