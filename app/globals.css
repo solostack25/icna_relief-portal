@@ -99,3 +99,28 @@ option {
 .tap-target {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Orlando Automation (/orlando-automation) - pages ported from the
+   standalone Houston_Automation app reference a few variables the portal
+   theme doesn't define. Scoped here so nothing else in the portal is
+   affected; values map onto the emerald/gold palette. */
+.oa-scope {
+  --color-accent-solid: var(--color-accent);
+  --color-input-bg: #ffffff;
+
+  --badge-green-bg: #e8f4ee;
+  --badge-green-fg: #1f6f54;
+  --badge-amber-bg: #fbf1dc;
+  --badge-amber-fg: #9a6f1c;
+  --badge-blue-bg: #e6f0f5;
+  --badge-blue-fg: #3e7c9a;
+  --badge-purple-bg: #efe7fa;
+  --badge-purple-fg: #6b3fa0;
+
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.oa-scope :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

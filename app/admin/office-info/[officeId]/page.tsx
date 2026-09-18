@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
 import OfficeDashboardStats from "./OfficeDashboardStats";
 import OfficeUtilityBills from "./OfficeUtilityBills";
+import { ORLANDO_OFFICE_ID } from "@/lib/orlandoAutomation/config";
 
 export default async function OfficeInfoEditorPage({ params }: { params: Promise<{ officeId: string }> }) {
   const { officeId } = await params;
@@ -47,6 +48,31 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
       <p className="text-sm mb-8" style={{ color: "rgba(22,48,43,0.55)" }}>
         Shortcode for this office&apos;s site: <code>[icna_office_info office_id=&quot;{office.id}&quot;]</code>
       </p>
+
+      {office.id === ORLANDO_OFFICE_ID && (
+        // Orlando-only: the Houston_Automation duplicate lives inside the
+        // portal and is launched from here (see lib/orlandoAutomation).
+        <Link
+          href="/orlando-automation"
+          className="flex items-center justify-between mb-8 transition hover:shadow-md"
+          style={{
+            background: "#fff",
+            border: "1px solid rgba(22,48,43,0.1)",
+            borderRadius: 14,
+            padding: "18px 20px",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 600, color: "#16302B" }}>Orlando Automation</div>
+            <div className="text-sm" style={{ color: "rgba(22,48,43,0.55)" }}>
+              Distributions, appointments &amp; check-in, clients, waitlist, broadcasts, campaigns, and stats
+            </div>
+          </div>
+          <span className="text-sm font-medium" style={{ color: "var(--portal-emerald)" }}>
+            Open →
+          </span>
+        </Link>
+      )}
 
       <OfficeDashboardStats officeId={office.id} />
 
