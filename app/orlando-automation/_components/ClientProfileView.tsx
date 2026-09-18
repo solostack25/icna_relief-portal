@@ -7,6 +7,7 @@ import ClientNotes from "@/app/orlando-automation/_components/ClientNotes";
 import BackpackDistribution from "@/app/orlando-automation/_components/BackpackDistribution";
 import ClientIdCard from "@/app/orlando-automation/_components/ClientIdCard";
 import HouseholdMembers from "@/app/orlando-automation/_components/HouseholdMembers";
+import HouseholdClients from "@/app/orlando-automation/_components/HouseholdClients";
 import CommsActionBar from "@/app/orlando-automation/_components/CommsActionBar";
 import CommsHistory from "@/app/orlando-automation/_components/CommsHistory";
 import { useLanguage } from "@/lib/orlandoAutomation/i18n";
@@ -26,6 +27,7 @@ type Client = {
   zip: string | null;
   is_blocked: boolean | null;
   blocked_reason: string | null;
+  household_key: string | null;
 };
 
 export default function ClientProfileView({
@@ -125,11 +127,15 @@ export default function ClientProfileView({
           lastName={client.last_name}
         />
 
-        <HouseholdMembers clientId={id} />
+        {client.household_key ? (
+          <HouseholdClients clientId={id} householdKey={client.household_key} />
+        ) : (
+          <HouseholdMembers clientId={id} />
+        )}
 
         <ClientPickups clientId={id} />
 
-        <BackpackDistribution clientId={id} />
+        <BackpackDistribution clientId={id} householdKey={client.household_key} />
 
         <ClientNotes clientId={id} />
       </div>

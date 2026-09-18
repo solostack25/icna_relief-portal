@@ -42,7 +42,13 @@ function currentSchoolYear() {
   return now.getMonth() >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 }
 
-export default function BackpackDistribution({ clientId }: { clientId: string }) {
+export default function BackpackDistribution({
+  clientId,
+  householdKey = null,
+}: {
+  clientId: string;
+  householdKey?: string | null;
+}) {
   const supabase = createClient();
   const { t, tn, locale } = useLanguage();
   const { showAlert } = useAlert();
@@ -59,10 +65,18 @@ export default function BackpackDistribution({ clientId }: { clientId: string })
   async function load() {
     setLoading(true);
 
-    const { data: memberRows } = await supabase
-      .from("household_members")
-      .select("id, first_name, last_name, dob, relationship")
-      .eq("client_id", clientId);
+    // Unified-intake households: members are client records sharing
+    // household_key. Older clients: the legacy household_members table.
+    const { data: memberRows } = householdKey
+      ? await supabase
+          .from("clients")
+          .select("id, first_name, last_name, dob, relationship:relationship_to_main_client")
+          .eq("household_key", householdKey)
+          .neq("id", clientId)
+      : await supabase
+          .from("household_members")
+          .select("id, first_name, last_name, dob, relationship")
+          .eq("client_id", clientId);
 
     const { data: distRow } = await supabase
       .from("b2s_client_distributions")
@@ -79,7 +93,7 @@ export default function BackpackDistribution({ clientId }: { clientId: string })
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, householdKey]);
 
   const today = new Date();
   const eligibleMembers = members.filter((m) => {
