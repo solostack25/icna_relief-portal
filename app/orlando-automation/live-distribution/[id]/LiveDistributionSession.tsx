@@ -195,10 +195,15 @@ export default function LiveDistributionSession({ distributionId }: { distributi
   }
 
   // No card? Look the person up by what they can tell you at the car
-  // window: email (contains @), phone (7+ digits, any formatting), or
-  // street address. Orlando clients only.
+  // window: food bank ID, email (contains @), phone (7+ digits, any
+  // formatting), or street address. Orlando clients only.
   async function searchClients(term: string): Promise<Client[]> {
     const base = () => supabase.from("clients").select(CLIENT_COLUMNS).eq("office_id", ORLANDO_OFFICE_ID).limit(10);
+
+    // Food bank ID first - these are often plain numbers, which would
+    // otherwise be read as a phone number below.
+    const { data: byFoodBankId } = await base().ilike("food_bank_client_id", escapeLike(term));
+    if (byFoodBankId && byFoodBankId.length > 0) return byFoodBankId as Client[];
 
     if (term.includes("@")) {
       const { data } = await base().ilike("email", escapeLike(term));
@@ -244,7 +249,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
     setLookingUp(false);
 
     if (matches.length === 0) {
-      setScanMsg({ text: `No Orlando client found for "${term}" (client number, card, phone, email, or street address).`, ok: false });
+      setScanMsg({ text: `No Orlando client found for "${term}" (client number, card, food bank ID, phone, email, or street address).`, ok: false });
       setScanValue("");
       refocus();
       return;
@@ -610,7 +615,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
                 value={scanValue}
                 onChange={(e) => setScanValue(e.target.value)}
                 disabled={!isOpen}
-                placeholder={isOpen ? "Scan, or type client number, phone, email, or street address" : "Distribution is closed"}
+                placeholder={isOpen ? "Scan, or type client #, food bank ID, phone, email, or address" : "Distribution is closed"}
                 className={`${inputClass} text-base py-3`}
               />
               <div className="flex items-center gap-3">
