@@ -13,6 +13,15 @@ const inputClass =
   "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
 const labelClass = "block text-sm mb-1 text-[var(--color-text-dim)]";
 
+// 14 chars, no look-alikes (0/O, 1/l/I) so it can be read out or typed
+// from a sticky note.
+function generatePassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%*";
+  const bytes = new Uint32Array(14);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
 function NewEmployeeForm() {
   const supabase = createClient();
   const router = useRouter();
@@ -38,6 +47,10 @@ function NewEmployeeForm() {
     assignedRegion: "",
   });
   const [selectedApps, setSelectedApps] = useState<Set<string>>(new Set());
+  const [loginMethod, setLoginMethod] = useState<"invite" | "password">("invite");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     supabase
@@ -103,6 +116,10 @@ function NewEmployeeForm() {
       setError("First name, last name, and email are required.");
       return;
     }
+    if (loginMethod === "password" && password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
     setSaving(true);
 
@@ -118,6 +135,7 @@ function NewEmployeeForm() {
         assignedRegion: form.assignedRegion || null,
         programSlugs: Array.from(selectedApps),
         adObjectId: linkedAdUser?.id || null,
+        password: loginMethod === "password" ? password : undefined,
       }),
     });
 
@@ -139,9 +157,39 @@ function NewEmployeeForm() {
           {form.firstName} {form.lastName} — Portal Access Set Up
         </h1>
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
-          <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-700 inline-block">
-            Portal account created — invite email sent to {form.email}
-          </span>
+          {loginMethod === "password" ? (
+            <>
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-700 inline-block">
+                Portal account created — they can sign in now
+              </span>
+              <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm space-y-1">
+                <p>
+                  Email: <span className="font-mono">{form.email}</span>
+                </p>
+                <p>
+                  Password: <span className="font-mono">{password}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`Email: ${form.email}\nPassword: ${password}`);
+                  setCopied(true);
+                }}
+                className="text-sm text-[var(--color-accent)] hover:underline"
+              >
+                {copied ? "Copied" : "Copy login details"}
+              </button>
+              <p className="text-xs text-[var(--color-text-dim)]">
+                This is the only time the password is shown - share it with them privately. If they need a new one later,
+                send a password reset from their employee page.
+              </p>
+            </>
+          ) : (
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-700 inline-block">
+              Portal account created — invite email sent to {form.email}
+            </span>
+          )}
           {linkedAdUser && (
             <p className="text-sm text-[var(--color-text-dim)]">
               Linked to Entra account: {linkedAdUser.displayName} ({linkedAdUser.mail ?? linkedAdUser.userPrincipalName})
@@ -201,7 +249,63 @@ function NewEmployeeForm() {
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               className={inputClass}
             />
-            <p className="text-xs text-[var(--color-text-dim)] mt-1">They&apos;ll get an email invite to set their portal password.</p>
+          </div>
+          <div>
+            <label className={labelClass}>Sign-in</label>
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="loginMethod" checked={loginMethod === "invite"} onChange={() => setLoginMethod("invite")} />
+                Email them an invite
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="loginMethod"
+                  checked={loginMethod === "password"}
+                  onChange={() => {
+                    setLoginMethod("password");
+                    if (!password) setPassword(generatePassword());
+                  }}
+                />
+                Set a password now
+              </label>
+            </div>
+            {loginMethod === "invite" ? (
+              <p className="text-xs text-[var(--color-text-dim)] mt-1">They&apos;ll get an email invite to set their portal password.</p>
+            ) : (
+              <div className="mt-2">
+                <div className="flex gap-2">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={8}
+                    autoComplete="new-password"
+                    className={`${inputClass} font-mono`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="shrink-0 rounded-lg border border-[var(--color-border)] px-3 text-sm"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPassword(generatePassword());
+                      setShowPassword(true);
+                    }}
+                    className="shrink-0 rounded-lg border border-[var(--color-border)] px-3 text-sm"
+                  >
+                    Generate
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--color-text-dim)] mt-1">
+                  At least 8 characters. No email is sent - you&apos;ll get the login details to hand over on the next screen.
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <label className={labelClass}>Role</label>
@@ -318,7 +422,7 @@ function NewEmployeeForm() {
           disabled={saving}
           className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-3 text-sm disabled:opacity-50"
         >
-          {saving ? "Setting up..." : "Set Up Portal Access & Send Invite"}
+          {saving ? "Setting up..." : loginMethod === "password" ? "Set Up Portal Access" : "Set Up Portal Access & Send Invite"}
         </button>
       </form>
     </div>

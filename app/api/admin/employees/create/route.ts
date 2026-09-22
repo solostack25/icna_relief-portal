@@ -22,21 +22,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { firstName, lastName, email, role, assignedOfficeId, assignedRegion, programSlugs, adObjectId } = await request.json();
+  const { firstName, lastName, email, role, assignedOfficeId, assignedRegion, programSlugs, adObjectId, password } =
+    await request.json();
 
   if (!firstName || !lastName || !email) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // Two ways to give someone their login:
+  //  - no password: email invite (they set their own via /reset-password)
+  //  - password: the admin sets it now and hands it over; account is
+  //    confirmed immediately so they can sign in right away, no email sent.
+  const setPassword = typeof password === "string" && password.length > 0;
+  if (setPassword && password.length < 8) {
+    return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+  }
+
   const admin = createAdminClient();
 
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
-  });
+  const { data: authData, error: authError } = setPassword
+    ? await admin.auth.admin.createUser({ email, password, email_confirm: true })
+    : await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+      });
 
-  if (inviteError || !invited?.user) {
-    return NextResponse.json({ error: inviteError?.message ?? "Failed to invite user" }, { status: 500 });
+  if (authError || !authData?.user) {
+    return NextResponse.json(
+      { error: authError?.message ?? (setPassword ? "Failed to create user" : "Failed to invite user") },
+      { status: 500 }
+    );
   }
+  const invited = authData;
 
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
@@ -54,6 +70,10 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (employeeError || !employee) {
+    // Don't leave a login behind with no employee row - it would sign in
+    // to an empty portal. Only safe to roll back for an account we just
+    // created with a password (an invite may belong to a re-invited user).
+    if (setPassword) await admin.auth.admin.deleteUser(invited.user.id);
     return NextResponse.json({ error: employeeError?.message }, { status: 500 });
   }
 
@@ -66,5 +86,5 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true, employeeId: employee.id });
+  return NextResponse.json({ ok: true, employeeId: employee.id, method: setPassword ? "password" : "invite" });
 }
