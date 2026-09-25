@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { refreshPublicWebsite } from "@/lib/publicWebsite";
 
 // Authenticated save for one office's hours grid + free-text notes.
 // Deliberately does NOT do its own office/role check beyond "is logged
@@ -61,5 +62,7 @@ export async function POST(request: NextRequest) {
     if (notesError) return NextResponse.json({ error: notesError.message }, { status: 500 });
   }
 
+  // Hours also appear on the public website (open-now badges), so refresh it too.
+  await refreshPublicWebsite();
   return NextResponse.json({ ok: true });
 }

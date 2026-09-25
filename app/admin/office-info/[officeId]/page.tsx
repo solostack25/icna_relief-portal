@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
 import OfficeDashboardStats from "./OfficeDashboardStats";
 import OfficeUtilityBills from "./OfficeUtilityBills";
+import WebsiteListingEditor, { type WebsiteListing } from "./WebsiteListingEditor";
 import { ORLANDO_OFFICE_ID } from "@/lib/orlandoAutomation/config";
 
 export default async function OfficeInfoEditorPage({ params }: { params: Promise<{ officeId: string }> }) {
@@ -24,13 +25,18 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
   const { data: office } = await supabase.from("b2s_offices").select("id, field_office").eq("id", officeId).single();
   if (!office) redirect("/admin/office-info");
 
-  const [{ data: hoursRows }, { data: notesRows }] = await Promise.all([
+  const [{ data: hoursRows }, { data: notesRows }, { data: listing }] = await Promise.all([
     supabase.from("office_hours").select("day_of_week, open_time, close_time, is_closed").eq("office_id", officeId),
     supabase
       .from("office_info_notes")
       .select("id, label, content, sort_order")
       .eq("office_id", officeId)
       .order("sort_order", { ascending: true }),
+    supabase
+      .from("web_office_listings")
+      .select("is_public, display_name, kind, address1, address2, city, state, zip, phone, email, services, public_note, geo_source")
+      .eq("office_id", officeId)
+      .maybeSingle(),
   ]);
 
   return (
@@ -77,6 +83,8 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
       <OfficeDashboardStats officeId={office.id} />
 
       <OfficeUtilityBills officeId={office.id} />
+
+      <WebsiteListingEditor officeId={office.id} officeName={office.field_office} initial={(listing as WebsiteListing | null) ?? null} />
 
       <OfficeInfoEditorClient officeId={office.id} initialHours={hoursRows ?? []} initialNotes={notesRows ?? []} />
     </div>
