@@ -165,6 +165,21 @@ export default function SelectAppView({
             }
           />
           <QuickCard
+            href="/resources"
+            title="Resources"
+            desc="Vehicles, properties, drivers, insurance and expiring documents"
+            tint="#EAF3EF"
+            iconColor="var(--portal-emerald)"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v4a1 1 0 0 1-1 1h-1" />
+                <path d="M5 18H4a1 1 0 0 1-1-1v-4h18" />
+                <circle cx="7.5" cy="17.5" r="1.5" />
+                <circle cx="16.5" cy="17.5" r="1.5" />
+              </svg>
+            }
+          />
+          <QuickCard
             href="/office-apps"
             title={t("selectApp.card.officeApps.title")}
             desc={t("selectApp.card.officeApps.desc")}

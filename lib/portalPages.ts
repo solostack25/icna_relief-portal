@@ -17,6 +17,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["helpdesk", "help desk", "ticket", "it support", "submit a ticket"],
   },
   {
+    name: "Resources",
+    path: "/resources",
+    description: "Vehicles, properties and drivers by office, insurance requests and policies, documents, and expiration alerts.",
+    keywords: ["resources", "vehicle", "vehicles", "van", "property", "properties", "lease", "driver", "insurance", "registration", "fleet"],
+  },
+  {
     name: "Volunteer Signups",
     path: "/volunteer",
     description: "Browse and sign up for volunteer events and shifts.",
