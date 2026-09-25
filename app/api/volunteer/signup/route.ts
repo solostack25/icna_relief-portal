@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { refreshPublicWebsite } from "@/lib/publicWebsite";
 
 function corsHeaders() {
   return {
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     qty: body.qty ? Number(body.qty) : 1,
     notes: body.notes ? String(body.notes).trim() : null,
     waiver_signed: !!body.waiver_signed,
-    source: body.source === "wordpress" ? "wordpress" : "portal",
+    source: body.source === "wordpress" || body.source === "website" ? body.source : "portal",
   });
 
   if (error) {
@@ -51,5 +52,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Spots-left counts appear on the public website; refresh them there.
+  await refreshPublicWebsite();
   return NextResponse.json({ ok: true }, { headers: corsHeaders() });
 }

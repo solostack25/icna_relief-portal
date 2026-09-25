@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { refreshPublicWebsiteSoon } from "@/lib/refreshPublicWebsiteClient";
 
 type Signup = {
   id: string;
@@ -74,6 +75,7 @@ export default function EventManager({
       setPublishError(error.message);
       return;
     }
+    refreshPublicWebsiteSoon();
     router.refresh();
   }
 
@@ -106,12 +108,14 @@ export default function EventManager({
 
     setSlotForm({ slot_type: "shift", label: "", start_time: "", end_time: "", capacity: "1" });
     setShowAddSlot(false);
+    refreshPublicWebsiteSoon();
     router.refresh();
   }
 
   async function handleDeleteSlot(slotId: string) {
     if (!confirm("Delete this slot? This also removes any signups on it.")) return;
     await supabase.from("volunteer_slots").delete().eq("id", slotId);
+    refreshPublicWebsiteSoon();
     router.refresh();
   }
 
