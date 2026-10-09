@@ -11,6 +11,8 @@ export type AdminAccess = {
   canReview: boolean;
   canZakatFinance: boolean;
   hasOfficeInfo: boolean;
+  /** On the short list of people who may edit the public website (web_content_editors). */
+  canEditWebsite: boolean;
   hasAnyAccess: boolean;
 };
 
@@ -69,6 +71,11 @@ export async function getAdminAccess(
     : await supabase.from("employees").select("is_zakat_finance").eq("id", employeeId).maybeSingle();
   const canZakatFinance = isAdmin || !!employeeRow?.is_zakat_finance;
 
+  // Editing the public website is its own short list, not a role: being an admin is not enough.
+  // Before the web_content migration has been run the function doesn't exist; that just means "no".
+  const { data: websiteEditor, error: websiteEditorError } = await supabase.rpc("is_web_content_editor");
+  const canEditWebsite = !websiteEditorError && websiteEditor === true;
+
   return {
     isAdmin,
     canManageTickets,
@@ -79,6 +86,7 @@ export async function getAdminAccess(
     canReview,
     canZakatFinance,
     hasOfficeInfo,
+    canEditWebsite,
     hasAnyAccess:
       isAdmin ||
       canManageTickets ||
