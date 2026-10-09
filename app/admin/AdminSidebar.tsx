@@ -128,6 +128,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .3 2 .6 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.5 2.9.6a2 2 0 011.7 2.1z" />
     </svg>
   ),
+  website: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z" />
+    </svg>
+  ),
   officeInfo: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="9" />
@@ -227,9 +233,10 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     },
     {
       title: t("sidebar.section.system"),
-      items: [access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" }].filter(
-        Boolean
-      ) as NavItem[],
+      items: [
+        access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" },
+        access.canEditWebsite && { href: "/admin/website", label: t("sidebar.nav.website"), icon: "website" },
+      ].filter(Boolean) as NavItem[],
     },
     {
       title: t("sidebar.section.general"),
