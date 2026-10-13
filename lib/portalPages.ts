@@ -53,6 +53,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["client", "clients", "client search", "client record"],
   },
   {
+    name: "Speaker Requests",
+    path: "/speaker-requests",
+    description: "Request a Jummah khutbah or special program speaker. After approval the honorarium finance ticket, speaker agreement, W-9 request and calendar invite are handled automatically.",
+    keywords: ["speaker", "khutbah", "jummah", "khateeb", "imam", "honorarium", "speaker request", "guest speaker"],
+  },
+  {
     name: "Employee Directory",
     path: "/directory",
     description: "Look up other employees and their contact info.",

@@ -244,6 +244,19 @@ export default function SelectAppView({
             }
           />
           <QuickCard
+            href="/speaker-requests"
+            title="Speaker Requests"
+            desc="Request a Jummah or program speaker — finance, agreement and W-9 handled automatically"
+            tint="#FBF0DC"
+            iconColor="#A57420"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 11a7 7 0 0014 0M12 18v4M8 22h8" />
+              </svg>
+            }
+          />
+          <QuickCard
             href="/marketing/donor-calling"
             title={t("selectApp.card.donorCalling.title")}
             desc={t("selectApp.card.donorCalling.desc")}

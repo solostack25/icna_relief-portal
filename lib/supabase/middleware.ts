@@ -46,7 +46,11 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/volunteer/public") ||
     request.nextUrl.pathname.startsWith("/inkind/") ||
     request.nextUrl.pathname === "/inkind" ||
-    request.nextUrl.pathname.startsWith("/finance-approvals/");
+    request.nextUrl.pathname.startsWith("/finance-approvals/") ||
+    // Speaker Requests: token-credentialed pages for AMs/leadership
+    // approving from email, and for external speakers (agreement + W-9).
+    request.nextUrl.pathname.startsWith("/speaker-requests/approve/") ||
+    request.nextUrl.pathname.startsWith("/speaker-portal/");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
   if (!user && !isPublicPageRoute && !isApiRoute) {

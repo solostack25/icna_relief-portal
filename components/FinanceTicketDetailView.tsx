@@ -18,7 +18,15 @@ export function FinanceTicketDetailFields({ row }: { row: Record<string, unknown
     <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", display: "grid", gap: 2 }}>
       {entries.map(([k, v]) => (
         <div key={k}>
-          <span style={{ color: "rgba(22,48,43,0.4)" }}>{toLabel(k)}:</span> {typeof v === "boolean" ? "Yes" : String(v)}
+          <span style={{ color: "rgba(22,48,43,0.4)" }}>{toLabel(k)}:</span> {typeof v === "boolean" ? (
+            "Yes"
+          ) : typeof v === "string" && /^https?:\/\//.test(v) ? (
+            <a href={v} target="_blank" rel="noreferrer" style={{ color: "#1F6F54", fontWeight: 600 }}>
+              Open
+            </a>
+          ) : (
+            String(v)
+          )}
         </div>
       ))}
     </div>
