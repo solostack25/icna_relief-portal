@@ -171,3 +171,10 @@ join clients c on c.id = l.client_id
 left join rsce_service_types t on t.name = 'Other'
 where l.program_slug = 'rsce'
 on conflict (legacy_service_log_id) do nothing;
+
+-- ---------- Salesforce sync tracking for bulk distributions (applied after) ----------
+alter table bulk_distributions
+  add column if not exists salesforce_synced boolean not null default false,
+  add column if not exists salesforce_record_id text,
+  add column if not exists salesforce_synced_at timestamptz,
+  add column if not exists salesforce_error text;

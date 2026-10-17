@@ -17,6 +17,8 @@ type Row = {
   total_value: number | null;
   items_description: string | null;
   location: string | null;
+  salesforce_synced: boolean;
+  salesforce_error: string | null;
 };
 
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString();
@@ -75,6 +77,22 @@ export default function BulkDistributions({
     if (error) return setError(error.message);
     setForm(blank);
     setOpen(false);
+    router.refresh();
+  }
+
+  const [pushing, setPushing] = useState<string | null>(null);
+  const [pushMsg, setPushMsg] = useState<Record<string, string>>({});
+
+  async function pushToSalesforce(id: string) {
+    setPushing(id);
+    const res = await fetch(`/api/refugee-services/bulk/${id}/salesforce`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setPushing(null);
+    if (!res.ok) {
+      setPushMsg((m) => ({ ...m, [id]: data.error ?? "Push failed" }));
+      return;
+    }
+    setPushMsg((m) => ({ ...m, [id]: "" }));
     router.refresh();
   }
 
@@ -166,9 +184,25 @@ export default function BulkDistributions({
                   {r.items_description ? ` · ${r.items_description}` : ""}
                 </div>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 flex flex-col items-end gap-1">
                 <div className="text-xs text-[var(--color-text-dim)]">{fmtDate(r.distributed_on)}</div>
-                <button onClick={() => remove(r.id)} className="text-[11px] text-[#B55139] underline">delete</button>
+                {r.salesforce_synced ? (
+                  <span className="text-[11px] font-medium text-green-700">✓ In Salesforce</span>
+                ) : (
+                  <button
+                    onClick={() => pushToSalesforce(r.id)}
+                    disabled={pushing === r.id}
+                    className="rounded-full border border-[var(--color-border)] px-2.5 py-1 text-[11px] font-medium disabled:opacity-50"
+                  >
+                    {pushing === r.id ? "Pushing…" : "Push to Salesforce"}
+                  </button>
+                )}
+                {(pushMsg[r.id] || r.salesforce_error) && (
+                  <span className="max-w-[12rem] text-[11px] text-[#B55139] text-right">{pushMsg[r.id] || r.salesforce_error}</span>
+                )}
+                {!r.salesforce_synced && (
+                  <button onClick={() => remove(r.id)} className="text-[11px] text-[#B55139] underline">delete</button>
+                )}
               </div>
             </div>
           ))}
