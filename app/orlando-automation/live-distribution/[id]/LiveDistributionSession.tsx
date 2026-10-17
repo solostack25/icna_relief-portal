@@ -572,11 +572,14 @@ export default function LiveDistributionSession({ distributionId }: { distributi
     "w-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--color-accent)] disabled:opacity-50";
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4">
-          <div>
-            <h1 className="text-xl font-semibold flex items-center gap-2">
+    <main className="min-h-screen px-4 py-6 sm:py-12">
+      <div className="max-w-5xl mx-auto min-w-0">
+        {/* Phones: title, then the buttons on their own row. Side by side
+            (with the buttons unable to shrink) made the page wider than
+            the screen. */}
+        <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold flex flex-wrap items-center gap-2">
               {dist?.name ?? "Live Distribution"}
               {dist && (
                 <span
@@ -595,7 +598,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
               {served.length} served
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
             {dist && (
               <button
                 type="button"
@@ -812,7 +815,94 @@ export default function LiveDistributionSession({ distributionId }: { distributi
             {entries.length === 0 ? (
               <p className="text-sm text-[var(--color-text-dim)]">No one scanned yet.</p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+              <>
+              {/* Phones: one card per client, so weights and Push fit without
+                  scrolling sideways. Bigger screens keep the table below. */}
+              <div className="sm:hidden space-y-3">
+                {entries.map((e) => {
+                  const c = clients.get(e.client_id);
+                  const canEdit = editable(e);
+                  const isPushing = pushing.has(e.id);
+                  return (
+                    <div
+                      key={e.id}
+                      className={[
+                        "rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3",
+                        e.food_distributed === true ? "" : "opacity-60",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/orlando-automation/clients/${e.client_id}`} className="font-medium hover:underline">
+                            {c ? `${c.first_name} ${c.last_name}` : "…"}
+                          </Link>
+                          <div className="text-xs text-[var(--color-text-dim)]">
+                            {[c?.client_number, fmtTime(e.scanned_at)].filter(Boolean).join(" · ")}
+                          </div>
+                        </div>
+                        {e.salesforce_status === "success" ? (
+                          <span className="shrink-0 rounded-full text-xs font-medium px-2.5 py-0.5 bg-[var(--badge-green-bg)] text-[var(--badge-green-fg)]">Pushed</span>
+                        ) : (
+                          <label className="shrink-0 flex items-center gap-2 text-xs text-[var(--color-text-dim)]">
+                            Distributed
+                            <select
+                              value={e.food_distributed === null ? "" : e.food_distributed ? "yes" : "no"}
+                              onChange={async (ev) => {
+                                const v = ev.target.value === "" ? null : ev.target.value === "yes";
+                                await supabase.from("live_distribution_entries").update({ food_distributed: v }).eq("id", e.id);
+                                setEntries((prev) => prev.map((x) => (x.id === e.id ? { ...x, food_distributed: v } : x)));
+                              }}
+                              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] px-2 py-1 text-sm text-[var(--color-text)]"
+                            >
+                              <option value="">—</option>
+                              <option value="yes">Yes</option>
+                              <option value="no">No</option>
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        {WEIGHTS.map(({ field, label }) => (
+                          <label key={field} className="text-xs text-[var(--color-text-dim)]">
+                            {label} (lbs)
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              inputMode="decimal"
+                              value={draftValue(e, field)}
+                              disabled={!canEdit}
+                              onChange={(ev) => setDraft(e.id, field, ev.target.value)}
+                              onBlur={() => saveWeight(e, field)}
+                              onKeyDown={(ev) => {
+                                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
+                              }}
+                              className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-bg)] px-2 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      {e.salesforce_status !== "success" && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => push([e.id])}
+                            disabled={e.food_distributed !== true || isPushing}
+                            className="rounded-lg border border-[var(--color-accent)] text-[var(--color-accent)] text-xs font-medium px-3 py-1.5 disabled:opacity-40"
+                          >
+                            {isPushing ? "Pushing…" : e.salesforce_status === "error" ? "Retry push to Salesforce" : "Push to Salesforce"}
+                          </button>
+                          {e.salesforce_status === "error" && (
+                            <span className="text-xs text-red-700">{e.salesforce_error || "Failed"}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-[var(--color-text-dim)] border-b border-[var(--color-border)]">
@@ -905,6 +995,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}
