@@ -85,6 +85,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="3" />
     </svg>
   ),
+  bell: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
+  ),
   connectors: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M9 17H7a5 5 0 010-10h2M15 7h2a5 5 0 010 10h-2M8 12h8" />
@@ -228,7 +234,10 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     },
     {
       title: t("sidebar.section.system"),
-      items: [access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" }].filter(
+      items: [
+        access.isAdmin && { href: "/admin/push", label: t("sidebar.nav.pushNotifications"), icon: "bell" },
+        access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" },
+      ].filter(
         Boolean
       ) as NavItem[],
     },
