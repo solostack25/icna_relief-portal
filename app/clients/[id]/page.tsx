@@ -12,6 +12,7 @@ import ApplyForZakatButton from "./ApplyForZakatButton";
 import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
 import IntakeInfoEditor from "./IntakeInfoEditor";
+import RefugeeServicesSection from "./RefugeeServicesSection";
 
 // The two household data sources store gender differently: legacy
 // household_members uses lowercase "male"/"female" (or null), the new
@@ -126,9 +127,56 @@ export default async function ClientProfilePage({
     .eq("client_id", id)
     .order("submitted_at", { ascending: false });
 
+  // ---------- Refugee Services (case + structured service log) ----------
+  const [{ data: me }, { data: rsceCases }, { data: rsceServices }, { data: rsceTypes }] = await Promise.all([
+    supabase.from("employees").select("id").eq("auth_user_id", user.id).maybeSingle(),
+    supabase
+      .from("rsce_cases")
+      .select("id, status, opened_on, closed_on, closed_reason, arrival_date, referral_source, notes, case_manager_id")
+      .eq("client_id", id)
+      .order("opened_on", { ascending: false }),
+    supabase
+      .from("rsce_services")
+      .select("id, service_name, delivered_on, value, beneficiaries, notes, employee_id")
+      .eq("client_id", id)
+      .order("delivered_on", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("rsce_service_types")
+      .select("id, name, category, default_value")
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("name"),
+  ]);
+  const rsceCase = (rsceCases ?? []).find((c) => c.status === "open") ?? (rsceCases ?? [])[0] ?? null;
+  const rsceEmployeeIds = [
+    ...new Set([
+      ...(rsceServices ?? []).map((s) => s.employee_id),
+      ...(rsceCases ?? []).map((c) => c.case_manager_id),
+    ].filter(Boolean)),
+  ] as string[];
+  const [{ data: officeStaff }, { data: rsceEmployees }] = await Promise.all([
+    clientRecord.office_id
+      ? supabase
+          .from("employees")
+          .select("id, first_name, last_name")
+          .eq("assigned_office_id", clientRecord.office_id)
+          .eq("is_active", true)
+          .order("first_name")
+      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
+    rsceEmployeeIds.length
+      ? supabase.from("employees").select("id, first_name, last_name").in("id", rsceEmployeeIds)
+      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
+  ]);
+  const staffById = new Map(
+    [...(officeStaff ?? []), ...(rsceEmployees ?? [])].map((e) => [e.id, `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim()])
+  );
+  const householdSize = clientRecord.household_key
+    ? (householdClients ?? []).length + 1
+    : (members ?? []).length + 1;
+
   const foodLog = (serviceLog ?? []).filter((e) => e.program_slug === "hunger-prevention");
   const drsLog = (serviceLog ?? []).filter((e) => e.program_slug === "drs");
-  const rsceLog = (serviceLog ?? []).filter((e) => e.program_slug === "rsce");
 
   function calcAge(dob: string) {
     const diff = Date.now() - new Date(dob).getTime();
@@ -430,47 +478,24 @@ export default async function ClientProfilePage({
           </div>
         </ProgramSection>
 
-        <ProgramSection
-          title="RSCE"
-          hasHistory={rsceLog.length > 0}
-          summary={
-            rsceLog.length > 0
-              ? `${rsceLog.length} logged · last on ${new Date(rsceLog[0].created_at).toLocaleDateString()}`
-              : undefined
-          }
-          emptyText="No RSCE assistance logged yet."
-          action={
-            <LogServiceButton
-              clientId={id}
-              programSlug="rsce"
-              buttonLabel="Log RSCE Assistance"
-              modalTitle="Log RSCE Assistance"
-              subtitle="Refugee Services & Community Empowerment"
-            />
-          }
-        >
-          <div className="space-y-2">
-            {rsceLog.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
-              >
-                <span>{entry.notes ?? "Logged"}</span>
-                <span className="flex items-center gap-3 shrink-0 ml-3">
-                  <span className="text-[var(--color-text-dim)]">
-                    {new Date(entry.created_at).toLocaleDateString()}
-                  </span>
-                  <PushToSalesforceButton
-                    recordId={entry.id}
-                    table="service"
-                    alreadySynced={entry.salesforce_synced}
-                    salesforceCaseId={entry.salesforce_case_id}
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
-        </ProgramSection>
+        <RefugeeServicesSection
+          clientId={id}
+          officeId={clientRecord.office_id}
+          householdSize={householdSize}
+          currentEmployeeId={me?.id ?? null}
+          rsceCase={rsceCase}
+          services={(rsceServices ?? []).map((sv) => ({
+            id: sv.id,
+            service_name: sv.service_name,
+            delivered_on: sv.delivered_on,
+            value: Number(sv.value),
+            beneficiaries: sv.beneficiaries,
+            notes: sv.notes,
+            employee_name: sv.employee_id ? staffById.get(sv.employee_id) ?? null : null,
+          }))}
+          serviceTypes={(rsceTypes ?? []).map((t) => ({ ...t, default_value: t.default_value === null ? null : Number(t.default_value) }))}
+          caseManagers={[...staffById.entries()].map(([sid, name]) => ({ id: sid, name })).sort((a, b) => a.name.localeCompare(b.name))}
+        />
 
         <ProgramSection
           title="Zakat / IRFAS"

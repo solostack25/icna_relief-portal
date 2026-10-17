@@ -29,6 +29,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["volunteer", "volunteering", "event signup", "shifts"],
   },
   {
+    name: "Refugee Services",
+    path: "/refugee-services",
+    description: "Refugee Services & Community Empowerment caseload, bulk distributions, and Power BI export.",
+    keywords: ["refugee", "refugee services", "rsce", "case management", "caseload", "bulk distribution", "community empowerment"],
+  },
+  {
     name: "Transitional Housing",
     path: "/transitional-housing",
     description: "Manage transitional housing residents, admissions, and houses.",
