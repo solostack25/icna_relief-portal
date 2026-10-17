@@ -2,11 +2,28 @@ import "./globals.css";
 import HadithBanner from "./HadithBanner";
 import ClockReminderWatcher from "@/components/ClockReminderWatcher";
 import { LanguageProvider } from "@/lib/i18n/LanguageContext";
-import type { Viewport } from "next";
+import PwaSetup from "@/components/PwaSetup";
+import type { Metadata, Viewport } from "next";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "ICNA Relief Portal",
   description: "Internal staff portal for ICNA Relief programs",
+  // Phone app (PWA): app/manifest.ts is linked automatically. These cover
+  // iPhone, which reads its own tags for the home-screen icon and title.
+  applicationName: "ICNA Relief",
+  appleWebApp: {
+    capable: true,
+    title: "ICNA Relief",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
 };
 
 // Missing until now - without this, mobile Chrome/Safari render the page
@@ -20,6 +37,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Colors the phone's status bar / app switcher card when installed.
+  themeColor: "#1f6f54",
 };
 
 export default function RootLayout({
@@ -51,6 +70,7 @@ export default function RootLayout({
           <HadithBanner />
           <ClockReminderWatcher />
           {children}
+          <PwaSetup />
         </LanguageProvider>
       </body>
     </html>
