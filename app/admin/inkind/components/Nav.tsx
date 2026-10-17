@@ -7,6 +7,7 @@ const links = [
   { href: "/admin/inkind", label: "Today" },
   { href: "/admin/inkind/weekly", label: "Weekly" },
   { href: "/admin/inkind/monthly", label: "Monthly" },
+  { href: "/admin/inkind/cash-check", label: "Cash & Check" },
   { href: "/admin/inkind/items", label: "Items" },
   { href: "/admin/inkind/settings", label: "Settings" },
 ];
