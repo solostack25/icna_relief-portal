@@ -10,7 +10,7 @@
  *
  * Bump VERSION when this file changes so phones pick up the new one.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const OFFLINE_CACHE = `icna-offline-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
 const OFFLINE_ASSETS = [OFFLINE_URL]; // the page has its logo built in
@@ -58,7 +58,10 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: data.body || "",
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      // Android's status-bar icon: it only uses the image's shape, so this
+      // must be a white silhouette on transparent (a full-color square
+      // icon shows up as a plain white box).
+      badge: "/icons/badge-96.png",
       tag: data.tag,
       data: { url: data.url || "/select-app" },
     })
