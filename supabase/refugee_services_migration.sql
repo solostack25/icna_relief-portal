@@ -178,3 +178,7 @@ alter table bulk_distributions
   add column if not exists salesforce_record_id text,
   add column if not exists salesforce_synced_at timestamptz,
   add column if not exists salesforce_error text;
+
+-- ---------- Hunger Prevention food breakdown on bulk distributions (applied after) ----------
+-- { "<category key>": { "qty": number, "value": number } }; keys in lib/bulkDistributions.ts
+alter table bulk_distributions add column if not exists food jsonb not null default '{}'::jsonb;

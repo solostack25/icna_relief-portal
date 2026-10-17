@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getRefugeeServicesAccess, RSCE_PROGRAM } from "@/lib/refugeeServicesAccess";
-import BulkDistributions from "./BulkDistributions";
+import BulkDistributions from "@/components/bulk/BulkDistributions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export default async function RefugeeServicesPage({
   let servicesQ = supabase.from("rsce_services").select("client_id, delivered_on, value, beneficiaries").gte("delivered_on", yearStart);
   let bulkQ = supabase
     .from("bulk_distributions")
-    .select("id, office_id, name, distributed_on, people_served, households_served, total_value, items_description, location, salesforce_synced, salesforce_error")
+    .select("id, office_id, name, distributed_on, people_served, households_served, total_value, items_description, location, food, salesforce_synced, salesforce_error")
     .eq("program", RSCE_PROGRAM);
   if (officeId) {
     casesQ = casesQ.eq("office_id", officeId);
@@ -203,6 +203,8 @@ export default async function RefugeeServicesPage({
         </section>
 
         <BulkDistributions
+          program={RSCE_PROGRAM}
+          defaultName="Bulk Household Items"
           rows={bulkRows.map((b) => ({ ...b, office_name: offices?.find((o) => o.id === b.office_id)?.field_office ?? "" }))}
           officeId={officeId || null}
           offices={(offices ?? []).map((o) => ({ id: o.id, name: o.field_office }))}

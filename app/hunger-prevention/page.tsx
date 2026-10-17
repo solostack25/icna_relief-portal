@@ -99,6 +99,7 @@ export default async function HungerPreventionHome({ searchParams }: { searchPar
               { href: "/hunger-prevention/slots", label: "Manage Slots", desc: "Quick list-based slot creation", color: "#3E7FBF" },
               { href: "/hunger-prevention/waitlist", label: "Waitlist", desc: "Clients waiting for a fully booked day", color: "#E2892F" },
               { href: "/hunger-prevention/no-shows", label: "No-Shows", desc: "Missed pickups in the last 30 days", color: "#B5566B" },
+              { href: "/hunger-prevention/bulk", label: "Bulk Distributions", desc: "Food drives & partner pickups, lbs and value", color: "#2F6D46" },
               { href: "/hunger-prevention/stats", label: "Stats", desc: "This month's activity at a glance", color: "#8A5FB5" },
               { href: "/hunger-prevention/audit", label: "Audit Log", desc: "Recent staff actions, every office", color: "#7A9186" },
             ].map((item) => (
