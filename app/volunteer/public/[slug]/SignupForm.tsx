@@ -1,7 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatTimeInTz } from "@/lib/volunteer";
+import {
+  ContactFields,
+  DemographicFields,
+  WaiverBlock,
+  emptyProfile,
+  emptyWaiver,
+  profilePayload,
+  volInputClass,
+  volLabelClass,
+  type ProfileState,
+} from "@/components/volunteer/VolunteerFormParts";
 
 type Slot = {
   id: string;
@@ -13,20 +25,49 @@ type Slot = {
   spots_remaining: number;
 };
 
-export default function SignupForm({ slot }: { slot: Slot }) {
+const PROFILE_KEY = "icna_volunteer_profile";
+
+export default function SignupForm({
+  slots,
+  timezone,
+  waiverText,
+  source,
+}: {
+  slots: Slot[];
+  timezone: string;
+  waiverText: string;
+  source: "portal" | "qr";
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [slotId, setSlotId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileState>(emptyProfile);
+  const [waiver, setWaiver] = useState(emptyWaiver);
+  const [signWaiverNow, setSignWaiverNow] = useState(true);
+  const [qty, setQty] = useState("1");
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ label: string; waiverOnFile: boolean }[]>([]);
 
-  const [form, setForm] = useState({ name: "", email: "", phone: "", qty: "1", notes: "" });
+  // Returning volunteers on the same phone don't retype everything.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PROFILE_KEY);
+      if (saved) setProfile({ ...emptyProfile, ...JSON.parse(saved) });
+    } catch {}
+  }, []);
 
-  const full = slot.spots_remaining <= 0;
+  const slot = slots.find((s) => s.id === slotId) ?? null;
+  const isShift = slot?.slot_type === "shift";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!slot) return;
     setError(null);
+    if (isShift && signWaiverNow && (!waiver.agreed || !waiver.signature.trim())) {
+      setError("Check the box and type your name to sign the waiver — or tick “sign at check-in”.");
+      return;
+    }
     setSubmitting(true);
 
     const res = await fetch("/api/volunteer/signup", {
@@ -34,12 +75,12 @@ export default function SignupForm({ slot }: { slot: Slot }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         slot_id: slot.id,
-        name: form.name,
-        email: form.email,
-        phone: form.phone || undefined,
-        qty: slot.slot_type === "item" ? Number(form.qty) || 1 : 1,
-        notes: form.notes || undefined,
-        source: "portal",
+        ...profilePayload(profile),
+        name: `${profile.first_name} ${profile.last_name}`.trim(),
+        qty: slot.slot_type === "item" ? Number(qty) || 1 : 1,
+        notes: notes || undefined,
+        waiver: isShift && signWaiverNow ? waiver : undefined,
+        source,
       }),
     });
 
@@ -51,90 +92,122 @@ export default function SignupForm({ slot }: { slot: Slot }) {
       return;
     }
 
-    setDone(true);
+    try {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    } catch {}
+    setDone((d) => [...d, { label: slot.label, waiverOnFile: !!data.waiver_on_file }]);
+    setSlotId(null);
+    setNotes("");
+    setQty("1");
     router.refresh();
   }
 
-  const inputClass =
-    "w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]";
-
-  if (done) {
-    return (
-      <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4">
-        <p className="text-sm font-medium text-green-700">
-          You're signed up for {slot.label} 🎉 Check your email for details.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium">{slot.label}</div>
-          <div className="text-xs text-[var(--color-text-dim)]">
-            {full ? "Full" : `${slot.spots_remaining} of ${slot.capacity} open`}
-          </div>
+    <div className="space-y-6">
+      {done.length > 0 && (
+        <div className="rounded-xl border border-green-600/30 bg-green-600/5 p-4 space-y-1">
+          {done.map((d, i) => (
+            <p key={i} className="text-sm font-medium text-green-800">
+              ✓ You're signed up for {d.label}
+            </p>
+          ))}
+          <p className="text-xs text-[var(--color-text-dim)] pt-1">
+            When you arrive, scan the check-in QR code at the volunteer table with your phone.
+            {done.some((d) => !d.waiverOnFile) ? " You'll sign the volunteer waiver then." : ""}
+          </p>
         </div>
-        {!full && (
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="text-sm font-medium text-white bg-[var(--color-accent)] rounded-lg px-4 py-2 shrink-0"
-          >
-            {open ? "Cancel" : "Sign Up"}
-          </button>
-        )}
-      </div>
+      )}
 
-      {open && !full && (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <input
-            required
-            placeholder="Full name"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className={inputClass}
-          />
-          <input
-            required
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className={inputClass}
-          />
-          <input
-            placeholder="Phone (optional)"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            className={inputClass}
-          />
+      <section>
+        <h2 className="text-sm font-medium mb-3">{done.length ? "Sign up for another slot" : "Pick a slot"}</h2>
+        <div className="space-y-2">
+          {slots.map((s) => {
+            const full = s.spots_remaining <= 0;
+            const selected = s.id === slotId;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={full}
+                onClick={() => setSlotId(selected ? null : s.id)}
+                className={
+                  "w-full text-left rounded-xl border p-4 transition " +
+                  (selected
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5 ring-1 ring-[var(--color-accent)]"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/50") +
+                  (full ? " opacity-50 cursor-not-allowed" : "")
+                }
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">{s.label}</div>
+                    {s.slot_type === "shift" && s.start_time && s.end_time && (
+                      <div className="text-xs text-[var(--color-text-dim)]">
+                        {formatTimeInTz(s.start_time, timezone)} – {formatTimeInTz(s.end_time, timezone)}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs text-[var(--color-text-dim)] shrink-0">
+                    {full ? "Full" : `${s.spots_remaining} of ${s.capacity} open`}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {slot && (
+        <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-5">
+          <div>
+            <h3 className="text-sm font-medium mb-3">Your details</h3>
+            <ContactFields value={profile} onChange={setProfile} />
+          </div>
+
+          <div className="pt-4 border-t border-[var(--color-border)]">
+            <DemographicFields value={profile} onChange={setProfile} />
+          </div>
+
           {slot.slot_type === "item" && slot.capacity > 1 && (
-            <input
-              type="number"
-              min={1}
-              max={slot.spots_remaining}
-              placeholder="Quantity"
-              value={form.qty}
-              onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
-              className={inputClass}
-            />
+            <div>
+              <label className={volLabelClass}>How many?</label>
+              <input type="number" min={1} max={slot.spots_remaining} value={qty} onChange={(e) => setQty(e.target.value)} className={volInputClass} />
+            </div>
           )}
-          <textarea
-            placeholder="Notes (optional)"
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            rows={2}
-            className={inputClass}
-          />
-          {error && <p className="text-sm text-[#B55139]">{error}</p>}
+
+          <div>
+            <label className={volLabelClass}>Notes (optional)</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={volInputClass} />
+          </div>
+
+          {isShift && (
+            <div className="pt-4 border-t border-[var(--color-border)] space-y-3">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">Volunteer waiver</span>
+                <span className="flex items-center gap-2 text-xs text-[var(--color-text-dim)]">
+                  <input
+                    type="checkbox"
+                    checked={!signWaiverNow}
+                    onChange={(e) => setSignWaiverNow(!e.target.checked)}
+                    className="h-4 w-4 accent-[var(--color-accent)]"
+                  />
+                  Already signed / sign at check-in
+                </span>
+              </label>
+              {signWaiverNow && (
+                <WaiverBlock text={waiverText} value={waiver} onChange={setWaiver} dateOfBirth={profile.date_of_birth} />
+              )}
+            </div>
+          )}
+
+          {error && <p className="text-sm text-[var(--color-dull-red)]">{error}</p>}
+
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-2 text-sm disabled:opacity-50"
+            className="w-full rounded-full bg-[var(--color-accent)] text-white font-medium py-3 text-sm disabled:opacity-50"
           >
-            {submitting ? "Signing up..." : "Confirm Signup"}
+            {submitting ? "Signing up…" : `Confirm — ${slot.label}`}
           </button>
         </form>
       )}

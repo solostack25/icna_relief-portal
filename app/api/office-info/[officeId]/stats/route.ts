@@ -100,7 +100,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const slotIds = (slots ?? []).map((s) => s.id);
     const slotToEvent = Object.fromEntries((slots ?? []).map((s) => [s.id, s.event_id]));
     if (slotIds.length > 0) {
-      const { data: signups } = await supabase.from("volunteer_signups").select("slot_id, qty").in("slot_id", slotIds);
+      const { data: signups } = await supabase.from("volunteer_signups").select("slot_id, qty").in("slot_id", slotIds).eq("status", "signed_up");
       for (const s of signups ?? []) {
         const eventId = slotToEvent[s.slot_id];
         if (!eventId) continue;

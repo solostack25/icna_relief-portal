@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getIntegrationSetting } from "@/lib/integrationSettings";
 import RevenueClient from "./RevenueClient";
 
 const STREAM_LABELS: Record<string, string> = {
@@ -27,9 +26,9 @@ export default async function RevenuePage() {
     { data: manualStreamRows },
     { data: donationRows },
     { data: pledgeRows },
-    { data: volunteerSignups },
+    { data: volunteerHourRows },
     { data: squarePaymentRows },
-    volunteerRateRaw,
+    { data: hourRates },
   ] = await Promise.all([
     supabase.from("b2s_offices").select("id, field_office, region"),
     supabase.from("grants").select("amount, fiscal_year, office_id, region").eq("stream", "grant"),
@@ -39,12 +38,19 @@ export default async function RevenuePage() {
       .select("amount, event_timestamp, fundraiser_id, fundraisers(office_id)")
       .eq("status", "succeeded"),
     supabase.from("donor_call_outcomes").select("pledge_amount, called_at, caller_employee_id").not("pledge_amount", "is", null),
-    supabase.from("volunteer_signups").select("qty, slot_id, volunteer_slots(start_time, end_time, event_id, volunteer_events(office_id))"),
+    // Actual attended hours (check-in → check-out), each valued at the
+    // hourly rate in effect on the day served.
+    supabase
+      .from("volunteer_hours")
+      .select("hours, value, service_date, office_id")
+      .gte("service_date", `${new Date().getFullYear()}-01-01`)
+      .lte("service_date", `${new Date().getFullYear()}-12-31`)
+      .not("checked_out_at", "is", null),
     supabase.from("square_payments").select("amount, square_created_at, office_id, status").eq("status", "COMPLETED"),
-    getIntegrationSetting("volunteer_hour_value"),
+    supabase.from("volunteer_hour_rates").select("effective_from, rate").order("effective_from", { ascending: false }).limit(1),
   ]);
 
-  const volunteerHourValue = Number(volunteerRateRaw) || 33.49;
+  const volunteerHourValue = Number(hourRates?.[0]?.rate ?? 0);
   const officeById = new Map((offices ?? []).map((o) => [o.id, o]));
 
   const callerIds = [...new Set((pledgeRows ?? []).map((p) => p.caller_employee_id).filter(Boolean))] as string[];
@@ -86,21 +92,14 @@ export default async function RevenuePage() {
   });
 
   let volunteerHoursTotal = 0;
+  let volunteerValueTotal = 0;
   const volunteerByRegion = new Map<string, number>();
-  (volunteerSignups ?? []).forEach((s: any) => {
-    const slot = s.volunteer_slots;
-    if (!slot?.start_time || !slot?.end_time) return;
-    const eventYear = new Date(slot.start_time).getFullYear();
-    if (eventYear !== currentYear) return;
-    const hours = (new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60 * 60);
-    const qty = s.qty ?? 1;
-    const totalHours = hours * qty;
-    volunteerHoursTotal += totalHours;
-    const officeId = slot.volunteer_events?.office_id ?? null;
-    const r = regionFor(officeId, null);
-    volunteerByRegion.set(r, (volunteerByRegion.get(r) ?? 0) + totalHours * volunteerHourValue);
+  (volunteerHourRows ?? []).forEach((h: any) => {
+    volunteerHoursTotal += Number(h.hours ?? 0);
+    volunteerValueTotal += Number(h.value ?? 0);
+    const r = regionFor(h.office_id ?? null, null);
+    volunteerByRegion.set(r, (volunteerByRegion.get(r) ?? 0) + Number(h.value ?? 0));
   });
-  const volunteerValueTotal = volunteerHoursTotal * volunteerHourValue;
 
   const manualThisYear = (manualStreamRows ?? []).filter((g) => g.fiscal_year === currentYear);
   const manualByStream = new Map<string, number>();

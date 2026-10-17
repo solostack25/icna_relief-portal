@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { refreshPublicWebsiteSoon } from "@/lib/refreshPublicWebsiteClient";
+import { formatTimeInTz, zonedLocalToUtcIso } from "@/lib/volunteer";
 
 type Signup = {
   id: string;
@@ -33,11 +34,13 @@ export default function EventManager({
   slug,
   isPublished,
   initialSlots,
+  timezone,
 }: {
   eventId: string;
   slug: string;
   isPublished: boolean;
   initialSlots: Slot[];
+  timezone: string;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -94,8 +97,8 @@ export default function EventManager({
       event_id: eventId,
       slot_type: slotForm.slot_type,
       label: slotForm.label.trim(),
-      start_time: slotForm.slot_type === "shift" && slotForm.start_time ? slotForm.start_time : null,
-      end_time: slotForm.slot_type === "shift" && slotForm.end_time ? slotForm.end_time : null,
+      start_time: slotForm.slot_type === "shift" && slotForm.start_time ? zonedLocalToUtcIso(slotForm.start_time, timezone) : null,
+      end_time: slotForm.slot_type === "shift" && slotForm.end_time ? zonedLocalToUtcIso(slotForm.end_time, timezone) : null,
       capacity: Number(slotForm.capacity) || 1,
     });
 
@@ -153,9 +156,11 @@ export default function EventManager({
 
         <div className="mt-2 pt-3 border-t border-[var(--color-border)]">
           <p className="text-xs text-[var(--color-text-dim)] mb-1">
-            Public link (goes live once the public signup page ships) — this slug is also the key the WordPress shortcode will use:
+            Public sign-up page — this slug is also the key the WordPress shortcode uses:
           </p>
-          <code className="text-xs bg-black/[0.03] rounded px-2 py-1 inline-block">{publicPath}</code>
+          <a href={publicPath} target="_blank" className="text-xs bg-black/[0.03] rounded px-2 py-1 inline-block underline">
+            {publicPath}
+          </a>
         </div>
       </section>
 
@@ -258,7 +263,11 @@ export default function EventManager({
                   >
                     <div className="text-sm font-medium">{slot.label}</div>
                     <div className="text-xs text-[var(--color-text-dim)]">
-                      {slot.slot_type === "shift" ? "Shift" : "Item"} · {slot.spots_remaining}/{slot.capacity} open
+                      {slot.slot_type === "shift" ? "Shift" : "Item"}
+                      {slot.slot_type === "shift" && slot.start_time && slot.end_time
+                        ? ` ${formatTimeInTz(slot.start_time, timezone)}–${formatTimeInTz(slot.end_time, timezone)}`
+                        : ""}{" "}
+                      · {slot.spots_remaining}/{slot.capacity} open
                       {slot.signups.length > 0 ? ` · ${slot.signups.length} signup${slot.signups.length === 1 ? "" : "s"}` : ""}
                     </div>
                   </button>

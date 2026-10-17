@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { VOLUNTEER_PROGRAMS, US_TIMEZONES, guessOfficeTimezone, zonedLocalToUtcIso } from "@/lib/volunteer";
 
-type Office = { id: string; region: string; field_office: string };
+type Office = { id: string; region: string; field_office: string; state: string | null };
 
 function slugify(title: string) {
   const base = title
@@ -32,14 +33,16 @@ export default function NewVolunteerEventPage() {
     description: "",
     location_name: "",
     location_address: "",
-    starts_on: "",
-    ends_on: "",
+    program: "",
+    starts_at: "",
+    ends_at: "",
+    timezone: "America/Chicago",
   });
 
   useEffect(() => {
     supabase
       .from("b2s_offices")
-      .select("id, region, field_office")
+      .select("id, region, field_office, state")
       .eq("is_active", true)
       .order("region")
       .then(({ data }) => setOffices(data ?? []));
@@ -59,13 +62,14 @@ export default function NewVolunteerEventPage() {
       if (me?.assigned_office_id) {
         const { data: office } = await supabase
           .from("b2s_offices")
-          .select("id, region, field_office")
+          .select("id, region, field_office, state")
           .eq("id", me.assigned_office_id)
           .single();
 
         if (office) {
           setAssignedOffice(office);
           update("office_id", office.id);
+          update("timezone", guessOfficeTimezone(office.state));
         }
       }
     })();
@@ -85,6 +89,20 @@ export default function NewVolunteerEventPage() {
     }
     if (!form.title.trim()) {
       setError("Please enter a title.");
+      return;
+    }
+    if (!form.program) {
+      setError("Please choose the program this event supports.");
+      return;
+    }
+    if (!form.starts_at || !form.ends_at) {
+      setError("Please set when the event starts and ends — volunteers are checked out automatically at the end time.");
+      return;
+    }
+    const startsAt = zonedLocalToUtcIso(form.starts_at, form.timezone);
+    const endsAt = zonedLocalToUtcIso(form.ends_at, form.timezone);
+    if (new Date(endsAt) <= new Date(startsAt)) {
+      setError("The end time has to be after the start time.");
       return;
     }
 
@@ -109,8 +127,13 @@ export default function NewVolunteerEventPage() {
         description: form.description || null,
         location_name: form.location_name || null,
         location_address: form.location_address || null,
-        starts_on: form.starts_on || null,
-        ends_on: form.ends_on || null,
+        program: form.program,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        timezone: form.timezone,
+        // Date-only columns still feed the WordPress widget + Copilot.
+        starts_on: form.starts_at.slice(0, 10),
+        ends_on: form.ends_at.slice(0, 10),
         slug: slugify(form.title),
         is_published: false,
       })
@@ -158,7 +181,11 @@ export default function NewVolunteerEventPage() {
                 <select
                   required
                   value={form.office_id}
-                  onChange={(e) => update("office_id", e.target.value)}
+                  onChange={(e) => {
+                    update("office_id", e.target.value);
+                    const o = offices.find((x) => x.id === e.target.value);
+                    if (o) update("timezone", guessOfficeTimezone(o.state));
+                  }}
                   className={inputClass}
                 >
                   <option value="">Select...</option>
@@ -212,25 +239,59 @@ export default function NewVolunteerEventPage() {
               </div>
             </div>
 
+            <div>
+              <label className={labelClass}>Program *</label>
+              <select
+                required
+                value={form.program}
+                onChange={(e) => update("program", e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Select...</option>
+                {VOLUNTEER_PROGRAMS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Starts</label>
+                <label className={labelClass}>Starts *</label>
                 <input
-                  type="date"
-                  value={form.starts_on}
-                  onChange={(e) => update("starts_on", e.target.value)}
+                  required
+                  type="datetime-local"
+                  value={form.starts_at}
+                  onChange={(e) => {
+                    update("starts_at", e.target.value);
+                    if (!form.ends_at) update("ends_at", e.target.value);
+                  }}
                   className={inputClass}
                 />
               </div>
               <div>
-                <label className={labelClass}>Ends</label>
+                <label className={labelClass}>Ends *</label>
                 <input
-                  type="date"
-                  value={form.ends_on}
-                  onChange={(e) => update("ends_on", e.target.value)}
+                  required
+                  type="datetime-local"
+                  value={form.ends_at}
+                  min={form.starts_at || undefined}
+                  onChange={(e) => update("ends_at", e.target.value)}
                   className={inputClass}
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 items-end">
+              <div>
+                <label className={labelClass}>Time zone</label>
+                <select value={form.timezone} onChange={(e) => update("timezone", e.target.value)} className={inputClass}>
+                  {US_TIMEZONES.map((z) => (
+                    <option key={z.value} value={z.value}>{z.label}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-[var(--color-text-dim)] pb-2">
+                Anyone still checked in at the end time is checked out automatically. For multi-day events, that happens at the end time each day.
+              </p>
             </div>
           </section>
 

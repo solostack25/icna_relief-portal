@@ -136,7 +136,7 @@ export default function RevenueClient({
             Volunteer Hours
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: "rgba(22,48,43,0.4)" }}>
-            valued at ${volunteerHourValue}/hr
+            checked-in hours · now ${volunteerHourValue.toFixed(2)}/hr
           </div>
         </div>
       </div>

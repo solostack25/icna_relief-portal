@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { formatInTz, formatTimeInTz } from "@/lib/volunteer";
 
 export default async function VolunteerPage() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function VolunteerPage() {
 
   const { data: events } = await supabase
     .from("volunteer_events")
-    .select("id, office_id, title, slug, starts_on, ends_on, is_published, created_at")
+    .select("id, office_id, title, slug, starts_on, ends_on, starts_at, ends_at, timezone, program, is_published, created_at")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -51,7 +52,7 @@ export default async function VolunteerPage() {
           <div>
             <h1 className="text-xl font-semibold">Volunteer Signups</h1>
             <p className="text-sm text-[var(--color-text-dim)]">
-              Create signup events and shifts for your office
+              Events, shifts, QR check-in and volunteer hours for your office
             </p>
           </div>
           <Link
@@ -69,12 +70,18 @@ export default async function VolunteerPage() {
           >
             + New Event
           </Link>
+          <a
+            href={`/api/volunteer/export?year=${new Date().getFullYear()}`}
+            className="flex-1 text-center rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] text-sm font-medium py-3 hover:border-[var(--color-accent)]"
+          >
+            Export Hours {new Date().getFullYear()} (Power BI)
+          </a>
           {me?.role === "admin" && (
             <a
-              href="/api/volunteer/export"
-              className="flex-1 text-center rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] text-sm font-medium py-3 hover:border-[var(--color-accent)]"
+              href="/api/volunteer/export?type=signups"
+              className="text-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-dim)] text-sm font-medium py-3 px-4 hover:border-[var(--color-accent)]"
             >
-              Export Signups (CSV)
+              Sign-ups (CSV)
             </a>
           )}
         </div>
@@ -98,7 +105,12 @@ export default async function VolunteerPage() {
                     <div className="text-sm font-medium">{e.title}</div>
                     <div className="text-xs text-[var(--color-text-dim)]">
                       {office?.field_office ?? "Unknown office"}
-                      {e.starts_on ? ` · ${e.starts_on}${e.ends_on && e.ends_on !== e.starts_on ? ` – ${e.ends_on}` : ""}` : ""}
+                      {e.program ? ` · ${e.program}` : ""}
+                      {e.starts_at
+                        ? ` · ${formatInTz(e.starts_at, e.timezone || "America/Chicago")} – ${formatTimeInTz(e.ends_at, e.timezone || "America/Chicago")}`
+                        : e.starts_on
+                          ? ` · ${e.starts_on}${e.ends_on && e.ends_on !== e.starts_on ? ` – ${e.ends_on}` : ""}`
+                          : ""}
                       {stats ? ` · ${stats.slots} slot${stats.slots === 1 ? "" : "s"} · ${stats.remaining}/${stats.capacity} spots open` : " · no slots yet"}
                     </div>
                   </div>

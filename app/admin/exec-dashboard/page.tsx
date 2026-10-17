@@ -21,6 +21,7 @@ export default async function ExecDashboardPage() {
     { count: activeThStays },
     { data: thStayRows },
     { count: totalVolunteerSignups },
+    { data: volunteerHourRows },
     { count: activeFundraisers },
     { data: donationRows },
     { data: pledgeRows },
@@ -30,12 +31,16 @@ export default async function ExecDashboardPage() {
     supabase.from("pickup_bookings").select("id", { count: "exact", head: true }).eq("status", "completed"),
     supabase.from("th_stays").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("th_stays").select("move_in_date, vacated_at, status"),
-    supabase.from("volunteer_signups").select("id", { count: "exact", head: true }),
+    supabase.from("volunteer_signups").select("id", { count: "exact", head: true }).eq("status", "signed_up"),
+    supabase.from("volunteer_hours").select("volunteer_id, hours, value").not("checked_out_at", "is", null),
     supabase.from("fundraisers").select("id", { count: "exact", head: true }).eq("is_published", true),
     supabase.from("charitystack_donation_events").select("amount").eq("status", "succeeded"),
     supabase.from("donor_call_outcomes").select("pledge_amount").not("pledge_amount", "is", null),
   ]);
 
+  const totalVolunteerHours = (volunteerHourRows ?? []).reduce((sum, r) => sum + Number(r.hours ?? 0), 0);
+  const totalVolunteerValue = (volunteerHourRows ?? []).reduce((sum, r) => sum + Number(r.value ?? 0), 0);
+  const distinctVolunteers = new Set((volunteerHourRows ?? []).map((r) => r.volunteer_id)).size;
   const totalBackpacks = (b2sRows ?? []).reduce((sum, r) => sum + (r.backpacks_distributed ?? 0), 0);
   const totalDonations = (donationRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
   const totalPledges = (pledgeRows ?? []).reduce((sum, r) => sum + Number(r.pledge_amount ?? 0), 0);
@@ -63,7 +68,12 @@ export default async function ExecDashboardPage() {
     { label: "Backpacks Distributed", value: totalBackpacks.toLocaleString(), sub: "Back to School", color: "#E2892F" },
     { label: "Family Pickups Completed", value: (totalPickupsCompleted ?? 0).toLocaleString(), sub: "Hunger Prevention", color: "#8A5FB5" },
     { label: "Transitional Housing", value: (activeThStays ?? 0).toLocaleString(), sub: `${totalBedNights.toLocaleString()} bed-nights all-time`, color: "#B5566B" },
-    { label: "Volunteer Signups", value: (totalVolunteerSignups ?? 0).toLocaleString(), sub: "shifts filled", color: "#3E9E8F" },
+    {
+      label: "Volunteer Hours",
+      value: Math.round(totalVolunteerHours).toLocaleString(),
+      sub: `${distinctVolunteers.toLocaleString()} volunteers · $${Math.round(totalVolunteerValue).toLocaleString()} value · ${(totalVolunteerSignups ?? 0).toLocaleString()} sign-ups`,
+      color: "#3E9E8F",
+    },
   ];
 
   return (
