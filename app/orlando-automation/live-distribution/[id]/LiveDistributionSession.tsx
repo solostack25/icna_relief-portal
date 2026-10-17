@@ -196,18 +196,20 @@ export default function LiveDistributionSession({ distributionId }: { distributi
 
   // No card? Look the person up by what they can tell you at the car
   // window: food bank ID, email (contains @), phone (7+ digits, any
-  // formatting), or street address. Orlando clients only.
-  async function searchClients(term: string): Promise<Client[]> {
-    const base = () => supabase.from("clients").select(CLIENT_COLUMNS).eq("office_id", ORLANDO_OFFICE_ID).limit(10);
+  // formatting), name, or street address. Orlando clients only.
+  // `confirm` = always let staff pick from a list, even for one match
+  // (names aren't unique, so a name match is never recorded on its own).
+  async function searchClients(term: string): Promise<{ matches: Client[]; confirm: boolean }> {
+    const base = (limit = 10) => supabase.from("clients").select(CLIENT_COLUMNS).eq("office_id", ORLANDO_OFFICE_ID).limit(limit);
 
     // Food bank ID first - these are often plain numbers, which would
     // otherwise be read as a phone number below.
     const { data: byFoodBankId } = await base().ilike("food_bank_client_id", escapeLike(term));
-    if (byFoodBankId && byFoodBankId.length > 0) return byFoodBankId as Client[];
+    if (byFoodBankId && byFoodBankId.length > 0) return { matches: byFoodBankId as Client[], confirm: false };
 
     if (term.includes("@")) {
       const { data } = await base().ilike("email", escapeLike(term));
-      return (data ?? []) as Client[];
+      return { matches: (data ?? []) as Client[], confirm: false };
     }
 
     const digits = term.replace(/\D/g, "");
@@ -218,12 +220,49 @@ export default function LiveDistributionSession({ distributionId }: { distributi
       // anything between them. Last 10 digits drops a leading country code.
       const pattern = `%${digits.slice(-10).split("").join("%")}%`;
       const { data } = await base().ilike("phone", pattern);
-      return (data ?? []) as Client[];
+      return { matches: (data ?? []) as Client[], confirm: false };
     }
 
-    if (term.length < 3) return [];
-    const { data } = await base().ilike("address_line1", `%${escapeLike(term)}%`);
-    return (data ?? []) as Client[];
+    if (term.length < 2) return { matches: [], confirm: true };
+
+    // Name: letters only (any language), spaces, apostrophes, hyphens.
+    // "Bilal" → first or last name starts with it; "Bilal Ahmed" /
+    // "Ahmed Bilal" / "Ahmed, Bilal" → first + last in either order.
+    const found = new Map<string, Client>();
+    const nameLike = /^[\p{L}][\p{L}\s',.\-]*$/u.test(term);
+    if (nameLike) {
+      const words = term.replace(/[,.]/g, " ").split(/\s+/).filter(Boolean);
+      const starts = (w: string) => `${escapeLike(w)}%`;
+      if (words.length === 1) {
+        const [w] = words;
+        const [{ data: f }, { data: l }] = await Promise.all([
+          base(20).ilike("first_name", starts(w)),
+          base(20).ilike("last_name", starts(w)),
+        ]);
+        [...(f ?? []), ...(l ?? [])].forEach((c) => found.set((c as Client).id, c as Client));
+      } else {
+        const first = words[0];
+        const rest = words.slice(1).join(" ");
+        const last = words[words.length - 1];
+        const lead = words.slice(0, -1).join(" ");
+        const [{ data: a }, { data: b }] = await Promise.all([
+          base(20).ilike("first_name", starts(first)).ilike("last_name", starts(rest)),
+          base(20).ilike("first_name", starts(last)).ilike("last_name", starts(lead)),
+        ]);
+        [...(a ?? []), ...(b ?? [])].forEach((c) => found.set((c as Client).id, c as Client));
+      }
+    }
+
+    // Street address (also catches "123 Main" style input).
+    if (term.length >= 3 && found.size < 20) {
+      const { data } = await base().ilike("address_line1", `%${escapeLike(term)}%`);
+      (data ?? []).forEach((c) => found.set((c as Client).id, c as Client));
+    }
+
+    const matches = Array.from(found.values()).sort((x, y) =>
+      `${x.last_name} ${x.first_name}`.localeCompare(`${y.last_name} ${y.first_name}`)
+    );
+    return { matches, confirm: nameLike };
   }
 
   async function handleScan(raw: string) {
@@ -245,21 +284,22 @@ export default function LiveDistributionSession({ distributionId }: { distributi
       return;
     }
 
-    const matches = await searchClients(term);
+    const { matches, confirm } = await searchClients(term);
     setLookingUp(false);
 
     if (matches.length === 0) {
-      setScanMsg({ text: `No Orlando client found for "${term}" (client number, card, food bank ID, phone, email, or street address).`, ok: false });
+      setScanMsg({ text: `No Orlando client found for "${term}" (name, client number, card, food bank ID, phone, email, or street address).`, ok: false });
       setScanValue("");
       refocus();
       return;
     }
     setScanValue("");
-    if (matches.length === 1) {
+    if (matches.length === 1 && !confirm) {
       await recordScan(matches[0]);
       return;
     }
-    // Several people share that phone/address (households) - let staff pick.
+    // Several people share that phone/address (households), or it was a
+    // name search - let staff pick the right person.
     setCandidates(matches);
   }
 
@@ -615,7 +655,7 @@ export default function LiveDistributionSession({ distributionId }: { distributi
                 value={scanValue}
                 onChange={(e) => setScanValue(e.target.value)}
                 disabled={!isOpen}
-                placeholder={isOpen ? "Scan, or type client #, food bank ID, phone, email, or address" : "Distribution is closed"}
+                placeholder={isOpen ? "Scan, or type a name, client #, food bank ID, phone, email, or address" : "Distribution is closed"}
                 className={`${inputClass} text-base py-3`}
               />
               <div className="flex items-center gap-3">
@@ -641,7 +681,9 @@ export default function LiveDistributionSession({ distributionId }: { distributi
             {candidates && (
               <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <p className="text-sm font-medium">{candidates.length} matches — pick the client at the car</p>
+                  <p className="text-sm font-medium">
+                    {candidates.length === 1 ? "1 match — tap to confirm" : `${candidates.length} matches — pick the client at the car`}
+                  </p>
                   <button
                     type="button"
                     onClick={() => {
