@@ -7,13 +7,16 @@ export default function QrCodesCard({
   eventId,
   slug,
   isPublished,
+  checkinToken,
 }: {
   eventId: string;
   slug: string;
   isPublished: boolean;
+  checkinToken: string;
 }) {
   const supabase = createClient();
   const [version, setVersion] = useState(0);
+  const [token, setToken] = useState(checkinToken);
   const [rotating, setRotating] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -28,10 +31,11 @@ export default function QrCodesCard({
       return;
     setRotating(true);
     const bytes = crypto.getRandomValues(new Uint8Array(12));
-    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-    const { error } = await supabase.from("volunteer_events").update({ checkin_token: token }).eq("id", eventId);
+    const fresh = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    const { error } = await supabase.from("volunteer_events").update({ checkin_token: fresh }).eq("id", eventId);
     setRotating(false);
     if (error) return alert(error.message);
+    setToken(fresh);
     setVersion((v) => v + 1);
   }
 
@@ -65,6 +69,13 @@ export default function QrCodesCard({
           className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs"
         >
           Download PNG
+        </a>
+        <a
+          href={kind === "signup" ? `/volunteer/public/${slug}?src=qr` : `/volunteer/public/${slug}/checkin?t=${token}`}
+          target="_blank"
+          className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs"
+        >
+          Open page
         </a>
         {kind === "signup" ? (
           <button

@@ -31,7 +31,7 @@ export default async function VolunteerEventPage({
   const { data: event } = await supabase
     .from("volunteer_events")
     .select(
-      "id, office_id, title, description, location_name, location_address, slug, starts_on, ends_on, starts_at, ends_at, timezone, program, is_published"
+      "id, office_id, title, description, location_name, location_address, slug, starts_on, ends_on, starts_at, ends_at, timezone, program, is_published, checkin_token"
     )
     .eq("id", id)
     .single();
@@ -221,7 +221,7 @@ export default async function VolunteerEventPage({
             }}
           />
 
-          <QrCodesCard eventId={event.id} slug={event.slug} isPublished={event.is_published} />
+          <QrCodesCard eventId={event.id} slug={event.slug} isPublished={event.is_published} checkinToken={event.checkin_token} />
 
           <AttendanceRoster
             eventId={event.id}
