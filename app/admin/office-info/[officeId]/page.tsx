@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
 import OfficeDashboardStats from "./OfficeDashboardStats";
+import { GoalsStrip } from "@/components/insights/GoalsPanel";
 import OfficeUtilityBills from "./OfficeUtilityBills";
 import WebsiteListingEditor, { type WebsiteListing } from "./WebsiteListingEditor";
 import { ORLANDO_OFFICE_ID } from "@/lib/orlandoAutomation/config";
@@ -79,6 +80,10 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
           </span>
         </Link>
       )}
+
+      <div className="mb-6">
+        <GoalsStrip year={new Date().getFullYear()} scope="office" scopeKey={office.id} scopeName={office.field_office} />
+      </div>
 
       <OfficeDashboardStats officeId={office.id} />
 

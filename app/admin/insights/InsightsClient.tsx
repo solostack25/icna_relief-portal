@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { GoalsStrip } from "@/components/insights/GoalsPanel";
 // Map + topology only load when the Regional profiles tab is opened
 const RegionalProfiles = dynamic(() => import("./RegionalProfiles"), { ssr: false });
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -229,11 +230,11 @@ function HBar({ rows, unit, onPick, height }: { rows: { label: string; value: nu
   );
 }
 
-export default function InsightsClient({ offices, lockedRegion }: { offices: Office[]; lockedRegion: string | null }) {
+export default function InsightsClient({ offices, lockedRegion, lockedOffice = null }: { offices: Office[]; lockedRegion: string | null; lockedOffice?: string | null }) {
   const [preset, setPreset] = useState<Preset>("ytd");
   const [[from, to], setRange] = useState<[string, string]>(() => presetRange("ytd"));
   const [region, setRegion] = useState<string>(lockedRegion ?? "");
-  const [office, setOffice] = useState<string>("");
+  const [office, setOffice] = useState<string>(lockedOffice ?? "");
   const [program, setProgram] = useState<string>("");
   const [tab, setTab] = useState<"overview" | "profiles">("overview");
   const [metric, setMetric] = useState<string>("people_served");
@@ -361,6 +362,7 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
     setOffice("");
   }
   function pickOffice(name: string) {
+    if (lockedOffice) return;
     const o = byOffice.find((x) => x.label === name);
     if (o?.id) setOffice(o.id === office ? "" : o.id);
   }
@@ -430,8 +432,8 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
-          <select value={office} onChange={(e) => setOffice(e.target.value)} style={{ ...sel, maxWidth: 200 }} aria-label="Office">
-            <option value="">All offices</option>
+          <select value={office} onChange={(e) => setOffice(e.target.value)} disabled={!!lockedOffice} style={{ ...sel, maxWidth: 200 }} aria-label="Office">
+            {!lockedOffice && <option value="">All offices</option>}
             {officeChoices.map((o) => (
               <option key={o.id} value={o.id}>{o.name}</option>
             ))}
@@ -442,11 +444,11 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          {(region && !lockedRegion) || office || program ? (
+          {(region && !lockedRegion) || (office && !lockedOffice) || program ? (
             <button
               onClick={() => {
                 if (!lockedRegion) setRegion("");
-                setOffice("");
+                if (!lockedOffice) setOffice("");
                 setProgram("");
               }}
               className="text-xs font-semibold px-2"
@@ -481,6 +483,17 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
               {filterLabel} · {from} to {to}
               {compareLabel ? ` · changes vs ${compareLabel}` : ""}
             </div>
+
+            {/* Goals & budget set by upper management for this scope (single-year ranges) */}
+            {from.slice(0, 4) === to.slice(0, 4) && (
+              <GoalsStrip
+                key={`${from.slice(0, 4)}-${office}-${region}`}
+                year={Number(from.slice(0, 4))}
+                scope={office ? "office" : region ? "region" : "org"}
+                scopeKey={office || region || ""}
+                scopeName={office ? officeById.get(office)?.name ?? "this office" : region || "ICNA Relief"}
+              />
+            )}
 
             {/* Hero + KPI tiles */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
