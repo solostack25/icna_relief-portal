@@ -165,6 +165,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
         { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "dashboard" },
         { href: "/admin/reports", label: t("sidebar.nav.reports"), icon: "dashboard" },
+        access.isAdmin && { href: "/admin/workflows", label: t("sidebar.nav.workflows"), icon: "dashboard" },
         access.canReview && { href: "/admin/insights", label: t("sidebar.nav.insights"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },

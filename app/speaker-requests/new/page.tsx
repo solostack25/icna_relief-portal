@@ -8,10 +8,10 @@ import { Card, Eyebrow, Field, PageTitle, PillButton, inputStyle, money, dim, fa
 type Office = { id: string; region: string; state: string; field_office: string };
 type Person = { name: string; email: string; jobTitle?: string | null; region?: string | null };
 type Speaker = { id: string; full_name: string; email: string | null; phone: string | null; w9_on_file: boolean };
-type Options = { me: { name: string; email: string; officeId: string | null; region: string | null }; regions: string[]; offices: Office[]; areaManagers: Person[] };
+type Options = { leadershipThreshold?: number; me: { name: string; email: string; officeId: string | null; region: string | null }; regions: string[]; offices: Office[]; areaManagers: Person[] };
 
 const LOCAL_CAP = 500;
-const LEADERSHIP_THRESHOLD = 500;
+const DEFAULT_LEADERSHIP_THRESHOLD = 500; // overridden by Admin → Workflows via /options
 
 function useDebounced<T>(value: T, ms = 250) {
   const [v, setV] = useState(value);
@@ -236,7 +236,8 @@ export default function NewSpeakerRequestPage() {
   const tc = parseFloat(travelCost) || 0;
   const hc = parseFloat(hotelCost) || 0;
   const total = fee + (travel ? tc + hc : 0);
-  const needsLeadership = travel === true && total > LEADERSHIP_THRESHOLD;
+  const leadershipThreshold = opts?.leadershipThreshold ?? DEFAULT_LEADERSHIP_THRESHOLD;
+  const needsLeadership = travel === true && total > leadershipThreshold;
   const words = justification.trim().split(/\s+/).filter(Boolean).length;
 
   const problems: Record<string, string | null> = {
@@ -526,7 +527,7 @@ export default function NewSpeakerRequestPage() {
               <div className="mt-5 space-y-2.5">
                 {[
                   { label: "Area Manager review", on: true },
-                  { label: "Leadership sign-off", on: needsLeadership, note: travel ? (needsLeadership ? "Travel + over $500" : "Not needed — at or under $500") : "Not needed for local" },
+                  { label: "Leadership sign-off", on: needsLeadership, note: travel ? (needsLeadership ? `Travel + over $${leadershipThreshold}` : `Not needed — at or under $${leadershipThreshold}`) : "Not needed for local" },
                   { label: "Finance honorarium ticket", on: true, auto: true },
                   { label: travel && w9 === false ? "Agreement + W-9 to speaker" : "Agreement to speaker", on: true, auto: true },
                   { label: "Calendar invite to you", on: true, auto: true },

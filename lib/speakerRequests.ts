@@ -4,6 +4,7 @@ import { startFinanceTicketApproval } from "@/lib/financeTickets";
 import { graphGet } from "@/lib/msgraph";
 import { sendPortalEmail, emailLayout, escapeHtml, type EmailAttachment } from "@/lib/portalEmail";
 import { buildAgreementPdf, buildIcs, money, type AgreementInput } from "@/lib/speakerDocuments";
+import { wfNumber } from "@/lib/workflowSettings";
 
 // ============================================================
 // Speaker Request workflow engine (Jummah Khutbah / special program
@@ -121,8 +122,12 @@ export const STATUS_COLORS: Record<string, string> = {
 const siteUrl = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
 const FALLBACK_ADMIN_MAILBOX = "approvals@icnarelief.org";
 
-export function computeRequiresLeadership(r: { travel_required: boolean; honorarium: number; travel_cost: number; hotel_cost: number }) {
-  return r.travel_required && Number(r.honorarium) + Number(r.travel_cost) + Number(r.hotel_cost) > LEADERSHIP_THRESHOLD;
+// threshold: Admin → Workflows "wf_speaker_leadership_threshold" (default $500).
+export function computeRequiresLeadership(
+  r: { travel_required: boolean; honorarium: number; travel_cost: number; hotel_cost: number },
+  threshold: number = LEADERSHIP_THRESHOLD
+) {
+  return r.travel_required && Number(r.honorarium) + Number(r.travel_cost) + Number(r.hotel_cost) > threshold;
 }
 
 export function formatEventWhen(r: Pick<SpeakerRequest, "event_at" | "event_timezone">) {
@@ -228,7 +233,7 @@ export async function submitSpeakerRequest(requestId: string) {
   const admin = createAdminClient();
   const r = await loadRequest(requestId);
 
-  const requiresLeadership = computeRequiresLeadership(r);
+  const requiresLeadership = computeRequiresLeadership(r, await wfNumber("wf_speaker_leadership_threshold"));
   if (requiresLeadership !== r.requires_leadership) {
     await admin.from("speaker_requests").update({ requires_leadership: requiresLeadership }).eq("id", r.id);
     r.requires_leadership = requiresLeadership;
@@ -943,7 +948,7 @@ export async function completeSpeakerPortal(token: string, sub: PortalSubmission
 
 export async function runSpeakerRequestReminders() {
   const admin = createAdminClient();
-  const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - (await wfNumber("wf_speaker_approval_reminder_hours")) * 3600 * 1000).toISOString();
   let approvalReminders = 0;
   let speakerReminders = 0;
 
@@ -963,7 +968,7 @@ export async function runSpeakerRequestReminders() {
     approvalReminders++;
   }
 
-  const speakerCutoff = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  const speakerCutoff = new Date(Date.now() - (await wfNumber("wf_speaker_packet_reminder_hours")) * 3600 * 1000).toISOString();
   const { data: openPackets } = await admin
     .from("speaker_requests")
     .select("*")

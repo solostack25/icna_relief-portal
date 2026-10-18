@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getSpeakerViewer, escapeLike } from "@/lib/speakerRequestAccess";
 import { submitSpeakerRequest, computeRequiresLeadership, LOCAL_HONORARIUM_CAP } from "@/lib/speakerRequests";
 import { graphGet } from "@/lib/msgraph";
+import { wfNumber } from "@/lib/workflowSettings";
 
 export const maxDuration = 60;
 
@@ -153,7 +154,7 @@ export async function POST(req: Request) {
     travel_cost: travelCost,
     hotel_cost: hotelCost,
     justification,
-    requires_leadership: computeRequiresLeadership({ travel_required: !!travel, honorarium, travel_cost: travelCost, hotel_cost: hotelCost }),
+    requires_leadership: computeRequiresLeadership({ travel_required: !!travel, honorarium, travel_cost: travelCost, hotel_cost: hotelCost }, await wfNumber("wf_speaker_leadership_threshold")),
   };
 
   const { data: created, error } = await admin.from("speaker_requests").insert(row).select("id, request_number").single();

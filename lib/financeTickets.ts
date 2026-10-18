@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { wfNumber, wfString } from "@/lib/workflowSettings";
 import { graphGet, sendMailAs } from "@/lib/msgraph";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 
@@ -27,7 +28,9 @@ import { getIntegrationSetting } from "@/lib/integrationSettings";
 // resolveDelegate as-is - that table already implements exactly what
 // the source system's ir_UserOOO does, so it isn't rebuilt here.
 
-const FINANCE_MAILBOX = "approvals@icnarelief.org";
+// Sending mailbox and C-suite auto-approval limits are editable on
+// Admin → Workflows (lib/workflowSettings.ts); defaults match the old flow.
+const financeMailbox = () => wfString("wf_finance_mailbox");
 
 async function getManagerViaGraph(
   emailOrUpn: string
@@ -128,7 +131,7 @@ async function sendStepEmail(step: { approver_email: string; approver_name: stri
   const delegateNote = step.acting_as_delegate_for_email ? `\n(You're covering this approval for ${step.chain_person_name}.)\n` : "";
 
   await sendMailAs({
-    fromMailbox: FINANCE_MAILBOX,
+    fromMailbox: await financeMailbox(),
     to: step.approver_email,
     subject: `Finance Approval Needed: ${ticket.title} ($${ticket.total.toLocaleString()}) — ${ticket.ticket_number}`,
     body:
@@ -172,7 +175,8 @@ async function logAndNotifyOutcome(ticketId: string, outcome: "approved" | "deni
         ? `Your finance ticket "${ticket.title}" for $${ticket.total.toLocaleString()} was denied.${note ? `\n\nNote: ${note}` : ""}`
         : `Your finance ticket "${ticket.title}" needs changes before it can continue through approval.${note ? `\n\nNote: ${note}` : ""}`;
 
-  await sendMailAs({ fromMailbox: FINANCE_MAILBOX, to: `${requestorEmail}; ${FINANCE_MAILBOX}`, subject, body });
+  const mailbox = await financeMailbox();
+  await sendMailAs({ fromMailbox: mailbox, to: `${requestorEmail}; ${mailbox}`, subject, body });
 }
 
 // Kicks off (or restarts, after a Fix/resubmit) approval routing for
@@ -193,13 +197,13 @@ export async function startFinanceTicketApproval(ticketId: string) {
 
   // --- C-suite special case ---
   if (requestor.is_csuite) {
-    if (ticket.total <= 5000) {
+    if (ticket.total <= (await wfNumber("wf_finance_csuite_auto_limit"))) {
       await admin.from("finance_tickets").update({ status: "open" }).eq("id", ticketId);
       await logAndNotifyOutcome(ticketId, "approved", "Auto-approved: C-suite requestor, at or under the $5,000 threshold.");
       return { outcome: "auto_approved" as const };
     }
     const jobTitle = await getJobTitleViaGraph(requestor.email);
-    if (ticket.total <= 10000 && jobTitle === "COO") {
+    if (ticket.total <= (await wfNumber("wf_finance_coo_auto_limit")) && jobTitle === (await wfString("wf_finance_coo_title"))) {
       await admin.from("finance_tickets").update({ status: "open" }).eq("id", ticketId);
       await logAndNotifyOutcome(ticketId, "approved", "Auto-approved: COO self-approval, at or under the $10,000 threshold.");
       return { outcome: "auto_approved" as const };
@@ -209,8 +213,8 @@ export async function startFinanceTicketApproval(ticketId: string) {
     if (!ceoEmail) {
       await admin.from("finance_tickets").update({ status: "on_hold" }).eq("id", ticketId);
       await sendMailAs({
-        fromMailbox: FINANCE_MAILBOX,
-        to: FINANCE_MAILBOX,
+        fromMailbox: await financeMailbox(),
+        to: await financeMailbox(),
         subject: `Finance ticket needs manual CEO routing: ${ticket.ticket_number}`,
         body: `Ticket ${ticket.ticket_number} (${ticket.title}, $${ticket.total.toLocaleString()}) needs CEO approval, but no CEO email is configured in Connectors → IRFAS/Finance settings.`,
       });
@@ -234,8 +238,8 @@ export async function startFinanceTicketApproval(ticketId: string) {
   if (!manager) {
     await admin.from("finance_tickets").update({ status: "on_hold" }).eq("id", ticketId);
     await sendMailAs({
-      fromMailbox: FINANCE_MAILBOX,
-      to: FINANCE_MAILBOX,
+      fromMailbox: await financeMailbox(),
+      to: await financeMailbox(),
       subject: `Finance ticket couldn't start: no manager found for ${requestor.email}`,
       body: `Ticket ${ticket.ticket_number} needs manual routing - ${requestor.email} has no manager set in Active Directory.`,
     });
@@ -310,8 +314,8 @@ export async function decideFinanceTicketApproval(params: {
   if (!nextManager) {
     await admin.from("finance_tickets").update({ status: "on_hold" }).eq("id", ticket.id);
     await sendMailAs({
-      fromMailbox: FINANCE_MAILBOX,
-      to: FINANCE_MAILBOX,
+      fromMailbox: await financeMailbox(),
+      to: await financeMailbox(),
       subject: `Finance ticket stuck: reached the top of the reporting chain`,
       body: `Ticket ${ticket.ticket_number}: ${step.chain_person_name} (${step.chain_person_email}) has no manager set in AD, and their approval alone wasn't sufficient for $${ticket.total.toLocaleString()}. Needs manual handling.`,
     });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { sendMailAs } from "@/lib/msgraph";
-import { IT_SUPPORT_MAILBOX } from "@/lib/helpdesk";
+import { wfString } from "@/lib/workflowSettings";
 
 // Sends an email to a ticket's submitter from the shared IT Support
 // mailbox, logs it, and awards the +2 "emailed within 5 hours of
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await sendMailAs({
-      fromMailbox: IT_SUPPORT_MAILBOX,
+      fromMailbox: await wfString("wf_helpdesk_it_mailbox"),
       to: helpdeskRequest.submitted_by_email,
       subject: subject.trim(),
       body: message.trim(),

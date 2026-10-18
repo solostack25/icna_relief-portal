@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getSpeakerViewer } from "@/lib/speakerRequestAccess";
+import { wfNumber } from "@/lib/workflowSettings";
 
 // Everything the request form needs in one call: the coordinator's own
 // details (auto-populated), regions, offices, the Area Managers the
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
   const myRegion = viewer.assignedRegion ?? (viewer.assignedOfficeId ? officeRegion.get(viewer.assignedOfficeId) ?? null : null);
 
   return NextResponse.json({
+    leadershipThreshold: await wfNumber("wf_speaker_leadership_threshold"),
     me: { name: viewer.name, email: viewer.email, role: viewer.role, officeId: viewer.assignedOfficeId, region: myRegion },
     regions: (regions ?? []).map((r: { region: string }) => r.region),
     offices: offices ?? [],
