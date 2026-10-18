@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import OfficeSettings from "./OfficeSettings";
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -120,6 +121,10 @@ export default function SettingsPage() {
         {saving ? "Saving..." : "Save Settings"}
       </button>
       {saved && <span className="ml-3 text-sm text-brand-dark font-medium">Saved ✓</span>}
+
+      <div className="mt-10">
+        <OfficeSettings />
+      </div>
     </main>
   );
 }

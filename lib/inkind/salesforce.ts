@@ -3,12 +3,11 @@ import {
   SF_HEADER_FIELD_MAP,
   SF_LINE_ITEM_OBJECT,
   SF_LINE_ITEM_FIELD_MAP,
-  SF_HOUSTON_OFFICE_ACCOUNT_ID,
-  PROGRAM_TO_SALESFORCE_PICKLIST,
   CONDITION_LABEL,
 } from "./salesforceMapping";
 import { getSalesforceAuth, isSalesforceConfigured, type SalesforceAuth } from "./salesforceAuth";
 import { findOrCreateDonorContact, findOrCreateDonorAccount } from "./salesforceDonor";
+import { makeProgramResolver, resolveOfficeAccountId } from "./salesforceOffice";
 import { renderBackendInvoicesPdf } from "./renderInvoicePdf";
 import type { BackendInvoiceData } from "./invoices";
 import { donorContactFor } from "./invoices";
@@ -18,6 +17,7 @@ export { isSalesforceConfigured };
 export type SessionForSync = {
   id: string;
   office: string | null;
+  office_id?: string | null;
   short_description: string | null;
   date_received: string | null;
   donor_kind: string | null; // "individual" | "organization" | "anonymous"
@@ -174,6 +174,17 @@ export async function pushSessionToSalesforce(
     return { success: false, results: [], error: err.message ?? String(err) };
   }
 
+  // The session's office Account in Salesforce (IR_Office__c).
+  let officeAccountId: string;
+  try {
+    const office = await resolveOfficeAccountId(auth, session.office_id ?? null);
+    if ("error" in office) return { success: false, results: [], error: office.error };
+    officeAccountId = office.id;
+  } catch (err: any) {
+    return { success: false, results: [], error: `Office lookup failed: ${err.message ?? err}` };
+  }
+  const resolveProgram = await makeProgramResolver(auth);
+
   // Resolve donor once — reused across every program header this
   // session produces.
   let donorOrgId: string | null = null;
@@ -203,14 +214,14 @@ export async function pushSessionToSalesforce(
 
   for (const [program, programLines] of byProgram.entries()) {
     const programCode = programLines[0]?.program_code ?? "GEN";
-    const sfProgramValue = PROGRAM_TO_SALESFORCE_PICKLIST[program];
+    const sfProgramValue = resolveProgram(program);
 
     if (!sfProgramValue) {
       results.push({
         program,
         programCode,
         success: false,
-        error: `"${program}" isn't mapped to a Salesforce Program picklist value yet — see PROGRAM_TO_SALESFORCE_PICKLIST in lib/salesforceMapping.ts`,
+        error: `"${program}" doesn't match any Program value on InKind_Inven__c in Salesforce — add it there or to PROGRAM_TO_SALESFORCE_PICKLIST in lib/inkind/salesforceMapping.ts`,
       });
       continue;
     }
@@ -219,7 +230,7 @@ export async function pushSessionToSalesforce(
       const headerFields: Record<string, unknown> = {
         [SF_HEADER_FIELD_MAP.dateReceived]: session.date_received,
         [SF_HEADER_FIELD_MAP.description]: session.short_description,
-        [SF_HEADER_FIELD_MAP.office]: SF_HOUSTON_OFFICE_ACCOUNT_ID,
+        [SF_HEADER_FIELD_MAP.office]: officeAccountId,
         [SF_HEADER_FIELD_MAP.program]: sfProgramValue,
         [SF_HEADER_FIELD_MAP.transactionId]: `${baseInvoiceNumber}-${programCode}`,
       };

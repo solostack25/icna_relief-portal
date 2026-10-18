@@ -17,7 +17,7 @@ export const SF_HEADER_FIELD_MAP = {
   description: "Description__c",
   donorOrg: "Donor_Org__c", // Lookup(Account) — organization donors
   donorPerson: "Donor_Person__c", // Lookup(Contact) — individual donors
-  office: "IR_Office__c", // Lookup(Account) — see SF_HOUSTON_OFFICE_ACCOUNT_ID below
+  office: "IR_Office__c", // Lookup(Account) — per office, from office_settings.salesforce_account_id
   program: "Program__c", // Picklist, required
   transactionId: "Transaction_ID__c", // our program-specific invoice number, e.g. TXHOU-07202026-005-HPS
 };
@@ -40,20 +40,15 @@ export const SF_LINE_ITEM_FIELD_MAP = {
   donorDeclaredValue: "In_Kind_Donor_Declared_Value__c", // Checkbox — always false; ICNA assigns value from the price list, not the donor
 };
 
-// The Account record representing ICNA Relief's Houston office —
-// confirmed directly from Salesforce (Setup → search the Account,
-// copy its ID from the URL). Hardcoded since it's a one-time constant,
-// not something that varies per donation. If a second office is ever
-// added, this needs to become a lookup keyed by session.office instead.
-export const SF_HOUSTON_OFFICE_ACCOUNT_ID = "0016O00003EfpmgQAB";
+// Office Accounts (IR_Office__c) now live per office in office_settings
+// (Houston's is 0016O00003EfpmgQAB) — see lib/inkind/salesforceOffice.ts.
 
-// Maps our internal program names (data/programs.json) to Salesforce's
-// Program__c picklist values — confirmed from the field's Values list.
-// Only the 3 programs with priced items today are filled in with real
-// values; the rest default to passing the name through unchanged,
-// which will fail Salesforce's picklist validation until mapped — a
-// deliberate choice so an unmapped program surfaces as a clear sync
-// error instead of silently going to the wrong bucket.
+// Known mappings from our internal program names to Salesforce's
+// Program__c picklist values (confirmed from the field's Values list).
+// Programs not listed here are matched against the live picklist at push
+// time (lib/inkind/salesforceOffice.ts → makeProgramResolver); anything
+// that still doesn't match fails with a clear sync error rather than
+// going to the wrong bucket.
 export const PROGRAM_TO_SALESFORCE_PICKLIST: Record<string, string> = {
   "Back2school": "Back 2 School",
   "Hunger Prevention": "Hunger Prevention",

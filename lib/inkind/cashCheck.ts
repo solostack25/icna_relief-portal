@@ -15,10 +15,8 @@ import { getSalesforceAuth, isSalesforceConfigured } from "./salesforceAuth";
 
 export const CHECK_BUCKET = "inkind-checks";
 
-// Same single-kiosk assumption as app/inkind/page.tsx: the only InKind
-// station today is Houston. Move to per-device config if a second office
-// gets a station.
-export const KIOSK_OFFICE = { name: "Houston", id: "c2892dfa-dbf4-48f5-b64c-31a8585a0c03", receiptPrefix: "CCHOU" };
+// Office + receipt prefix now come from the station's office (office_settings),
+// resolved in lib/inkind/offices.ts.
 
 import { donorDisplayName, money, type CashDonationRow, type MoneyOrderRow } from "./cashCheck.shared";
 export * from "./cashCheck.shared";
@@ -44,7 +42,7 @@ export async function sendCashCheckReceipt(donationId: string): Promise<{ sent: 
   const methodLine = d.method === "check" ? `Check${d.check_number ? ` #${esc(d.check_number)}` : ""}` : "Cash";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const logo = siteUrl
-    ? `<img src="${siteUrl.replace(/\/$/, "")}/logo.png" alt="ICNA Relief" style="height:36px;width:auto;margin-bottom:16px;" />`
+    ? `<img src="${siteUrl.replace(/\/$/, "")}/icna-relief-logo.png" alt="ICNA Relief" style="height:36px;width:auto;margin-bottom:16px;" />`
     : "";
 
   const html = `${logo}

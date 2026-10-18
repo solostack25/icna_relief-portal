@@ -89,7 +89,7 @@ export async function POST(req: Request) {
   const customMessage = settings?.email_body || "Thank you for your donation to ICNA Relief!";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const logoHtml = siteUrl
-    ? `<img src="${siteUrl.replace(/\/$/, "")}/logo.png" alt="ICNA Relief" style="height:36px;width:auto;margin-bottom:16px;" />`
+    ? `<img src="${siteUrl.replace(/\/$/, "")}/icna-relief-logo.png" alt="ICNA Relief" style="height:36px;width:auto;margin-bottom:16px;" />`
     : "";
   const html = `${logoHtml}\n${textToParagraphs(customMessage)}\n<p>Your itemized receipt (invoice ${escapeHtml(
     invoiceNumber

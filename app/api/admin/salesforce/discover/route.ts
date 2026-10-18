@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   if (me?.role !== "admin") return NextResponse.json({ error: "Admins only" }, { status: 403 });
   if (!isSalesforceConfigured()) return NextResponse.json({ error: "Salesforce isn't configured" }, { status: 500 });
 
-  const q = (req.nextUrl.searchParams.get("q") || "bulk").toLowerCase();
+  const q = (req.nextUrl.searchParams.get("q") || "bulk,inkind").toLowerCase();
+  const terms = q.split(",").map((t) => t.trim()).filter(Boolean);
   const auth = await getSalesforceAuth();
   const base = `${auth.instanceUrl}/services/data/v60.0`;
   const get = async (path: string) => {
@@ -34,12 +35,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const all = await get("/sobjects");
-    const matches = (all.sobjects as any[]).filter(
-      (o) => o.name.toLowerCase().includes(q) || String(o.label).toLowerCase().includes(q)
+    const matches = (all.sobjects as any[]).filter((o) =>
+      terms.some((t) => o.name.toLowerCase().includes(t) || String(o.label).toLowerCase().includes(t))
     );
 
     const objects = [];
-    for (const o of matches.slice(0, 8)) {
+    for (const o of matches.slice(0, 10)) {
       const d = await get(`/sobjects/${o.name}/describe`);
       const fields = (d.fields as any[])
         .filter((f) => f.createable || f.name === "Id" || f.name === "Name")

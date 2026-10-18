@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
-import { CHECK_BUCKET, KIOSK_OFFICE, sendCashCheckReceipt } from "@/lib/inkind/cashCheck";
+import { CHECK_BUCKET, sendCashCheckReceipt } from "@/lib/inkind/cashCheck";
+import { resolveIntakeOffice } from "@/lib/inkind/offices";
 
 // Called from the InKind scanning station (/inkind/cash-check). Like the
 // rest of the kiosk it has no staff login, so everything is validated
@@ -77,8 +78,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }
 
+  const { office, error: officeError } = await resolveIntakeOffice(str(form.get("officeId"), 40));
+  if (!office) return NextResponse.json({ error: officeError }, { status: 400 });
+
   const admin = createAdminClient();
-  const { data: receiptNumber, error: rnErr } = await admin.rpc("next_invoice_id", { prefix: KIOSK_OFFICE.receiptPrefix });
+  const { data: receiptNumber, error: rnErr } = await admin.rpc("next_invoice_id", { prefix: office.cashPrefix });
   if (rnErr || !receiptNumber) {
     return NextResponse.json({ error: "Could not generate a receipt number" }, { status: 500 });
   }
@@ -97,8 +101,8 @@ export async function POST(req: Request) {
   const { error: insErr } = await admin.from("inkind_cash_donations").insert({
     id,
     receipt_number: receiptNumber,
-    office: KIOSK_OFFICE.name,
-    office_id: KIOSK_OFFICE.id,
+    office: office.name,
+    office_id: office.id,
     method,
     amount,
     date_received: dateReceived,

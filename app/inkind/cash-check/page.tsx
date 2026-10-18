@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Logo from "@/app/inkind/components/Logo";
+import StationOfficeBar, { useStationOffice } from "@/app/inkind/components/StationOffice";
 
 type Method = "cash" | "check";
 type DonorKind = "individual" | "organization" | "anonymous";
@@ -37,6 +38,7 @@ const groupBox = "rounded-xl border border-gray-300 bg-white divide-y divide-gra
 
 export default function CashCheckPage() {
   const router = useRouter();
+  const station = useStationOffice();
   const cameraInput = useRef<HTMLInputElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
 
@@ -97,6 +99,11 @@ export default function CashCheckPage() {
     fd.set("method", method!);
     fd.set("amount", String(amt));
     fd.set("dateReceived", dateReceived);
+    if (!station.officeId) {
+      setError("Choose this station's office first.");
+      return;
+    }
+    fd.set("officeId", station.officeId);
     fd.set("donorKind", donorKind);
     fd.set("firstName", firstName);
     fd.set("lastName", lastName);
@@ -160,11 +167,13 @@ export default function CashCheckPage() {
       <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center">
         <Logo />
         <h1 className="text-2xl font-bold text-brand-dark">Cash or check?</h1>
+        <StationOfficeBar station={station} />
         <div className="w-full max-w-md grid grid-cols-2 gap-4">
           {(["cash", "check"] as Method[]).map((m) => (
             <button
               key={m}
               onClick={() => setMethod(m)}
+              disabled={!station.office}
               className="tap-target rounded-2xl bg-brand py-10 text-2xl font-semibold text-white shadow-lg active:scale-95 transition capitalize"
             >
               {m}

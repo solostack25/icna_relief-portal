@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import Logo from "@/app/inkind/components/Logo";
+import StationOfficeBar, { useStationOffice } from "@/app/inkind/components/StationOffice";
 
 export default function HomePage() {
   const router = useRouter();
@@ -12,44 +12,27 @@ export default function HomePage() {
   // Second screen: after "Start New Donation", staff pick whether this
   // is a cash/check gift or physical in-kind items.
   const [choosing, setChoosing] = useState(false);
+  const station = useStationOffice();
 
   async function startSession() {
+    if (!station.officeId) {
+      setError("Choose this station's office first.");
+      return;
+    }
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-
-    const { data: invoiceId, error: invoiceError } = await supabase.rpc("next_invoice_id", {
-      prefix: "TXHOU",
+    const res = await fetch("/api/inkind/start-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ officeId: station.officeId }),
     });
-    if (invoiceError || !invoiceId) {
-      setError(invoiceError?.message ?? "Could not generate an invoice number");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.sessionId) {
+      setError(data.error ?? "Could not start a session");
       setLoading(false);
       return;
     }
-
-    const { data, error } = await supabase
-      .from("sessions")
-      .insert({
-        status: "active",
-        invoice_id: invoiceId,
-        office: "Houston",
-        // Only one InKind kiosk exists today (Houston), so this is
-        // hardcoded the same way `office` above is. If a second office
-        // ever gets its own kiosk, this needs to come from per-device
-        // config instead of a constant.
-        office_id: "c2892dfa-dbf4-48f5-b64c-31a8585a0c03",
-        donor_kind: "individual",
-      })
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      setError(error?.message ?? "Could not start a session");
-      setLoading(false);
-      return;
-    }
-
-    router.push(`/inkind/intake/${data.id}`);
+    router.push(`/inkind/intake/${data.sessionId}`);
   }
 
   return (
@@ -59,9 +42,11 @@ export default function HomePage() {
         <h1 className="text-3xl font-bold text-brand-dark">Donation Intake</h1>
         <p className="text-gray-500 mt-2">This is the employee scanning station.</p>
       </div>
+      <StationOfficeBar station={station} />
       {!choosing ? (
         <button
           onClick={() => setChoosing(true)}
+          disabled={!station.office}
           className="tap-target rounded-2xl bg-brand px-10 py-6 text-xl font-semibold text-white shadow-lg active:scale-95 transition"
         >
           Start New Donation
@@ -70,7 +55,7 @@ export default function HomePage() {
         <div className="w-full max-w-md space-y-4">
           <p className="text-gray-600 font-medium">What kind of donation is this?</p>
           <button
-            onClick={() => router.push("/inkind/cash-check")}
+            onClick={() => router.push(`/inkind/cash-check${station.officeId ? `?office=${station.officeId}` : ""}`)}
             className="tap-target w-full rounded-2xl bg-brand px-8 py-6 text-left text-white shadow-lg active:scale-95 transition"
           >
             <span className="block text-xl font-semibold">Cash / Check</span>
