@@ -95,10 +95,16 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["in-kind", "in kind", "donation intake", "inventory"],
   },
   {
-    name: "Finance Approvals",
-    path: "/finance-approvals",
-    description: "Submit and review finance approval requests.",
-    keywords: ["finance", "approval", "expense", "reimbursement"],
+    name: "Finance Tickets",
+    path: "/finance-tickets",
+    description: "Submit reimbursements, vendor payments, PEX and honorarium requests and track their approval.",
+    keywords: ["finance", "ticket", "expense", "reimbursement", "vendor", "pex", "honorarium", "mileage"],
+  },
+  {
+    name: "My Finance Approvals",
+    path: "/finance-ticket-approvals",
+    description: "Finance tickets waiting on your approval.",
+    keywords: ["approve", "approval", "finance approval", "sign off"],
   },
   {
     name: "Office Apps / Home",

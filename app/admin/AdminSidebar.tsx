@@ -182,10 +182,11 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
     {
       title: t("sidebar.section.finance"),
       items: [
-        { href: "/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" },
-        access.canManageFinance && { href: "/admin/finance-tickets", label: t("sidebar.nav.financeTicketQueue"), icon: "finance" },
-        access.canManageFinance && { href: "/admin/finance-tickets/approvals", label: t("sidebar.nav.financeApprovalChains"), icon: "finance" },
-        access.canManageFinance && { href: "/admin/finance-tickets/pex-cards", label: t("sidebar.nav.pexCardRegistry"), icon: "finance" },
+        // Finance staff get the one Finance Tickets area (queue, approval
+        // coverage, PEX cards as tabs); everyone else gets their own tickets.
+        access.canManageFinance
+          ? { href: "/admin/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" }
+          : { href: "/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" },
         access.canZakatFinance && { href: "/admin/zakat-finance", label: t("sidebar.nav.zakatFinance"), icon: "finance" },
         access.canManageFinance && { href: "/admin/speaker-requests", label: t("sidebar.nav.speakerRequests"), icon: "finance" },
       ].filter(Boolean) as NavItem[],
@@ -295,7 +296,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           </div>
           <div className="space-y-0.5">
             {section.items.map((item) => {
-              const active = pathname === item.href;
+              const active = pathname === item.href || (item.href.split("/").length > 2 && pathname.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.href}

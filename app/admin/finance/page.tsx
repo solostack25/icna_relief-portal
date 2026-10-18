@@ -1,16 +1,7 @@
 import { redirect } from "next/navigation";
-import { getFinanceAdminAccess } from "@/lib/financeAdminAccess";
-import FinanceAdminClient from "./FinanceAdminClient";
-import FinanceHeader from "./FinanceHeader";
 
-export default async function FinanceAdminPage() {
-  const access = await getFinanceAdminAccess();
-  if (!access.ok) redirect("/select-app");
-
-  return (
-    <div>
-      <FinanceHeader />
-      <FinanceAdminClient />
-    </div>
-  );
+// The old helpdesk finance-approval admin (tiers / coverage / requests) was
+// retired in favour of Finance Tickets; coverage now lives there.
+export default function FinanceAdminPage() {
+  redirect("/admin/finance-tickets/approvals");
 }

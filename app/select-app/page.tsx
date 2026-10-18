@@ -111,9 +111,10 @@ export default async function SelectAppPage() {
     .neq("overall_status", "closed");
 
   const { count: pendingApprovalsCount } = await supabase
-    .from("finance_approval_steps")
+    .from("finance_approvals")
     .select("id", { count: "exact", head: true })
-    .eq("status", "pending")
+    .eq("is_current_step", true)
+    .eq("approval_status", "pending")
     .ilike("approver_email", employee.email);
 
   const courses = await getCoursesWithStatus(supabase, employee.id, employee.role);

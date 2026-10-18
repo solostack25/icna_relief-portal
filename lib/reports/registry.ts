@@ -344,22 +344,23 @@ export const REPORT_MODULES: ReportModule[] = [
     allowedRoles: ["regional_director", "program_director", "admin"],
   },
   {
-    slug: "finance-approvals",
-    label: "Finance — Approval Requests",
-    table: "finance_approval_requests",
+    slug: "finance-tickets",
+    label: "Finance — Tickets",
+    table: "finance_tickets",
     defaultDateColumn: "created_at",
-    // Approvals climb a management chain resolved live via Microsoft
-    // Graph (see lib/financeApproval.ts) rather than an office - the
-    // request itself carries no office_id, so this is org-wide/admin.
+    // Finance tickets (reimbursements, vendor payments, PEX, honoraria…).
+    // Approval chains follow the requestor's management line, not an
+    // office, so this is org-wide/admin.
     scope: { type: "none" },
     dimensions: [
       { key: "status", label: "Status", column: "status" },
-      { key: "final_tier_name", label: "Final Tier", column: "final_tier_name" },
+      { key: "category", label: "Category", column: "category" },
+      { key: "priority", label: "Priority", column: "priority" },
       { key: "created_month", label: "Month", column: "created_at", truncate: "month" },
     ],
     metrics: [
-      { key: "request_count", label: "Requests", column: "id", agg: "count" },
-      { key: "total_amount", label: "Total Amount", column: "amount", agg: "sum" },
+      { key: "ticket_count", label: "Tickets", column: "id", agg: "count" },
+      { key: "total_amount", label: "Total Amount", column: "total", agg: "sum" },
     ],
     allowedRoles: ["admin"],
   },

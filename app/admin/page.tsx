@@ -34,8 +34,10 @@ export default async function AdminPage() {
         .order("last_name")
     : { data: null };
 
+  // Finance tickets currently waiting on an approver (finance_tickets /
+  // finance_approvals — the old helpdesk finance_approval_* flow is retired).
   let pendingApprovals: {
-    request_id: string;
+    href: string;
     amount: number;
     title: string | null;
     submitted_by: string | null;
@@ -44,35 +46,27 @@ export default async function AdminPage() {
   }[] = [];
   if (access.canManageFinance) {
     const { data: steps } = await supabase
-      .from("finance_approval_steps")
-      .select("finance_approval_request_id, approver_name, chain_person_job_title, status")
-      .eq("status", "pending")
+      .from("finance_approvals")
+      .select("finance_ticket_id, approver_name, chain_person_job_title, created_at")
+      .eq("is_current_step", true)
+      .eq("approval_status", "pending")
       .order("created_at", { ascending: false })
       .limit(3);
     if (steps && steps.length > 0) {
-      const farIds = steps.map((s) => s.finance_approval_request_id);
-      const { data: fars } = await supabase
-        .from("finance_approval_requests")
-        .select("id, request_id, amount")
-        .in("id", farIds);
-      const farMap = new Map((fars ?? []).map((f) => [f.id, f]));
-      const requestIds = (fars ?? []).map((f) => f.request_id);
       const { data: tickets } = await supabase
-        .from("helpdesk_requests")
-        .select("id, title, submitted_by")
-        .in("id", requestIds.length ? requestIds : ["00000000-0000-0000-0000-000000000000"]);
-      const ticketMap = new Map((tickets ?? []).map((t) => [t.id, t]));
-
+        .from("finance_tickets")
+        .select("id, title, total, employees:requestor_id(first_name, last_name)")
+        .in("id", steps.map((s) => s.finance_ticket_id));
+      const ticketMap = new Map((tickets ?? []).map((t: any) => [t.id, t]));
       pendingApprovals = steps
         .map((s) => {
-          const far = farMap.get(s.finance_approval_request_id);
-          const ticket = far ? ticketMap.get(far.request_id) : null;
-          return far
+          const t: any = ticketMap.get(s.finance_ticket_id);
+          return t
             ? {
-                request_id: far.request_id,
-                amount: far.amount,
-                title: ticket?.title ?? null,
-                submitted_by: ticket?.submitted_by ?? null,
+                href: `/finance-tickets/${t.id}`,
+                amount: Number(t.total ?? 0),
+                title: t.title ?? null,
+                submitted_by: t.employees ? `${t.employees.first_name} ${t.employees.last_name}` : null,
                 approver_name: s.approver_name,
                 approver_job_title: s.chain_person_job_title,
               }

@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { data: approvals } = await admin
     .from("finance_approvals")
-    .select("approval_level, chain_person_name, approval_status, decision_date, comments")
+    .select("approval_level, chain_person_name, chain_person_job_title, acting_as_delegate_for_email, approval_status, decision_date, comments")
     .eq("finance_ticket_id", id)
     .order("approval_level", { ascending: true });
 

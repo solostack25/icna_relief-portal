@@ -1,13 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CATEGORY_LABELS } from "@/lib/financeTicketForms";
-import {
-  FINANCE_TICKET_STATUS_COLORS,
-  financeTicketStatusLabel,
-  FINANCE_APPROVAL_STATUS_COLORS,
-  financeApprovalStatusLabel,
-} from "@/lib/financeTicketStatus";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -43,130 +36,10 @@ type Delegate = {
   ends_at: string | null;
   note: string | null;
 };
-type TicketStep = {
-  approval_level: number;
-  chain_person_name: string;
-  chain_person_job_title: string | null;
-  acting_as_delegate_for_email: string | null;
-  approval_status: string;
-  decision_date: string | null;
-  comments: string | null;
-};
-type TicketChain = {
-  id: string;
-  ticket_number: string;
-  title: string;
-  category: string;
-  total: number;
-  status: string;
-  created_at: string;
-  requestor: { first_name: string; last_name: string; email: string } | null;
-  steps: TicketStep[];
-};
-
-const TABS = ["Approval Chains", "Temporary Coverage"] as const;
-
+// Out-of-office approval coverage. (The per-ticket "who is it waiting on"
+// view that used to be a second tab here now lives in the Ticket Queue.)
 export default function FinanceApprovalsClient() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Approval Chains");
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {TABS.map((tb) => (
-          <button key={tb} onClick={() => setTab(tb)} style={pillButton(tab === tb)}>
-            {tb}
-          </button>
-        ))}
-      </div>
-      {tab === "Approval Chains" && <ApprovalChainsTab />}
-      {tab === "Temporary Coverage" && <DelegatesTab />}
-    </div>
-  );
-}
-
-// ============================================================
-// APPROVAL CHAINS
-// ============================================================
-function ApprovalChainsTab() {
-  const [tickets, setTickets] = useState<TicketChain[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    fetch("/api/admin/finance-tickets/approval-chains")
-      .then(async (res) => {
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error);
-        setTickets(body.tickets);
-      })
-      .catch((e) => setError(e.message));
-  }, []);
-
-  if (error) return <p style={{ fontSize: 13, color: "#B5566B" }}>{error}</p>;
-  if (!tickets) return <p style={{ fontSize: 13, color: "rgba(22,48,43,0.5)" }}>Loading…</p>;
-
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? tickets.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.ticket_number.toLowerCase().includes(q) ||
-          t.requestor?.first_name.toLowerCase().includes(q) ||
-          t.requestor?.last_name.toLowerCase().includes(q) ||
-          t.requestor?.email.toLowerCase().includes(q)
-      )
-    : tickets;
-
-  return (
-    <div>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by ticket, requestor name, or email…"
-        style={{ ...inputStyle, width: "100%", marginBottom: 16 }}
-      />
-      <div style={{ display: "grid", gap: 10 }}>
-        {filtered.length === 0 && (
-          <p style={{ fontSize: 13, color: "rgba(22,48,43,0.5)" }}>{tickets.length === 0 ? "Nothing in progress right now." : "No matches."}</p>
-        )}
-        {filtered.map((t) => (
-          <div key={t.id} style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
-                <div style={{ fontSize: 12, color: "rgba(22,48,43,0.5)" }}>
-                  {t.ticket_number} · {CATEGORY_LABELS[t.category] ?? t.category} · ${t.total.toLocaleString()}
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(22,48,43,0.5)" }}>
-                  {t.requestor ? `${t.requestor.first_name} ${t.requestor.last_name}` : "Unknown"} · {new Date(t.created_at).toLocaleDateString()}
-                </div>
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: FINANCE_TICKET_STATUS_COLORS[t.status] ?? "#666" }}>{financeTicketStatusLabel(t.status)}</span>
-            </div>
-
-            {/* Full step-by-step trail - the "who approved, who's it
-                waiting on" answer, not just the current pending approver. */}
-            <div style={{ borderTop: "1px solid rgba(22,48,43,0.08)", marginTop: 10, paddingTop: 8, display: "grid", gap: 4 }}>
-              {[...t.steps]
-                .sort((a, b) => a.approval_level - b.approval_level)
-                .map((s, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                    <span>
-                      {s.approval_level}. {s.chain_person_name}
-                      {s.chain_person_job_title ? ` (${s.chain_person_job_title})` : ""}
-                      {s.acting_as_delegate_for_email ? " (covering)" : ""}
-                    </span>
-                    <span style={{ fontWeight: 600, color: FINANCE_APPROVAL_STATUS_COLORS[s.approval_status] ?? "#8A5FB5" }}>
-                      {financeApprovalStatusLabel(s.approval_status)}
-                    </span>
-                  </div>
-                ))}
-              {t.steps.length === 0 && <div style={{ fontSize: 12, color: "rgba(22,48,43,0.4)" }}>No approval steps recorded.</div>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <DelegatesTab />;
 }
 
 // ============================================================

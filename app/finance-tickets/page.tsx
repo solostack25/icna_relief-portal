@@ -34,7 +34,7 @@ export default function FinanceTicketsPage() {
     <div className="max-w-3xl mx-auto p-6">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28, margin: 0 }}>
-          Finance Tickets
+          My Finance Tickets
         </h1>
         <Link
           href="/finance-tickets/new"

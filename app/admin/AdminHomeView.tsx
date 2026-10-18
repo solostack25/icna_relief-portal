@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type PendingApproval = {
-  request_id: string;
+  href: string;
   amount: number;
   title: string | null;
   submitted_by: string | null;
@@ -72,7 +72,7 @@ export default function AdminHomeView({
             {pendingApprovals.map((p, i) => (
               <Link
                 key={i}
-                href={`/helpdesk/${p.request_id}`}
+                href={p.href}
                 className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 hover:bg-black/[0.02] transition-colors"
                 style={{
                   borderBottom: i < pendingApprovals.length - 1 ? "1px solid var(--portal-line)" : "none",
