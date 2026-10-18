@@ -207,6 +207,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       title: t("sidebar.section.programs"),
       items: [
         access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
+        access.isAdmin && { href: "/admin/rates", label: t("sidebar.nav.ratesValues"), icon: "finance" },
         access.canReview && { href: "/admin/review", label: t("sidebar.nav.reviewSubmissions"), icon: "review" },
       ].filter(Boolean) as NavItem[],
     },
