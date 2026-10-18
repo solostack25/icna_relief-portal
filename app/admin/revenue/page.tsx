@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import RevenueClient from "./RevenueClient";
+import SalesforceRevenueCard from "./SalesforceRevenueCard";
 
 const STREAM_LABELS: Record<string, string> = {
   in_kind: "In-Kind Donation",
@@ -133,6 +134,31 @@ export default async function RevenuePage() {
     })),
   ];
 
+  // Donations synced from Salesforce (revenue_transactions). Shown in their
+  // own card for now so nothing is counted twice with the streams above
+  // (CharityStack / Square gifts also reach Salesforce).
+  const [{ data: sfRows }, { data: lastRuns }] = await Promise.all([
+    supabase
+      .from("revenue_transactions")
+      .select("amount, program, office_id")
+      .gte("received_on", `${currentYear}-01-01`)
+      .lte("received_on", `${currentYear}-12-31`)
+      .limit(50000),
+    supabase.from("revenue_sync_runs").select("status, started_at, rows_upserted, error").order("started_at", { ascending: false }).limit(1),
+  ]);
+  const sfByProgram = new Map<string, number>();
+  const sfByOffice = new Map<string, number>();
+  let sfTotal = 0;
+  let sfUnassigned = 0;
+  (sfRows ?? []).forEach((r: any) => {
+    const amt = Number(r.amount);
+    sfTotal += amt;
+    sfByProgram.set(r.program || "Unspecified", (sfByProgram.get(r.program || "Unspecified") ?? 0) + amt);
+    const office = r.office_id ? officeById.get(r.office_id)?.field_office ?? "Unassigned" : "Unassigned";
+    if (office === "Unassigned") sfUnassigned += amt;
+    sfByOffice.set(office, (sfByOffice.get(office) ?? 0) + amt);
+  });
+
   const totalRevenue = streams.reduce((s, st) => s + st.total, 0);
   const communityRevenue = totalRevenue - grantsTotal;
 
@@ -168,6 +194,16 @@ export default async function RevenuePage() {
         }))}
         offices={(offices ?? []).map((o) => ({ id: o.id, field_office: o.field_office, region: o.region }))}
         currentYear={currentYear}
+      />
+
+      <SalesforceRevenueCard
+        year={currentYear}
+        lastRun={(lastRuns ?? [])[0] ?? null}
+        total={sfTotal}
+        count={(sfRows ?? []).length}
+        byProgram={[...sfByProgram.entries()].map(([program, total]) => ({ program, total })).sort((a, b) => b.total - a.total)}
+        byOffice={[...sfByOffice.entries()].map(([office, total]) => ({ office, total })).sort((a, b) => b.total - a.total)}
+        unassigned={sfUnassigned}
       />
     </div>
   );

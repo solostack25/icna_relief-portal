@@ -1,0 +1,25 @@
+-- ============================================================
+-- Address → office mapping (from the Master Cleaner) + Salesforce revenue
+-- ------------------------------------------------------------
+-- geo_zip_offices      zip / city → office for the split states (CA, TX, FL,
+--                      VA, MO). Loaded from lib/geo/cleanerZipList.ts (the
+--                      cleaner's state_splits_cities.csv, 9,244 rows) the
+--                      first time it's needed; edited in Admin → Zip → Office Map.
+-- geo_split_states     default office per split state (TX→Dallas, FL→Miami,
+--                      CA→Los Angeles, VA→Alexandria, MO→St. Louis)
+-- geo_region_aliases   Salesforce contact "Region" values → office
+--                      (SoCal Office→Los Angeles, KCM→Kansas City, …)
+-- resolve_office()     alias → zip → city → state default → state office →
+--                      Unassigned, same order as the cleaner. State → office /
+--                      region / chapter / RSN come from b2s_offices + b2s_regions
+--                      (the Kansas City special case is the KS office's region).
+--
+-- revenue_transactions donations/payments synced from Salesforce (reporting
+--                      fields + donor city/state/zip only — no names/contact
+--                      info); office assigned by trigger via resolve_office()
+--                      unless office_locked.
+-- revenue_sync_runs    one row per sync run (status, rows, cursor, error)
+--
+-- Already applied directly to the live Supabase project (as two migrations:
+-- geo_office_mapping, revenue_transactions). See those for full SQL.
+-- ============================================================
