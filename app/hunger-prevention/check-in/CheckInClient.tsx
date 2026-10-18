@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/hungerPrevention/audit";
+import { foodTotals, pricePackage, HP_FOOD_CATEGORIES } from "@/lib/bulkDistributions";
+import FoodFields, { foodInputFrom, useFoodPrices, type FoodInput } from "@/components/bulk/FoodFields";
 
 type BookingRow = { id: string; status: string; slot_id: string; client_id: string; checked_in_at: string | null };
 type ClientRow = { id: string; first_name: string; last_name: string; client_number: string | null; phone: string | null };
@@ -37,6 +39,16 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
   const [scanValue, setScanValue] = useState("");
   const [scanMsg, setScanMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // Today's food package: what each pickup household receives. Completing
+  // a pickup records it on the client (hp_food_distributions); undo removes it.
+  const { prices } = useFoodPrices();
+  const [pkg, setPkg] = useState<FoodInput>({});
+  const [pkgSaved, setPkgSaved] = useState<Partial<Record<string, { qty: number }>> | null>(null);
+  const [editingPkg, setEditingPkg] = useState(false);
+  const [pkgSaving, setPkgSaving] = useState(false);
+  const [recorded, setRecorded] = useState<Set<string>>(new Set());
+  const [applying, setApplying] = useState(false);
+
   useEffect(() => {
     (async () => {
       const {
@@ -49,8 +61,23 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function loadPackage() {
+    const { data } = await supabase
+      .from("hp_daily_packages")
+      .select("food")
+      .eq("office_id", officeId)
+      .eq("package_date", date)
+      .maybeSingle();
+    const food = (data?.food ?? null) as Partial<Record<string, { qty: number }>> | null;
+    const hasAny = !!food && Object.values(food).some((f) => Number(f?.qty) > 0);
+    setPkgSaved(hasAny ? food : null);
+    setPkg(foodInputFrom(food));
+    setEditingPkg(!hasAny);
+  }
+
   async function loadDay() {
     setLoading(true);
+    loadPackage();
 
     const { data: slotRows } = await supabase
       .from("pickup_slots")
@@ -80,6 +107,12 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
       ? await supabase.from("clients").select("id, first_name, last_name, client_number, phone").in("id", clientIds)
       : { data: [] as ClientRow[] };
 
+    const bookingIds = (bookingRows ?? []).map((b) => b.id);
+    const { data: foodRows } = bookingIds.length
+      ? await supabase.from("hp_food_distributions").select("source_id").in("source_id", bookingIds)
+      : { data: [] as { source_id: string }[] };
+    setRecorded(new Set((foodRows ?? []).map((r) => r.source_id)));
+
     setBookings(bookingRows ?? []);
     setClients(new Map((clientRows ?? []).map((c) => [c.id, c])));
     setLoading(false);
@@ -101,11 +134,78 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
       return;
     }
     await logAudit(supabase, employeeId, "check_in", "pickup_booking", bookingId, { date });
+    await recordPackage(bookingId);
+    loadDay();
+  }
+
+  async function recordPackage(bookingId: string, pkgFood = pkgSaved) {
+    if (!pkgFood) return;
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (!booking) return;
+    const food = pricePackage(pkgFood, prices);
+    if (Object.keys(food).length === 0) return;
+    const totals = foodTotals(food);
+    const { data: client } = await supabase.from("clients").select("household_key").eq("id", booking.client_id).maybeSingle();
+    let individuals = 1;
+    if (client?.household_key) {
+      const { count } = await supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("household_key", client.household_key);
+      individuals = Math.max(1, count ?? 1);
+    }
+    await supabase.from("hp_food_distributions").upsert(
+      {
+        client_id: booking.client_id,
+        office_id: officeId,
+        distributed_on: date,
+        individuals_served: individuals,
+        food,
+        total_lbs: totals.lbs,
+        total_value: totals.value,
+        source: "pickup",
+        source_id: bookingId,
+        created_by: employeeId,
+      },
+      { onConflict: "source_id", ignoreDuplicates: true }
+    );
+  }
+
+  async function savePackage() {
+    setPkgSaving(true);
+    const food: Record<string, { qty: number }> = {};
+    for (const c of HP_FOOD_CATEGORIES) {
+      const q = Number(pkg[c.key]?.qty || 0);
+      const v = Number(pkg[c.key]?.value || 0);
+      if (q > 0) food[c.key] = prices[c.key] != null ? { qty: q } : ({ qty: q, value: v } as { qty: number });
+    }
+    const { error } = await supabase.from("hp_daily_packages").upsert({
+      office_id: officeId,
+      package_date: date,
+      food,
+      updated_by: employeeId,
+      updated_at: new Date().toISOString(),
+    });
+    setPkgSaving(false);
+    if (error) return setScanMsg({ text: error.message, ok: false });
+    const hasAny = Object.keys(food).length > 0;
+    setPkgSaved(hasAny ? food : null);
+    setEditingPkg(!hasAny);
+  }
+
+  async function applyToEarlier() {
+    if (!pkgSaved) return;
+    setApplying(true);
+    for (const b of bookings.filter((x) => x.status === "completed" && !recorded.has(x.id))) {
+      await recordPackage(b.id, pkgSaved);
+    }
+    setApplying(false);
     loadDay();
   }
 
   async function undoCheckIn(bookingId: string) {
     await supabase.from("pickup_bookings").update({ status: "booked", checked_in_at: null, checked_in_by: null }).eq("id", bookingId).eq("status", "completed");
+    await supabase.from("hp_food_distributions").delete().eq("source_id", bookingId).eq("source", "pickup");
     await logAudit(supabase, employeeId, "undo_check_in", "pickup_booking", bookingId, { date });
     loadDay();
   }
@@ -197,6 +297,76 @@ export default function CheckInClient({ officeId }: { officeId: string }) {
           Export CSV
         </button>
       </div>
+
+      {(() => {
+        const pkgFood = pricePackage(pkgSaved, prices);
+        const t = foodTotals(pkgFood);
+        const missing = bookings.filter((b) => b.status === "completed" && !recorded.has(b.id)).length;
+        return (
+          <div style={{ ...cardStyle, padding: "18px 20px", marginBottom: 16 }}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                  Food package for {date === todayISO() ? "today" : date}
+                </div>
+                {pkgSaved && !editingPkg ? (
+                  <div className="text-sm mt-1">
+                    {HP_FOOD_CATEGORIES.filter((c) => pkgFood[c.key])
+                      .map((c) => `${pkgFood[c.key]!.qty} ${c.unit === "lbs" ? "lb" : c.unit} ${c.label.toLowerCase()}`)
+                      .join(" · ")}
+                    <span style={{ color: "rgba(22,48,43,0.5)" }}>
+                      {" "}= {t.lbs} lbs · ${t.value.toFixed(2)} per household
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-xs mt-1" style={{ color: "#A57420" }}>
+                    Set what each household gets — every pickup you mark received is recorded with this food.
+                  </div>
+                )}
+              </div>
+              {pkgSaved && !editingPkg && (
+                <button onClick={() => setEditingPkg(true)} className="text-xs font-semibold" style={{ color: "var(--portal-emerald, #2F6D46)" }}>
+                  Edit
+                </button>
+              )}
+            </div>
+            {editingPkg && (
+              <div className="mt-3 space-y-3">
+                <FoodFields value={pkg} onChange={setPkg} prices={prices} />
+                <div className="flex gap-2">
+                  <button
+                    onClick={savePackage}
+                    disabled={pkgSaving}
+                    className="text-xs font-bold rounded-full px-4 py-2 disabled:opacity-50"
+                    style={{ background: "var(--portal-emerald, #2F6D46)", color: "#fff" }}
+                  >
+                    {pkgSaving ? "Saving…" : "Save package"}
+                  </button>
+                  {pkgSaved && (
+                    <button onClick={() => { setPkg(foodInputFrom(pkgSaved)); setEditingPkg(false); }} className="text-xs font-semibold" style={{ color: "rgba(22,48,43,0.5)" }}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px]" style={{ color: "rgba(22,48,43,0.45)" }}>
+                  Changing the package only affects pickups received after you save. A household that got something different can be
+                  adjusted on the client&apos;s profile.
+                </p>
+              </div>
+            )}
+            {pkgSaved && missing > 0 && (
+              <button
+                onClick={applyToEarlier}
+                disabled={applying}
+                className="mt-3 text-xs font-semibold underline disabled:opacity-50"
+                style={{ color: "#A57420" }}
+              >
+                {applying ? "Recording…" : `Record this package for ${missing} pickup${missing === 1 ? "" : "s"} already received without food`}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       <form onSubmit={handleScanSubmit} style={{ ...cardStyle, padding: "18px 20px", marginBottom: 24 }}>
         <label className="block text-xs font-bold mb-1.5" style={{ color: "rgba(22,48,43,0.5)" }}>

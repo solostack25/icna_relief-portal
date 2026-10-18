@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { HP_FOOD_CATEGORIES, foodTotals, type FoodBreakdown } from "@/lib/bulkDistributions";
+import { buildFood, foodTotals, type FoodBreakdown } from "@/lib/bulkDistributions";
+import FoodFields, { useFoodPrices, type FoodInput } from "./FoodFields";
 
 export type BulkRow = {
   id: string;
@@ -64,16 +65,11 @@ export default function BulkDistributions({
     location: "",
   };
   const [form, setForm] = useState(blank);
-  const [food, setFood] = useState<Record<string, { qty: string; value: string }>>({});
+  const [food, setFood] = useState<FoodInput>({});
+  const { prices } = useFoodPrices();
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const foodClean: FoodBreakdown = {};
-  for (const c of HP_FOOD_CATEGORIES) {
-    const f = food[c.key];
-    const qty = Number(f?.qty || 0);
-    const value = Number(f?.value || 0);
-    if (qty > 0 || value > 0) foodClean[c.key] = { qty, value };
-  }
+  const foodClean: FoodBreakdown = buildFood(food, prices);
   const foodSum = foodTotals(foodClean);
 
   async function save(e: React.FormEvent) {
@@ -178,44 +174,7 @@ export default function BulkDistributions({
             )}
           </div>
 
-          {withFood && (
-            <div className="rounded-lg border border-[var(--color-border)] p-3">
-              <div className="grid grid-cols-[1fr_5.5rem_6rem] gap-2 text-xs text-[var(--color-text-dim)] mb-1">
-                <span>Food</span>
-                <span>Amount</span>
-                <span>Value ($)</span>
-              </div>
-              {HP_FOOD_CATEGORIES.map((c) => (
-                <div key={c.key} className="grid grid-cols-[1fr_5.5rem_6rem] gap-2 items-center py-1">
-                  <span className="text-sm">{c.label}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    placeholder={c.unit}
-                    value={food[c.key]?.qty ?? ""}
-                    onChange={(e) => setFood((f) => ({ ...f, [c.key]: { qty: e.target.value, value: f[c.key]?.value ?? "" } }))}
-                    className="rounded border border-[var(--color-border)] bg-white px-2 py-1.5 text-sm w-full"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    placeholder="0.00"
-                    value={food[c.key]?.value ?? ""}
-                    onChange={(e) => setFood((f) => ({ ...f, [c.key]: { qty: f[c.key]?.qty ?? "", value: e.target.value } }))}
-                    className="rounded border border-[var(--color-border)] bg-white px-2 py-1.5 text-sm w-full"
-                  />
-                </div>
-              ))}
-              <div className="mt-2 pt-2 border-t border-[var(--color-border)] text-sm font-medium flex justify-between">
-                <span>Total</span>
-                <span>
-                  {foodSum.lbs.toLocaleString()} lbs · {money(foodSum.value)}
-                </span>
-              </div>
-            </div>
-          )}
+          {withFood && <FoodFields value={food} onChange={setFood} prices={prices} />}
 
           <div>
             <label className={labelClass}>{withFood ? "Notes" : "What was given"}</label>

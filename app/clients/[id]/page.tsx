@@ -13,6 +13,7 @@ import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
 import IntakeInfoEditor from "./IntakeInfoEditor";
 import RefugeeServicesSection from "./RefugeeServicesSection";
+import HungerPreventionFoodSection from "./HungerPreventionFoodSection";
 import { irfasDisplayStatus } from "@/lib/irfas";
 
 // The two household data sources store gender differently: legacy
@@ -176,7 +177,13 @@ export default async function ClientProfilePage({
     ? (householdClients ?? []).length + 1
     : (members ?? []).length + 1;
 
-  const foodLog = (serviceLog ?? []).filter((e) => e.program_slug === "hunger-prevention");
+  const { data: hpFood } = await supabase
+    .from("hp_food_distributions")
+    .select("id, distributed_on, individuals_served, food, total_lbs, total_value, source, notes")
+    .eq("client_id", id)
+    .order("distributed_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
   const drsLog = (serviceLog ?? []).filter((e) => e.program_slug === "drs");
 
   function calcAge(dob: string) {
@@ -396,46 +403,13 @@ export default async function ClientProfilePage({
           </div>
         </ProgramSection>
 
-        <ProgramSection
-          title="Food Distribution"
-          hasHistory={foodLog.length > 0}
-          summary={
-            foodLog.length > 0
-              ? `${foodLog.length} logged · last on ${new Date(foodLog[0].created_at).toLocaleDateString()}`
-              : undefined
-          }
-          emptyText="No food distributions logged yet."
-          action={
-            <LogServiceButton
-              clientId={id}
-              programSlug="hunger-prevention"
-              buttonLabel="Distribute Food"
-              modalTitle="Distribute Food"
-            />
-          }
-        >
-          <div className="space-y-2">
-            {foodLog.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
-              >
-                <span>{entry.notes ?? "Logged"}</span>
-                <span className="flex items-center gap-3 shrink-0 ml-3">
-                  <span className="text-[var(--color-text-dim)]">
-                    {new Date(entry.created_at).toLocaleDateString()}
-                  </span>
-                  <PushToSalesforceButton
-                    recordId={entry.id}
-                    table="service"
-                    alreadySynced={entry.salesforce_synced}
-                    salesforceCaseId={entry.salesforce_case_id}
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
-        </ProgramSection>
+        <HungerPreventionFoodSection
+          clientId={id}
+          officeId={clientRecord.office_id}
+          householdSize={householdSize}
+          currentEmployeeId={me?.id ?? null}
+          rows={(hpFood ?? []).map((r) => ({ ...r, total_lbs: Number(r.total_lbs), total_value: Number(r.total_value) }))}
+        />
 
         <ProgramSection
           title="DRS"
