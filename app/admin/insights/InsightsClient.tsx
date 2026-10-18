@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+// Map + topology only load when the Regional profiles tab is opened
+const RegionalProfiles = dynamic(() => import("./RegionalProfiles"), { ssr: false });
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type Office = { id: string; name: string; region: string; state: string };
@@ -232,6 +235,7 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
   const [region, setRegion] = useState<string>(lockedRegion ?? "");
   const [office, setOffice] = useState<string>("");
   const [program, setProgram] = useState<string>("");
+  const [tab, setTab] = useState<"overview" | "profiles">("overview");
   const [metric, setMetric] = useState<string>("people_served");
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
@@ -373,11 +377,29 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold" style={{ color: C.ink }}>Insights</h1>
-        <p className="text-xs mt-1" style={{ color: C.ink2 }}>
-          Every program's reported impact in one place — click a tile to chart it, click a bar to filter to that region, office or program.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: C.ink }}>Insights</h1>
+          <p className="text-xs mt-1" style={{ color: C.ink2 }}>
+            {tab === "overview"
+              ? "Every program's reported impact in one place — click a tile to chart it, click a bar to filter to that region, office or program."
+              : "Regional profiles — pick a region, then a state, to see its services, people served, funds raised, volunteers and goal."}
+          </p>
+        </div>
+        <div className="flex rounded-full p-1" style={{ background: "#EDEBE5" }} role="tablist">
+          {(["overview", "profiles"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className="text-xs font-semibold rounded-full px-4 py-1.5"
+              style={tab === t ? { background: "#fff", color: C.ink, boxShadow: "0 1px 3px rgba(22,48,43,0.12)" } : { color: C.ink2 }}
+            >
+              {t === "overview" ? "Overview" : "Regional profiles"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* One filter row for every chart below */}
@@ -401,7 +423,7 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
             <input type="date" value={to} min={from} onChange={(e) => e.target.value && setRange([from, e.target.value])} style={sel} aria-label="To" />
           </div>
         )}
-        <div className="flex flex-wrap gap-2 md:ml-auto">
+        {tab === "overview" && <div className="flex flex-wrap gap-2 md:ml-auto">
           <select value={region} onChange={(e) => pickRegion(e.target.value)} disabled={!!lockedRegion} style={sel} aria-label="Region">
             {!lockedRegion && <option value="">All regions</option>}
             {regions.map((r) => (
@@ -433,8 +455,13 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
               Clear
             </button>
           ) : null}
-        </div>
+        </div>}
       </div>
+
+      {tab === "profiles" ? (
+        <RegionalProfiles from={from} to={to} offices={offices} lockedRegion={lockedRegion} />
+      ) : (
+      <>
 
       {error && (
         <div style={{ ...card, color: "#9B3B4F" }} className="text-sm">
@@ -634,6 +661,8 @@ export default function InsightsClient({ offices, lockedRegion }: { offices: Off
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
