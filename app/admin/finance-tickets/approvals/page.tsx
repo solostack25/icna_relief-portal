@@ -9,7 +9,7 @@ export default async function FinanceApprovalCoveragePage() {
   return (
     <div>
       <p className="text-sm mb-6" style={{ color: "rgba(22,48,43,0.55)" }}>
-        When an approver is out, route their finance approvals to someone else for a set period. Who each ticket is waiting on is shown in the Ticket Queue.
+        When an approver is out, route their finance approvals to someone else for a set period. Who each ticket is waiting on is shown on the Dashboard and in All Tickets.
       </p>
       <FinanceApprovalsClient />
     </div>

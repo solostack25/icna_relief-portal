@@ -72,9 +72,9 @@ function daysSince(iso: string | null) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
 
-export default function FinanceTicketQueueClient({ currentEmployeeId }: { currentEmployeeId: string | null }) {
+export default function FinanceTicketQueueClient({ currentEmployeeId, initialView }: { currentEmployeeId: string | null; initialView?: string }) {
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
-  const [view, setView] = useState<(typeof VIEWS)[number]["key"]>("active");
+  const [view, setView] = useState<(typeof VIEWS)[number]["key"]>(VIEWS.some((x) => x.key === initialView) ? (initialView as (typeof VIEWS)[number]["key"]) : "active");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState<string | null>(null);

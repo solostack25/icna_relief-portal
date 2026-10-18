@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 // the ticket queue (with who each ticket is waiting on), out-of-office
 // approval coverage, and the PEX card registry.
 const TABS = [
-  { href: "/admin/finance-tickets", label: "Ticket Queue" },
+  { href: "/admin/finance-tickets", label: "Dashboard" },
+  { href: "/admin/finance-tickets/queue", label: "All Tickets" },
   { href: "/admin/finance-tickets/approvals", label: "Approval Coverage" },
   { href: "/admin/finance-tickets/pex-cards", label: "PEX Cards" },
 ];

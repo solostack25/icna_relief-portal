@@ -1,17 +1,13 @@
 import { redirect } from "next/navigation";
 import { getFinanceAdminAccess } from "@/lib/financeAdminAccess";
-import FinanceTicketQueueClient from "./FinanceTicketQueueClient";
+import FinanceDashboardClient from "./FinanceDashboardClient";
 
-export default async function FinanceTicketQueuePage() {
+export const dynamic = "force-dynamic";
+
+// Finance team dashboard: approvals waiting on you, the pipeline from
+// submitted → approved → paid, where tickets are stuck, and spend trends.
+export default async function FinanceDashboardPage() {
   const access = await getFinanceAdminAccess();
   if (!access.ok) redirect("/select-app");
-
-  return (
-    <div>
-      <p className="text-sm mb-6" style={{ color: "rgba(22,48,43,0.55)" }}>
-        Every ticket from every requestor, with who it&apos;s waiting on. Pick one up to process it and mark it processed once it&apos;s paid.
-      </p>
-      <FinanceTicketQueueClient currentEmployeeId={access.employeeId} />
-    </div>
-  );
+  return <FinanceDashboardClient />;
 }

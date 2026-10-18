@@ -370,3 +370,28 @@ export async function resubmitFinanceTicket(ticketId: string) {
   await sendStepEmail(step, ticket);
   return { outcome: "resubmitted" as const };
 }
+
+// Re-send the approval email for a ticket's current pending step (the
+// Finance dashboard's "Remind" button) and note it on the ticket log.
+export async function remindCurrentApprover(ticketId: string, byEmployeeId: string | null) {
+  const admin = createAdminClient();
+  const { data: step } = await admin
+    .from("finance_approvals")
+    .select("approver_email, approver_name, chain_person_name, acting_as_delegate_for_email, approval_token")
+    .eq("finance_ticket_id", ticketId)
+    .eq("is_current_step", true)
+    .eq("approval_status", "pending")
+    .maybeSingle();
+  if (!step) return { ok: false as const, error: "This ticket isn't waiting on an approver." };
+  const { data: ticket } = await admin.from("finance_tickets").select("ticket_number, title, total").eq("id", ticketId).single();
+  if (!ticket) return { ok: false as const, error: "Ticket not found." };
+  await sendStepEmail(step, ticket);
+  await admin.from("finance_ticket_log").insert({
+    finance_ticket_id: ticketId,
+    comment: `Reminder sent to ${step.approver_name}.`,
+    comment_type: "status_change",
+    notify_user: false,
+    created_by: byEmployeeId,
+  });
+  return { ok: true as const, to: step.approver_name as string };
+}
