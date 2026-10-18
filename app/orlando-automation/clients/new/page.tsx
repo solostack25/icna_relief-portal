@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/orlandoAutomation/audit";
 import { ORLANDO_OFFICE_ID as OFFICE_ID, ORLANDO_STATE as DEFAULT_STATE } from "@/lib/orlandoAutomation/config";
+import IntakeReview, { withSharedAddress } from "@/components/intake/IntakeReview";
 
 // Same household intake as the main portal (/intake/new-household): every
 // household member gets their own full client record and Client ID, all
@@ -80,6 +81,7 @@ export default function NewHouseholdIntakePage() {
   const [sameAddress, setSameAddress] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   function updateMember(i: number, field: keyof Member, value: string | boolean) {
     setMembers((m) => m.map((mem, idx) => (idx === i ? { ...mem, [field]: value } : mem)));
@@ -143,6 +145,28 @@ export default function NewHouseholdIntakePage() {
       return;
     }
 
+    // No duplicate — show the review screen; nothing is saved yet.
+    setSaving(false);
+    setReviewing(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function backToEdit(memberIndex: number | null) {
+    setReviewing(false);
+    setError(null);
+    setTimeout(() => {
+      const el = memberIndex === null ? null : document.getElementById(`intake-member-${memberIndex}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      else window.scrollTo({ top: 0 });
+    }, 50);
+  }
+
+  // Saved only after Confirm on the review screen.
+  async function confirmAndSave() {
+    setError(null);
+    setSaving(true);
+    const main = members[0];
+
     // The main client's address carries to members that share it.
     const payload = members.map((m, i) => {
       const addr =
@@ -199,11 +223,23 @@ export default function NewHouseholdIntakePage() {
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {reviewing && (
+          <IntakeReview
+            members={withSharedAddress(members, sameAddress)}
+            extras={[{ label: "Dietary preference", value: dietaryPreference }]}
+            saving={saving}
+            error={error}
+            onEdit={backToEdit}
+            onConfirm={confirmAndSave}
+          />
+        )}
+
+        <form onSubmit={handleSubmit} className={reviewing ? "hidden" : "space-y-6"}>
           {members.map((member, i) => (
             <section
               key={i}
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
+              id={`intake-member-${i}`}
+              className="scroll-mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">
@@ -411,7 +447,7 @@ export default function NewHouseholdIntakePage() {
             disabled={saving}
             className="w-full rounded-lg bg-[var(--color-accent-solid)] text-white font-medium py-3 text-sm disabled:opacity-50"
           >
-            {saving ? "Registering household..." : `Register Household (${members.length} member${members.length > 1 ? "s" : ""})`}
+            {saving ? "Checking for existing clients..." : `Review Household (${members.length} member${members.length > 1 ? "s" : ""}) →`}
           </button>
         </form>
       </div>

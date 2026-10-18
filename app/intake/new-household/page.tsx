@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SuccessScreen from "@/app/components/SuccessScreen";
 import { getClientIntakeKindMessage } from "@/lib/kindMessages";
+import IntakeReview, { withSharedAddress } from "@/components/intake/IntakeReview";
 
 type Member = {
   first_name: string;
@@ -70,6 +71,7 @@ export default function NewHouseholdIntakePage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [newClientRedirectId, setNewClientRedirectId] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   function updateMember(i: number, field: keyof Member, value: string | boolean) {
     setMembers((m) => m.map((mem, idx) => (idx === i ? { ...mem, [field]: value } : mem)));
@@ -93,7 +95,8 @@ export default function NewHouseholdIntakePage() {
     setMembers((m) => m.filter((_, idx) => idx !== i));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Step 1: the form only checks required fields, then shows the review.
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -103,9 +106,26 @@ export default function NewHouseholdIntakePage() {
       return;
     }
 
+    setReviewing(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function backToEdit(memberIndex: number | null) {
+    setReviewing(false);
+    setError(null);
+    setTimeout(() => {
+      const el = memberIndex === null ? null : document.getElementById(`intake-member-${memberIndex}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      else window.scrollTo({ top: 0 });
+    }, 50);
+  }
+
+  // Step 2: saved only after Confirm on the review screen.
+  async function confirmAndSave() {
+    setError(null);
     setSaving(true);
 
-    const payload = members.map((m) => ({
+    const payload = withSharedAddress(members, sameAddress).map((m) => ({
       ...m,
       household_vehicle_count: m.household_vehicle_count || null,
     }));
@@ -155,11 +175,22 @@ export default function NewHouseholdIntakePage() {
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {reviewing && (
+          <IntakeReview
+            members={withSharedAddress(members, sameAddress)}
+            saving={saving}
+            error={error}
+            onEdit={backToEdit}
+            onConfirm={confirmAndSave}
+          />
+        )}
+
+        <form onSubmit={handleSubmit} className={reviewing ? "hidden" : "space-y-6"}>
           {members.map((member, i) => (
             <section
               key={i}
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
+              id={`intake-member-${i}`}
+              className="scroll-mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">
@@ -368,7 +399,7 @@ export default function NewHouseholdIntakePage() {
             disabled={saving}
             className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-3 text-sm disabled:opacity-50"
           >
-            {saving ? "Registering household..." : `Register Household (${members.length} member${members.length > 1 ? "s" : ""})`}
+            Review Household ({members.length} member{members.length > 1 ? "s" : ""}) →
           </button>
         </form>
       </div>
