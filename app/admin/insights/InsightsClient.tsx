@@ -230,13 +230,25 @@ function HBar({ rows, unit, onPick, height }: { rows: { label: string; value: nu
   );
 }
 
-export default function InsightsClient({ offices, lockedRegion, lockedOffice = null }: { offices: Office[]; lockedRegion: string | null; lockedOffice?: string | null }) {
+export default function InsightsClient({
+  offices,
+  lockedRegion,
+  lockedOffice = null,
+  initialTab = "overview",
+  initialRegion = null,
+}: {
+  offices: Office[];
+  lockedRegion: string | null;
+  lockedOffice?: string | null;
+  initialTab?: "overview" | "profiles";
+  initialRegion?: string | null;
+}) {
   const [preset, setPreset] = useState<Preset>("ytd");
   const [[from, to], setRange] = useState<[string, string]>(() => presetRange("ytd"));
   const [region, setRegion] = useState<string>(lockedRegion ?? "");
   const [office, setOffice] = useState<string>(lockedOffice ?? "");
   const [program, setProgram] = useState<string>("");
-  const [tab, setTab] = useState<"overview" | "profiles">("overview");
+  const [tab, setTab] = useState<"overview" | "profiles">(initialTab);
   const [metric, setMetric] = useState<string>("people_served");
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
@@ -388,6 +400,10 @@ export default function InsightsClient({ offices, lockedRegion, lockedOffice = n
               : "Regional profiles — pick a region, then a state, to see its services, people served, funds raised, volunteers and goal."}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <a href="/admin/insights/reports" className="text-xs font-semibold rounded-full px-4 py-2" style={{ background: "#22427A", color: "#fff" }}>
+          All reports →
+        </a>
         <div className="flex rounded-full p-1" style={{ background: "#EDEBE5" }} role="tablist">
           {(["overview", "profiles"] as const).map((t) => (
             <button
@@ -401,6 +417,7 @@ export default function InsightsClient({ offices, lockedRegion, lockedOffice = n
               {t === "overview" ? "Overview" : "Regional profiles"}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -461,7 +478,7 @@ export default function InsightsClient({ offices, lockedRegion, lockedOffice = n
       </div>
 
       {tab === "profiles" ? (
-        <RegionalProfiles from={from} to={to} offices={offices} lockedRegion={lockedRegion} />
+        <RegionalProfiles from={from} to={to} offices={offices} lockedRegion={lockedRegion} initialRegion={initialRegion} />
       ) : (
       <>
 

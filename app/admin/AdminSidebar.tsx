@@ -167,6 +167,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         { href: "/admin/reports", label: t("sidebar.nav.reports"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/workflows", label: t("sidebar.nav.workflows"), icon: "dashboard" },
         (access.canReview || access.hasOfficeInfo) && { href: "/admin/insights", label: t("sidebar.nav.insights"), icon: "dashboard" },
+        (access.canReview || access.hasOfficeInfo) && { href: "/admin/insights/reports", label: t("sidebar.nav.dashboards"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/goals", label: t("sidebar.nav.goals"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
         access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
@@ -298,7 +299,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           </div>
           <div className="space-y-0.5">
             {section.items.map((item) => {
-              const active = pathname === item.href || (item.href.split("/").length > 2 && pathname.startsWith(item.href + "/"));
+              const active = pathname === item.href || (item.href.split("/").length > 2 && pathname.startsWith(item.href + "/") && !(item.href === "/admin/insights" && pathname.startsWith("/admin/insights/reports")));
               return (
                 <Link
                   key={item.href}

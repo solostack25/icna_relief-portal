@@ -65,11 +65,11 @@ function addFact(a: Agg, f: Fact) {
 
 type Level = "national" | "region" | "state" | "office";
 
-export default function RegionalProfiles({ from, to, offices, lockedRegion }: { from: string; to: string; offices: Office[]; lockedRegion: string | null }) {
+export default function RegionalProfiles({ from, to, offices, lockedRegion, initialRegion = null }: { from: string; to: string; offices: Office[]; lockedRegion: string | null; initialRegion?: string | null }) {
   const [data, setData] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [region, setRegion] = useState<string | null>(lockedRegion);
+  const [region, setRegion] = useState<string | null>(lockedRegion ?? initialRegion);
   const [state, setState] = useState<string | null>(null);
   const [office, setOffice] = useState<string | null>(null);
   const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null);

@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 // place, filterable by date, region, office and program, with drill-down
 // and CSV download. Regional directors see their region; area managers see
 // only their own office (and the goals & budget set for it).
-export default async function InsightsPage() {
+export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ tab?: string; region?: string }> }) {
+  const sp = await searchParams;
   const access = await getInsightsAccess();
   if (!access.ok) redirect(access.status === 401 ? "/" : "/admin");
 
@@ -19,5 +20,13 @@ export default async function InsightsPage() {
     .filter((o) => (!access.lockedRegion || o.region === access.lockedRegion) && (!access.lockedOffice || o.id === access.lockedOffice))
     .map((o) => ({ id: o.id as string, name: (o.field_office as string) ?? "—", region: (o.region as string) ?? "UNASSIGNED", state: (o.state as string) ?? "" }));
 
-  return <InsightsClient offices={list} lockedRegion={access.lockedRegion} lockedOffice={access.lockedOffice} />;
+  return (
+    <InsightsClient
+      offices={list}
+      lockedRegion={access.lockedRegion}
+      lockedOffice={access.lockedOffice}
+      initialTab={sp.tab === "profiles" ? "profiles" : "overview"}
+      initialRegion={!access.lockedRegion && sp.region ? sp.region : null}
+    />
+  );
 }
