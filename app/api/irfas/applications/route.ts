@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { submitZakatApplication } from "@/lib/zakatApproval";
+import { IRFAS_PROGRAMS } from "@/lib/irfas";
 
 async function requireEmployee() {
   const supabase = await createClient();
@@ -22,7 +23,7 @@ export async function GET() {
   // sees everything.
   const { data, error } = await auth.supabase
     .from("zakat_applications")
-    .select("id, application_number, applicant_name, category, amount_requested, amount_approved, status, submitted_at, decided_at, client_id")
+    .select("id, application_number, applicant_name, category, program, amount_requested, amount_approved, status, submitted_at, decided_at, client_id, voided_at")
     .order("submitted_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -41,6 +42,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Applicant name, category, and amount requested are required" }, { status: 400 });
   }
 
+  if (!(IRFAS_PROGRAMS as readonly string[]).includes(body.program)) {
+    return NextResponse.json({ error: "Choose the program this assistance counts toward" }, { status: 400 });
+  }
+  const recommendedByName = typeof body.recommended_by_name === "string" ? body.recommended_by_name.trim().slice(0, 120) : "";
+  let recommendedById: string | null = null;
+  if (body.recommended_by_employee_id) {
+    const { data: rec } = await auth.supabase
+      .from("employees")
+      .select("id")
+      .eq("id", body.recommended_by_employee_id)
+      .maybeSingle();
+    if (!rec) return NextResponse.json({ error: "Recommended-by staff member not found" }, { status: 400 });
+    recommendedById = rec.id;
+  }
+  if (!recommendedById && !recommendedByName) {
+    return NextResponse.json({ error: "Who recommended this application?" }, { status: 400 });
+  }
+
   const { data: application, error } = await auth.supabase
     .from("zakat_applications")
     .insert({
@@ -52,6 +71,9 @@ export async function POST(req: Request) {
       applicant_address: body.applicant_address ?? null,
       household_size: body.household_size ?? null,
       category: body.category.trim(),
+      program: body.program,
+      recommended_by_employee_id: recommendedById,
+      recommended_by_name: recommendedById ? null : recommendedByName,
       amount_requested: body.amount_requested,
       reason: body.reason ?? null,
       payee_name: body.payee_name ?? null,

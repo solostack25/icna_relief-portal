@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { IRFAS_PROGRAMS, programFromCategory } from "@/lib/irfas";
 
 const SUGGESTED_CATEGORIES = ["Rent Assistance", "Utility Assistance", "Medical Assistance", "Food Assistance", "Emergency Assistance", "Other"];
 
@@ -11,16 +12,26 @@ export default function ApplyForZakatButton({
   applicantPhone,
   applicantAddress,
   householdSize,
+  defaultProgram,
+  staff,
+  currentEmployeeId,
 }: {
   clientId: string;
   applicantName: string;
   applicantPhone: string | null;
   applicantAddress: string | null;
   householdSize: number | null;
+  defaultProgram: string | null;
+  staff: { id: string; name: string }[];
+  currentEmployeeId: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("");
+  const [program, setProgram] = useState(defaultProgram ?? "");
+  const [programTouched, setProgramTouched] = useState(false);
+  const [recommendedBy, setRecommendedBy] = useState(currentEmployeeId ?? "");
+  const [recommendedByName, setRecommendedByName] = useState("");
   const [amountRequested, setAmountRequested] = useState("");
   const [reason, setReason] = useState("");
   const [showPayee, setShowPayee] = useState(false);
@@ -41,6 +52,10 @@ export default function ApplyForZakatButton({
   function closeModal() {
     setOpen(false);
     setCategory("");
+    setProgram(defaultProgram ?? "");
+    setProgramTouched(false);
+    setRecommendedBy(currentEmployeeId ?? "");
+    setRecommendedByName("");
     setAmountRequested("");
     setReason("");
     setShowPayee(false);
@@ -65,6 +80,9 @@ export default function ApplyForZakatButton({
           applicant_address: applicantAddress,
           household_size: householdSize,
           category: category.trim(),
+          program,
+          recommended_by_employee_id: recommendedBy && recommendedBy !== "other" ? recommendedBy : null,
+          recommended_by_name: recommendedBy === "other" ? recommendedByName.trim() || null : null,
           amount_requested: Number(amountRequested),
           reason: reason.trim() || null,
           payee_name: showPayee ? payeeName.trim() || null : null,
@@ -143,7 +161,13 @@ export default function ApplyForZakatButton({
                   id="zakat-category"
                   list="zakat-categories"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => {
+                    setCategory(e.target.value);
+                    if (!programTouched && !defaultProgram) {
+                      const guess = programFromCategory(e.target.value);
+                      if (guess) setProgram(guess);
+                    }
+                  }}
                   required
                   className="w-full rounded-lg border border-[var(--color-border)] px-3.5 py-2.5 text-sm focus:outline-none mb-3"
                 />
@@ -152,6 +176,55 @@ export default function ApplyForZakatButton({
                     <option key={c} value={c} />
                   ))}
                 </datalist>
+
+                <label htmlFor="zakat-program" className="block text-xs text-[var(--color-text-dim)] mb-1">
+                  Program this assistance counts toward
+                </label>
+                <select
+                  id="zakat-program"
+                  value={program}
+                  onChange={(e) => {
+                    setProgram(e.target.value);
+                    setProgramTouched(true);
+                  }}
+                  required
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-white px-3.5 py-2.5 text-sm focus:outline-none mb-3"
+                >
+                  <option value="">Select…</option>
+                  {IRFAS_PROGRAMS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+
+                <label htmlFor="zakat-recommended" className="block text-xs text-[var(--color-text-dim)] mb-1">
+                  Recommended by
+                </label>
+                <select
+                  id="zakat-recommended"
+                  value={recommendedBy}
+                  onChange={(e) => setRecommendedBy(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-white px-3.5 py-2.5 text-sm focus:outline-none mb-2"
+                >
+                  <option value="">Select…</option>
+                  {staff.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.id === currentEmployeeId ? " (me)" : ""}
+                    </option>
+                  ))}
+                  <option value="other">Someone outside the portal…</option>
+                </select>
+                {recommendedBy === "other" && (
+                  <input
+                    value={recommendedByName}
+                    onChange={(e) => setRecommendedByName(e.target.value)}
+                    placeholder="Name and role (e.g. Imam, partner agency)"
+                    required
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3.5 py-2.5 text-sm focus:outline-none mb-3"
+                  />
+                )}
+                <div className="mb-3" />
 
                 <label htmlFor="zakat-amount" className="block text-xs text-[var(--color-text-dim)] mb-1">
                   Amount Requested
@@ -221,7 +294,7 @@ export default function ApplyForZakatButton({
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting || !category.trim() || !amountRequested}
+                    disabled={submitting || !category.trim() || !amountRequested || !program || !recommendedBy || (recommendedBy === "other" && !recommendedByName.trim())}
                     className="flex-1 rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium px-4 py-2 disabled:opacity-60"
                   >
                     {submitting ? "Submitting…" : "Submit for Approval"}

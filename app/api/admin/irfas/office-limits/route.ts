@@ -19,7 +19,7 @@ export async function GET() {
   const [{ data: offices }, { data: limits }, { data: applications }] = await Promise.all([
     auth.supabase.from("b2s_offices").select("id, field_office, region").eq("is_active", true).order("field_office"),
     auth.supabase.from("zakat_office_limits").select("office_id, limit_amount"),
-    auth.supabase.from("zakat_applications").select("office_id, amount_requested, amount_approved").in("status", ["approved", "paid"]),
+    auth.supabase.from("zakat_applications").select("office_id, amount_requested, amount_approved").in("status", ["approved", "paid"]).is("voided_at", null),
   ]);
 
   const limitByOffice = new Map((limits ?? []).map((l) => [l.office_id, Number(l.limit_amount)]));

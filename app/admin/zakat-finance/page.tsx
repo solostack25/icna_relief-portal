@@ -18,8 +18,16 @@ export default async function ZakatFinancePage() {
         Approved Applications
       </h1>
       <p className="text-sm mb-8" style={{ color: "rgba(22,48,43,0.55)" }}>
-        Fully-approved IRFAS applications ready for a check. Marking one paid records the check number and closes it out.
+        Fully-approved IRFAS applications ready for a check. Set the program and whether it's paid from community funds or a grant, then record the check number. Voided checks stay on record but drop out of totals and office limits.
       </p>
+      <div className="mb-6">
+        <a
+          href={`/api/admin/zakat-finance-applications/export?year=${new Date().getFullYear()}`}
+          className="inline-block rounded-full border border-[#1F6F54]/40 text-[#1F6F54] text-xs font-semibold px-4 py-2"
+        >
+          Export IRFAS {new Date().getFullYear()} (Power BI)
+        </a>
+      </div>
       <ZakatFinanceClient />
     </div>
   );

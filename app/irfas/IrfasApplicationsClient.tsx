@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { irfasDisplayStatus } from "@/lib/irfas";
 
 type Application = {
   id: string;
   application_number: string;
   applicant_name: string;
   category: string;
+  program: string | null;
+  voided_at: string | null;
   amount_requested: number;
   amount_approved: number | null;
   status: string;
@@ -20,6 +23,7 @@ const statusColor: Record<string, string> = {
   approved: "#1F6F54",
   rejected: "#B5566B",
   paid: "#16302B",
+  void: "#7A9186",
 };
 
 export default function IrfasApplicationsClient({ isAdmin }: { isAdmin: boolean }) {
@@ -89,11 +93,11 @@ export default function IrfasApplicationsClient({ isAdmin }: { isAdmin: boolean 
             <div style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 3px 12px rgba(22,48,43,0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{a.applicant_name}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: statusColor[a.status] ?? "#666" }}>{a.status.toUpperCase()}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: statusColor[irfasDisplayStatus(a)] ?? "#666" }}>{irfasDisplayStatus(a).toUpperCase()}</div>
               </div>
               <div style={{ fontSize: 12, color: "rgba(22,48,43,0.4)", fontFamily: "monospace" }}>{a.application_number}</div>
               <div style={{ fontSize: 13, color: "rgba(22,48,43,0.6)", marginTop: 4 }}>
-                {a.category} · ${a.amount_requested.toLocaleString()}
+                {a.category}{a.program ? ` · ${a.program}` : ""} · ${a.amount_requested.toLocaleString()}
                 {a.amount_approved != null ? ` (approved: $${a.amount_approved.toLocaleString()})` : ""}
               </div>
               <div style={{ fontSize: 12, color: "rgba(22,48,43,0.4)", marginTop: 4 }}>

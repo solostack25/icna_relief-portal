@@ -89,7 +89,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     supabase.from("zakat_office_limits").select("limit_amount").eq("office_id", officeId).maybeSingle(),
 
     // 8. IRFAS (zakat) given so far - approved or paid applications for this office
-    supabase.from("zakat_applications").select("amount_requested, amount_approved").eq("office_id", officeId).in("status", ["approved", "paid"]),
+    supabase.from("zakat_applications").select("amount_requested, amount_approved").eq("office_id", officeId).in("status", ["approved", "paid"]).is("voided_at", null),
   ]);
 
   // Volunteer signup counts per event (via slots)

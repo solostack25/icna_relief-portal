@@ -15,7 +15,8 @@ const SOUTHERN_CA = new Set(["Los Angeles Office", "San Diego Office"]);
 // Reproduces the Master Cleaner's Refugee Services "COMBINED DATA" sheet
 // (same column names and CATEGORY values) for the MAIN (case management
 // services) and BULK rows, straight from the portal — no Salesforce export,
-// no cleaning. CASH / INKIND / IRFAS rows still come from their own sources.
+// no cleaning. IRFAS rows come from approved zakat applications tagged to
+// Refugee Services. CASH / INKIND rows still come from their own sources.
 // Rows are scoped by the caller's RLS (office staff → own office).
 export async function GET(request: NextRequest) {
   const access = await getRefugeeServicesAccess();
@@ -43,11 +44,22 @@ export async function GET(request: NextRequest) {
     bulkQ = bulkQ.eq("office_id", officeFilter);
   }
 
-  const [{ data: services, error }, { data: bulk }, { data: offices }, { data: regions }] = await Promise.all([
+  let irfasQ = supabase
+    .from("zakat_applications")
+    .select("office_id, amount_approved, amount_requested, decided_at")
+    .eq("program", RSCE_PROGRAM)
+    .in("status", ["approved", "paid"])
+    .is("voided_at", null)
+    .gte("decided_at", `${year}-01-01`)
+    .lt("decided_at", `${year + 1}-01-01`);
+  if (officeFilter) irfasQ = irfasQ.eq("office_id", officeFilter);
+
+  const [{ data: services, error }, { data: bulk }, { data: offices }, { data: regions }, { data: irfas }] = await Promise.all([
     servicesQ,
     bulkQ,
     supabase.from("b2s_offices").select("id, region, state, chapter, field_office"),
     supabase.from("b2s_regions").select("region, rsn"),
+    irfasQ,
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -118,6 +130,23 @@ export async function GET(request: NextRequest) {
       "Client Ethnicity": "Not Provided",
       CASH: null,
       INKIND: null,
+      "TOTAL REV": 0,
+    });
+  }
+
+  for (const z of irfas ?? []) {
+    rows.push({
+      CATEGORY: "IRFAS",
+      ...dateCols(new Date(z.decided_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" })),
+      ...geoCols(z.office_id, false),
+      "Bulk Distribution Event: Bulk Distribution Name": null,
+      "Total Value of Services Provided": Number(z.amount_approved ?? z.amount_requested ?? 0),
+      "Number of Beneficiaries": null,
+      "Service Name  ↑": "IRFAS-Financial Assistance",
+      "Client Country of Origin": "Not Provided",
+      "Client Ethnicity": "Not Provided",
+      CASH: 0,
+      INKIND: 0,
       "TOTAL REV": 0,
     });
   }

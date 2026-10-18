@@ -13,6 +13,7 @@ import ProgramSection from "./ProgramSection";
 import CallTextButtons from "../../components/CallTextButtons";
 import IntakeInfoEditor from "./IntakeInfoEditor";
 import RefugeeServicesSection from "./RefugeeServicesSection";
+import { irfasDisplayStatus } from "@/lib/irfas";
 
 // The two household data sources store gender differently: legacy
 // household_members uses lowercase "male"/"female" (or null), the new
@@ -123,13 +124,13 @@ export default async function ClientProfilePage({
 
   const { data: zakatApplications } = await supabase
     .from("zakat_applications")
-    .select("id, application_number, category, amount_requested, amount_approved, status, submitted_at")
+    .select("id, application_number, category, amount_requested, amount_approved, status, submitted_at, program, voided_at")
     .eq("client_id", id)
     .order("submitted_at", { ascending: false });
 
   // ---------- Refugee Services (case + structured service log) ----------
   const [{ data: me }, { data: rsceCases }, { data: rsceServices }, { data: rsceTypes }] = await Promise.all([
-    supabase.from("employees").select("id").eq("auth_user_id", user.id).maybeSingle(),
+    supabase.from("employees").select("id, first_name, last_name").eq("auth_user_id", user.id).maybeSingle(),
     supabase
       .from("rsce_cases")
       .select("id, status, opened_on, closed_on, closed_reason, arrival_date, referral_source, notes, case_manager_id")
@@ -169,7 +170,7 @@ export default async function ClientProfilePage({
       : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
   ]);
   const staffById = new Map(
-    [...(officeStaff ?? []), ...(rsceEmployees ?? [])].map((e) => [e.id, `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim()])
+    [...(officeStaff ?? []), ...(rsceEmployees ?? []), ...(me ? [me] : [])].map((e) => [e.id, `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim()])
   );
   const householdSize = clientRecord.household_key
     ? (householdClients ?? []).length + 1
@@ -515,6 +516,17 @@ export default async function ClientProfilePage({
           emptyText="No zakat/financial assistance applications yet."
           action={
             <ApplyForZakatButton
+              defaultProgram={
+                rsceCase?.status === "open"
+                  ? "Refugee Services & Community Empowerment"
+                  : hasActiveStay
+                    ? "Transitional Housing"
+                    : null
+              }
+              staff={[...staffById.entries()]
+                .map(([sid, name]) => ({ id: sid, name }))
+                .sort((a, b) => a.name.localeCompare(b.name))}
+              currentEmployeeId={me?.id ?? null}
               clientId={id}
               applicantName={`${clientRecord.first_name} ${clientRecord.last_name}`}
               applicantPhone={clientRecord.phone}
@@ -534,7 +546,7 @@ export default async function ClientProfilePage({
                 className="flex items-center justify-between text-sm border-b border-[var(--color-border)] pb-2 last:border-0"
               >
                 <span>
-                  {a.category} · ${Number(a.amount_requested).toLocaleString()}
+                  {a.category}{a.program ? ` (${a.program})` : ""} · ${Number(a.amount_requested).toLocaleString()}
                   {a.amount_approved != null ? ` (approved: $${Number(a.amount_approved).toLocaleString()})` : ""}
                   <span className="text-[var(--color-text-dim)]"> · {a.application_number}</span>
                 </span>
@@ -543,15 +555,16 @@ export default async function ClientProfilePage({
                   <span
                     className="text-xs font-semibold uppercase"
                     style={{
-                      color:
-                        a.status === "approved" || a.status === "paid"
+                      color: a.voided_at
+                        ? "#7A9186"
+                        : a.status === "approved" || a.status === "paid"
                           ? "var(--color-accent)"
                           : a.status === "rejected"
                             ? "#B5566B"
                             : "var(--color-accent-orange)",
                     }}
                   >
-                    {a.status}
+                    {irfasDisplayStatus(a)}
                   </span>
                 </span>
               </div>
