@@ -209,6 +209,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
         access.isAdmin && { href: "/admin/rates", label: t("sidebar.nav.ratesValues"), icon: "finance" },
+        access.isAdmin && { href: "/admin/data-quality", label: t("sidebar.nav.dataQuality"), icon: "officeInfo" },
         access.isAdmin && { href: "/admin/geography", label: t("sidebar.nav.geography"), icon: "officeInfo" },
         access.canReview && { href: "/admin/review", label: t("sidebar.nav.reviewSubmissions"), icon: "review" },
       ].filter(Boolean) as NavItem[],
