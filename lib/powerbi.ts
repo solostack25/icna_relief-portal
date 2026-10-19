@@ -1,7 +1,7 @@
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 
 // Read-only Power BI client for the temporary Power BI check
-// (app/admin/powerbi-compare). Signs in as an Entra app registration
+// (Reports → Power BI, app/admin/powerbi). Signs in as an Entra app registration
 // (client credentials) and runs DAX against semantic models through the
 // Execute Queries REST API.
 //
@@ -116,4 +116,16 @@ export function firstNumber(rows: QueryRow[]): number | null {
     if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
   }
   return null;
+}
+
+// When the model last finished refreshing (null if it has no refresh
+// history, e.g. only ever published from Desktop).
+export async function lastRefresh(cfg: PowerBiConfig, datasetId: string): Promise<string | null> {
+  try {
+    const body = await pbiFetch(cfg, `/datasets/${encodeURIComponent(datasetId)}/refreshes?$top=1`);
+    const r = body.value?.[0];
+    return r?.endTime ?? r?.startTime ?? null;
+  } catch {
+    return null;
+  }
 }

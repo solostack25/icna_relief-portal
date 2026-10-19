@@ -110,7 +110,7 @@ export default async function AdminConnectorsPage() {
       <ConnectorSection
         id="powerbi"
         title="Power BI (temporary)"
-        description="Read-only connection used by Reports → Power BI check to compare portal numbers with Power BI until Power BI is retired. Needs an Entra app registration in a security group that's allowed in the Power BI tenant settings (service principals can use APIs; Dataset Execute Queries REST API) and added to the workspace as Contributor. The workspace ID is in the workspace URL: app.powerbi.com/groups/{workspace-id}/…"
+        description="Read-only connection used by Reports → Power BI to show the Power BI versions of the reports and compare them with the portal until Power BI is retired. Needs an Entra app registration in a security group that's allowed in the Power BI tenant settings (service principals can use APIs; Dataset Execute Queries REST API) and added to the workspace as Contributor. The workspace ID is in the workspace URL: app.powerbi.com/groups/{workspace-id}/…"
       >
         <ConnectorKeyField settingKey="powerbi_tenant_id" label="Directory (tenant) ID" envFallbackKey="PBI_TENANT_ID" />
         <ConnectorKeyField settingKey="powerbi_client_id" label="Application (client) ID" envFallbackKey="PBI_CLIENT_ID" />

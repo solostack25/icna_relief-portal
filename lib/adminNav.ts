@@ -25,9 +25,9 @@ export const HUBS = {
         (a.canReview || a.hasOfficeInfo) && { href: "/admin/insights/reports", labelKey: "reportsHub.tab.standard" },
         { href: "/admin/reports", labelKey: "reportsHub.tab.custom" },
         // Temporary, until Power BI is retired.
-        a.isAdmin && { href: "/admin/powerbi-compare", labelKey: "reportsHub.tab.powerbi" },
+        a.isAdmin && { href: "/admin/powerbi", labelKey: "reportsHub.tab.powerbi" },
       ]),
-    prefixes: ["/admin/exec-dashboard", "/admin/insights", "/admin/reports", "/admin/powerbi-compare"],
+    prefixes: ["/admin/exec-dashboard", "/admin/insights", "/admin/reports", "/admin/powerbi"],
   },
   revenue: {
     tabs: (a) =>

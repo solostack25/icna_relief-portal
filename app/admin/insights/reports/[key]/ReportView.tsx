@@ -316,7 +316,23 @@ function ChartBlock({ ch, file }: { ch: Chart; file: string }) {
   );
 }
 
-export default function ReportView({ reportKey, offices, lockedRegion, lockedOffice }: { reportKey: string; offices: Office[]; lockedRegion: string | null; lockedOffice: string | null }) {
+// `source` picks where the numbers come from: the portal's own data, or the
+// Power BI model (temporary mirror under Reports → Power BI). Same layout.
+export default function ReportView({
+  reportKey,
+  offices,
+  lockedRegion,
+  lockedOffice,
+  source = "portal",
+}: {
+  reportKey: string;
+  offices: Office[];
+  lockedRegion: string | null;
+  lockedOffice: string | null;
+  source?: "portal" | "powerbi";
+}) {
+  const api = source === "powerbi" ? "/api/admin/powerbi/reports" : "/api/admin/insights/reports";
+  const backHref = source === "powerbi" ? "/admin/powerbi" : "/admin/insights/reports";
   const def = REPORT.get(reportKey)!;
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
@@ -341,7 +357,7 @@ export default function ReportView({ reportKey, offices, lockedRegion, lockedOff
     if (state) qs.set("state", state);
     if (office) qs.set("office", office);
     if (program) qs.set("program", program);
-    fetch(`/api/admin/insights/reports/${reportKey}?${qs}`, { signal: ctrl.signal })
+    fetch(`${api}/${reportKey}?${qs}`, { signal: ctrl.signal })
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Couldn't load the report");
@@ -351,7 +367,7 @@ export default function ReportView({ reportKey, offices, lockedRegion, lockedOff
       .catch((e) => e.name !== "AbortError" && setError(e.message))
       .finally(() => !ctrl.signal.aborted && setLoading(false));
     return () => ctrl.abort();
-  }, [reportKey, year, month, region, state, office, program]);
+  }, [api, reportKey, year, month, region, state, office, program]);
   useEffect(() => {
     if (!data) return;
     const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
@@ -368,10 +384,10 @@ export default function ReportView({ reportKey, offices, lockedRegion, lockedOff
         <div>
           <h1 className="text-xl font-bold uppercase tracking-wide" style={{ color: C.ink }}>{def.title}</h1>
           <p className="text-xs mt-1" style={{ color: C.ink2 }}>
-            {scopeLabel} · {month ? `${MONTHS[Number(month) - 1]} ` : ""}{year} · live data as of {data?.asOf ?? "…"}
+            {scopeLabel} · {month ? `${MONTHS[Number(month) - 1]} ` : ""}{year} · {source === "powerbi" ? "Power BI data as of" : "live data as of"} {data?.asOf ?? "…"}
           </p>
         </div>
-        <Link href="/admin/insights/reports" className="text-xs font-semibold rounded-full px-3 py-1.5" style={{ border: "1.5px solid rgba(22,48,43,0.12)", color: C.ink2 }}>
+        <Link href={backHref} className="text-xs font-semibold rounded-full px-3 py-1.5" style={{ border: "1.5px solid rgba(22,48,43,0.12)", color: C.ink2 }}>
           ← All reports
         </Link>
       </div>

@@ -159,10 +159,17 @@ export default function PowerBiCompareClient({ reports }: { reports: { key: stri
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-1">
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: 0 }}>Power BI check</h1>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: 0 }}>Compare with portal</h1>
         <span className="text-[11px] font-semibold rounded-full px-2.5 py-0.5" style={{ background: "#FBF0DC", color: "#A57420" }}>
           Temporary
         </span>
+        <Link
+          href="/admin/powerbi"
+          className="ml-auto text-xs font-semibold rounded-full px-3 py-1.5"
+          style={{ border: "1.5px solid rgba(22,48,43,0.12)", color: "rgba(22,48,43,0.7)" }}
+        >
+          ← Power BI reports
+        </Link>
       </div>
       <p className="text-sm mb-5" style={{ color: "rgba(22,48,43,0.55)" }}>
         Each portal number next to the same number in Power BI, so we can see where the portal is still short. Read-only — nothing is changed in Power BI.
