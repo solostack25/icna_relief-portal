@@ -108,6 +108,17 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        id="powerbi"
+        title="Power BI (temporary)"
+        description="Read-only connection used by Reports → Power BI check to compare portal numbers with Power BI until Power BI is retired. Needs an Entra app registration in a security group that's allowed in the Power BI tenant settings (service principals can use APIs; Dataset Execute Queries REST API) and added to the workspace as Contributor. The workspace ID is in the workspace URL: app.powerbi.com/groups/{workspace-id}/…"
+      >
+        <ConnectorKeyField settingKey="powerbi_tenant_id" label="Directory (tenant) ID" envFallbackKey="PBI_TENANT_ID" />
+        <ConnectorKeyField settingKey="powerbi_client_id" label="Application (client) ID" envFallbackKey="PBI_CLIENT_ID" />
+        <ConnectorKeyField settingKey="powerbi_client_secret" label="Client secret" envFallbackKey="PBI_CLIENT_SECRET" />
+        <ConnectorKeyField settingKey="powerbi_workspace_id" label="Workspace ID" envFallbackKey="PBI_WORKSPACE_ID" />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Brand Assets"
         description="A hosted URL for the ICNA Relief logo, used when the Portal Assistant creates a flier from scratch (no template) — it's placed on the flier automatically, never invented or approximated. Upload the logo anywhere with a stable public URL (e.g. WordPress media library, or the Content Library/Dropbox) and paste that URL here. Without this set, AI-generated fliers are created without a logo and staff are told to add one manually before publishing."
       >
@@ -228,17 +239,20 @@ export default async function AdminConnectorsPage() {
 }
 
 function ConnectorSection({
+  id,
   title,
   description,
   children,
 }: {
+  id?: string;
   title: string;
   description: string;
   children: React.ReactNode;
 }) {
   return (
     <div
-      className="mb-6"
+      id={id}
+      className="mb-6 scroll-mt-6"
       style={{ background: "#fff", borderRadius: 24, boxShadow: "0 3px 12px rgba(22,48,43,0.06)", padding: "24px 26px" }}
     >
       <h2 className="text-base font-bold mb-1.5" style={{ color: "#2F4A3E" }}>

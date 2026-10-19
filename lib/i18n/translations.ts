@@ -27,6 +27,7 @@ type Dict = Record<string, string>;
 // ------------------------------------------------------------------
 
 const en: Dict = {
+  "reportsHub.tab.powerbi": "Power BI check",
   "sidebar.section.requests": "Requests",
   "sidebar.nav.marketing": "Marketing",
   "sidebar.nav.fliers": "Fliers",
@@ -258,6 +259,7 @@ const en: Dict = {
 };
 
 const es: Dict = {
+  "reportsHub.tab.powerbi": "Comparación con Power BI",
   "sidebar.section.requests": "Solicitudes",
   "sidebar.nav.marketing": "Marketing",
   "sidebar.nav.fliers": "Volantes",
@@ -487,6 +489,7 @@ const es: Dict = {
 };
 
 const fa: Dict = {
+  "reportsHub.tab.powerbi": "مقایسه با Power BI",
   "sidebar.section.requests": "درخواست‌ها",
   "sidebar.nav.marketing": "بازاریابی",
   "sidebar.nav.fliers": "اطلاعیه‌ها",
@@ -716,6 +719,7 @@ const fa: Dict = {
 };
 
 const ar: Dict = {
+  "reportsHub.tab.powerbi": "مقارنة Power BI",
   "sidebar.section.requests": "الطلبات",
   "sidebar.nav.marketing": "التسويق",
   "sidebar.nav.fliers": "المنشورات",
@@ -945,6 +949,7 @@ const ar: Dict = {
 };
 
 const ps: Dict = {
+  "reportsHub.tab.powerbi": "د Power BI پرتله",
   "sidebar.section.requests": "غوښتنې",
   "sidebar.nav.marketing": "بازارموندنه",
   "sidebar.nav.fliers": "اعلانونه",
