@@ -13,7 +13,7 @@ export default async function ZakatFinancePage() {
   if (!me || (me.role !== "admin" && !me.is_zakat_finance)) redirect("/select-app");
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl">
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
         Approved Applications
       </h1>

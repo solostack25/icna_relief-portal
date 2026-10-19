@@ -13,7 +13,7 @@ export default async function IrfasOfficeLimitsPage() {
   if (me?.role !== "admin") redirect("/irfas");
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-2xl">
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28, margin: "0 0 8px" }}>
         IRFAS Office Limits
       </h1>

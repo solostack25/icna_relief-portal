@@ -145,7 +145,7 @@ export default function SelectAppView({
 
         {/* ---------- QUICK ACTIONS ---------- */}
         <SectionHead title={t("selectApp.quickActions.title")} note={t("selectApp.quickActions.note")} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-10">
           {showClientIntake && (
             <QuickCard
               href="/clients"
@@ -171,19 +171,6 @@ export default function SelectAppView({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 19V6a2 2 0 012-2h9l5 5v10a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
                 <path d="M8 10h6M8 14h8" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/calendar"
-            title="Calendar"
-            desc="This week's meetings, pulled from your Outlook/Teams calendar"
-            tint="#EAF3EF"
-            iconColor="var(--portal-emerald)"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M3 10h18M8 2v4M16 2v4" />
               </svg>
             }
           />
@@ -434,6 +421,8 @@ function SectionHead({ title, note }: { title: string; note: string }) {
   );
 }
 
+// Compact launcher tile: icon + name. The longer description is kept as
+// a hover tooltip and for screen readers, so the grid reads at a glance.
 function QuickCard({
   href,
   title,
@@ -452,24 +441,20 @@ function QuickCard({
   return (
     <Link
       href={href}
-      className="relative block rounded-2xl bg-white p-6 transition-all hover:-translate-y-0.5"
-      style={{
-        border: "1px solid var(--portal-line)",
-        boxShadow: "0 1px 2px rgba(22,48,43,0.04), 0 8px 24px -8px rgba(22,48,43,0.10)",
-      }}
+      title={desc}
+      aria-description={desc}
+      className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-3 transition-all hover:-translate-y-0.5"
+      style={{ border: "1px solid var(--portal-line)", boxShadow: "0 1px 2px rgba(22,48,43,0.04)" }}
     >
-      <div
-        className="w-[42px] h-[42px] rounded-xl flex items-center justify-center mb-4"
+      <span
+        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
         style={{ background: tint, color: iconColor }}
       >
-        <span style={{ width: 21, height: 21, display: "block" }}>{icon}</span>
-      </div>
-      <h3 className="text-[15.5px] font-bold m-0 mb-1" style={{ letterSpacing: "-0.01em" }}>
+        <span style={{ width: 18, height: 18, display: "block" }}>{icon}</span>
+      </span>
+      <span className="text-sm font-semibold leading-tight" style={{ letterSpacing: "-0.01em" }}>
         {title}
-      </h3>
-      <p className="text-xs m-0 leading-relaxed" style={{ color: "rgba(22,48,43,0.55)" }}>
-        {desc}
-      </p>
+      </span>
     </Link>
   );
 }

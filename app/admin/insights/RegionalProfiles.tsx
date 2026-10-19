@@ -361,7 +361,7 @@ export default function RegionalProfiles({ from, to, offices, lockedRegion, init
             <div style={card} className="lg:col-span-2">
               <h3 className="text-sm font-bold" style={{ color: C.ink }}>Goals &amp; budget{year ? ` · ${year}` : ""}</h3>
               <p className="text-[11px] mb-3" style={{ color: C.ink3 }}>
-                {scopeName} · set by upper management{data!.canEdit ? " — edit here or on Admin → Goals & Budgets" : ""}
+                {scopeName} · set by upper management{data!.canEdit ? " — edit here or under Settings → Goals & Budgets" : ""}
               </p>
               <GoalsPanel
                 year={year}

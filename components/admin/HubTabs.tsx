@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminAccess } from "@/lib/adminAccess";
-import { reportsHubTabs } from "@/lib/adminNav";
+import { HUBS, type HubKey } from "@/lib/adminNav";
 import SectionTabs from "./SectionTabs";
 
-// Server wrapper: works out which Reports tabs this person can see
-// (same flags the sidebar uses) and renders the tab bar.
-export default async function ReportsHubTabs() {
+// Server wrapper: works out which of a hub's tabs this person can see
+// (same access flags the sidebar uses) and renders the tab bar.
+export default async function HubTabs({ hub }: { hub: HubKey }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -18,5 +18,5 @@ export default async function ReportsHubTabs() {
     .single();
   if (!me) return null;
   const access = await getAdminAccess(supabase, me.id, me.role, me.assigned_office_id);
-  return <SectionTabs tabs={reportsHubTabs(access)} ariaLabel="Reports" />;
+  return <SectionTabs tabs={HUBS[hub].tabs(access)} ariaLabel={hub} />;
 }

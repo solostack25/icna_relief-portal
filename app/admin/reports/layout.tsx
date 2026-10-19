@@ -1,11 +1,10 @@
-import ReportsHubTabs from "@/components/admin/ReportsHubTabs";
+import HubTabs from "@/components/admin/HubTabs";
 
-// Part of the Reports hub (Overview / Programs / Standard reports /
-// Custom reports) - see lib/adminNav.ts.
-export default function ReportsHubLayout({ children }: { children: React.ReactNode }) {
+// One of the "reports" hub's tabs - see lib/adminNav.ts.
+export default function HubLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <ReportsHubTabs />
+      <HubTabs hub="reports" />
       {children}
     </>
   );

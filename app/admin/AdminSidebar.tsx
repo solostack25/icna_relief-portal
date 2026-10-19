@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AdminAccess } from "@/lib/adminAccess";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
-import { reportsHubTabs, REPORTS_HUB_PREFIXES, REVENUE_PREFIXES } from "@/lib/adminNav";
+import { HUBS, MARKETING_PREFIXES, MARKETING_TABS, type HubKey } from "@/lib/adminNav";
 
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
@@ -161,30 +161,30 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const pathname = usePathname();
   const { t } = useLanguage();
 
-  // Reports opens on the first tab this person can see.
-  const reportsHref = reportsHubTabs(access)[0].href;
+  // A hub item opens on the first tab this person can see, and stays
+  // highlighted on every page in the hub (see lib/adminNav.ts).
+  const hub = (key: HubKey, label: string, icon: keyof typeof ICONS): NavItem | false => {
+    const first = HUBS[key].tabs(access)[0];
+    return first ? { href: first.href, label, icon, match: HUBS[key].prefixes } : false;
+  };
 
+  // Day-to-day work up top, set-once setup at the bottom. Pages that used
+  // to be separate sidebar items now live as tabs inside one item.
   const sections: NavSection[] = [
     {
       title: t("sidebar.section.overview"),
       items: [
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
-        { href: reportsHref, label: t("sidebar.nav.reports"), icon: "dashboard", match: REPORTS_HUB_PREFIXES },
-        access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard", match: REVENUE_PREFIXES },
+        hub("reports", t("sidebar.nav.reports"), "dashboard"),
+        hub("revenue", t("sidebar.nav.revenue"), "finance"),
         access.isAdmin && { href: "/admin/workflows", label: t("sidebar.nav.workflows"), icon: "dashboard" },
-        { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "dashboard" },
+        { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "finance" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: t("sidebar.section.helpDesk"),
+      title: t("sidebar.section.requests"),
       items: [
-        access.canManageTickets && { href: "/admin/helpdesk/manage", label: t("sidebar.nav.manageTickets"), icon: "tickets" },
-        access.isAdmin && { href: "/admin/helpdesk", label: t("sidebar.nav.helpDeskWorkload"), icon: "workload" },
-      ].filter(Boolean) as NavItem[],
-    },
-    {
-      title: t("sidebar.section.finance"),
-      items: [
+        hub("helpDesk", t("sidebar.section.helpDesk"), "tickets"),
         // Finance staff get the one Finance Tickets area (queue, approval
         // coverage, PEX cards as tabs); everyone else gets their own tickets.
         access.canManageFinance
@@ -192,68 +192,36 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           : { href: "/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" },
         access.canZakatFinance && { href: "/admin/zakat-finance", label: t("sidebar.nav.zakatFinance"), icon: "finance" },
         access.canManageFinance && { href: "/admin/speaker-requests", label: t("sidebar.nav.speakerRequests"), icon: "finance" },
-      ].filter(Boolean) as NavItem[],
-    },
-    {
-      title: t("sidebar.section.marketing"),
-      items: [
-        access.canManageMarketing && { href: "/marketing/contacts", label: t("sidebar.nav.contacts"), icon: "contacts" },
-        access.canManageMarketing && { href: "/marketing/segments", label: t("sidebar.nav.segments"), icon: "segments" },
-        access.canManageMarketing && { href: "/marketing/campaigns", label: t("sidebar.nav.emailCampaigns"), icon: "campaigns" },
-        access.canManageMarketing && { href: "/marketing/sms-campaigns", label: t("sidebar.nav.smsCampaigns"), icon: "sms" },
-        access.canManageMarketing && { href: "/marketing/sequences", label: t("sidebar.nav.sequences"), icon: "sequences" },
-        access.canManageMarketing && { href: "/marketing/donor-calling", label: t("sidebar.nav.donorCalling"), icon: "donorCalling" },
-        access.canManageFliers && { href: "/admin/fliers/builder", label: t("sidebar.nav.flierTemplates"), icon: "fliers" },
-        access.canManageFliers && { href: "/admin/fliers/images", label: t("sidebar.nav.contentLibrary"), icon: "library" },
-        access.isAdmin && { href: "/admin/content-folders", label: t("sidebar.nav.uploadFolders"), icon: "contentFolders" },
+        { href: "/admin/workboards", label: t("sidebar.nav.workboards"), icon: "workboards" },
       ].filter(Boolean) as NavItem[],
     },
     {
       title: t("sidebar.section.programs"),
       items: [
         access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
-        access.isAdmin && { href: "/admin/goals", label: t("sidebar.nav.goals"), icon: "finance" },
-        access.isAdmin && { href: "/admin/rates", label: t("sidebar.nav.ratesValues"), icon: "finance" },
-        access.isAdmin && { href: "/admin/data-quality", label: t("sidebar.nav.dataQuality"), icon: "officeInfo" },
-        access.isAdmin && { href: "/admin/geography", label: t("sidebar.nav.geography"), icon: "officeInfo" },
         access.canReview && { href: "/admin/review", label: t("sidebar.nav.reviewSubmissions"), icon: "review" },
-      ].filter(Boolean) as NavItem[],
-    },
-    {
-      title: t("sidebar.section.offices"),
-      items: [
         access.hasOfficeInfo && { href: "/admin/office-info", label: t("sidebar.nav.officeDashboard"), icon: "officeInfo" },
+        access.isAdmin && { href: "/admin/training", label: t("sidebar.nav.trainingCourses"), icon: "training" },
       ].filter(Boolean) as NavItem[],
     },
     {
-      title: t("sidebar.section.training"),
-      items: [access.isAdmin && { href: "/admin/training", label: t("sidebar.nav.trainingCourses"), icon: "training" }].filter(
-        Boolean
-      ) as NavItem[],
-    },
-    {
-      title: t("sidebar.section.peopleAccess"),
+      title: t("sidebar.section.marketing"),
       items: [
-        access.isAdmin && { href: "/admin/employees", label: t("sidebar.nav.employees"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/employees/new", label: t("sidebar.nav.setUpPortalAccess"), icon: "addEmployee" },
-        access.isAdmin && { href: "/admin/ad-mappings", label: t("sidebar.nav.adMappings"), icon: "mappings" },
-        access.isAdmin && { href: "/admin/ad-preview", label: t("sidebar.nav.adProvisioningPreview"), icon: "preview" },
-        access.isAdmin && { href: "/admin/entra-directory", label: t("sidebar.nav.entraDirectory"), icon: "entraDirectory" },
+        access.canManageMarketing && {
+          href: MARKETING_TABS[0].href,
+          label: t("sidebar.nav.marketing"),
+          icon: "campaigns",
+          match: MARKETING_PREFIXES,
+        },
+        hub("fliers", t("sidebar.nav.fliers"), "fliers"),
       ].filter(Boolean) as NavItem[],
     },
     {
       title: t("sidebar.section.system"),
       items: [
-        access.isAdmin && { href: "/admin/push", label: t("sidebar.nav.pushNotifications"), icon: "bell" },
-        access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" },
-        access.isAdmin && { href: "/admin/salesforce-sync", label: t("sidebar.nav.salesforceSync"), icon: "connectors" },
-      ].filter(
-        Boolean
-      ) as NavItem[],
-    },
-    {
-      title: t("sidebar.section.general"),
-      items: [{ href: "/admin/workboards", label: t("sidebar.nav.workboards"), icon: "workboards" }],
+        hub("people", t("sidebar.section.peopleAccess"), "entraDirectory"),
+        hub("settings", t("sidebar.nav.settings"), "connectors"),
+      ].filter(Boolean) as NavItem[],
     },
   ].filter((s) => s.items.length > 0);
 

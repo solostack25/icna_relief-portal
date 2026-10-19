@@ -28,7 +28,7 @@ export default async function GeographyPage() {
   const { count: zipCount } = await admin.from("geo_zip_offices").select("id", { count: "exact", head: true });
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl">
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
         Zip → Office Map
       </h1>

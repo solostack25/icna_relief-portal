@@ -27,6 +27,10 @@ type Dict = Record<string, string>;
 // ------------------------------------------------------------------
 
 const en: Dict = {
+  "sidebar.section.requests": "Requests",
+  "sidebar.nav.marketing": "Marketing",
+  "sidebar.nav.fliers": "Fliers",
+  "sidebar.nav.settings": "Settings",
   "reportsHub.tab.overview": "Overview",
   "reportsHub.tab.programs": "Programs",
   "reportsHub.tab.standard": "Standard reports",
@@ -254,6 +258,10 @@ const en: Dict = {
 };
 
 const es: Dict = {
+  "sidebar.section.requests": "Solicitudes",
+  "sidebar.nav.marketing": "Marketing",
+  "sidebar.nav.fliers": "Volantes",
+  "sidebar.nav.settings": "Configuración",
   "reportsHub.tab.overview": "Resumen",
   "reportsHub.tab.programs": "Programas",
   "reportsHub.tab.standard": "Informes estándar",
@@ -479,6 +487,10 @@ const es: Dict = {
 };
 
 const fa: Dict = {
+  "sidebar.section.requests": "درخواست‌ها",
+  "sidebar.nav.marketing": "بازاریابی",
+  "sidebar.nav.fliers": "اطلاعیه‌ها",
+  "sidebar.nav.settings": "تنظیمات",
   "reportsHub.tab.overview": "نمای کلی",
   "reportsHub.tab.programs": "برنامه‌ها",
   "reportsHub.tab.standard": "گزارش‌های استاندارد",
@@ -704,6 +716,10 @@ const fa: Dict = {
 };
 
 const ar: Dict = {
+  "sidebar.section.requests": "الطلبات",
+  "sidebar.nav.marketing": "التسويق",
+  "sidebar.nav.fliers": "المنشورات",
+  "sidebar.nav.settings": "الإعدادات",
   "reportsHub.tab.overview": "نظرة عامة",
   "reportsHub.tab.programs": "البرامج",
   "reportsHub.tab.standard": "التقارير القياسية",
@@ -929,6 +945,10 @@ const ar: Dict = {
 };
 
 const ps: Dict = {
+  "sidebar.section.requests": "غوښتنې",
+  "sidebar.nav.marketing": "بازارموندنه",
+  "sidebar.nav.fliers": "اعلانونه",
+  "sidebar.nav.settings": "تنظیمات",
   "reportsHub.tab.overview": "لنډیز",
   "reportsHub.tab.programs": "پروګرامونه",
   "reportsHub.tab.standard": "معیاري راپورونه",

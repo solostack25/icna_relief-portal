@@ -1,5 +1,7 @@
 import Link from "next/link";
 import PortalHeader from "@/app/PortalHeader";
+import SectionTabs from "@/components/admin/SectionTabs";
+import { MARKETING_TABS } from "@/lib/adminNav";
 
 // /marketing/* pages (Campaigns, Contacts, Segments, Sequences, SMS,
 // Donor Calling, Flier Builder, etc.) are linked FROM the admin
@@ -22,6 +24,11 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         >
           ← Back to Admin Portal
         </Link>
+        {/* One "Marketing" item in the admin sidebar; these tabs move
+            between its pages since the sidebar isn't shown here. */}
+        <div className="mt-4">
+          <SectionTabs tabs={MARKETING_TABS} ariaLabel="Marketing" />
+        </div>
       </div>
       {children}
     </main>

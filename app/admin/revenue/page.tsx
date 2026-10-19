@@ -166,7 +166,7 @@ export default async function RevenuePage() {
   [grantsByRegion, givingByRegion, pledgeByRegion, volunteerByRegion, squareByRegion, manualByRegion].forEach((m) => m.forEach((_, r) => allRegions.add(r)));
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl">
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
         Revenue
       </h1>

@@ -22,7 +22,7 @@ export default async function SalesforceSyncPage() {
   const officeScopedModules = REPORT_MODULES.filter((m) => m.scope.type === "direct" || m.scope.type === "chain");
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="max-w-5xl">
       <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>
         Food Bank Salesforce Sync
       </h1>

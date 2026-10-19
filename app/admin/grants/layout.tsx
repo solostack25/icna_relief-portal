@@ -1,12 +1,10 @@
-import SectionTabs from "@/components/admin/SectionTabs";
-import { REVENUE_TABS } from "@/lib/adminNav";
+import HubTabs from "@/components/admin/HubTabs";
 
-// Revenue and Grants are one area: all streams, and the grants-only
-// view of the same data.
-export default function RevenueLayout({ children }: { children: React.ReactNode }) {
+// One of the "revenue" hub's tabs - see lib/adminNav.ts.
+export default function HubLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SectionTabs tabs={REVENUE_TABS} ariaLabel="Revenue" />
+      <HubTabs hub="revenue" />
       {children}
     </>
   );
