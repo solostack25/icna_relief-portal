@@ -37,7 +37,11 @@ export type TimeShift = {
   monthOnly?: boolean;
 };
 
-export type KpiSpec = TimeShift & { label: string; unit: Unit; expr: Expr; sub?: string };
+// Any tile, table or chart can point at a different table than the report's
+// main one by giving its own map (e.g. Health Services: clinics + mobile).
+type OwnMap = { map?: ModelMap };
+
+export type KpiSpec = TimeShift & OwnMap & { label: string; unit: Unit; expr: Expr; sub?: string };
 
 export type MatrixColumnSpec = TimeShift & {
   key: string;
@@ -47,7 +51,7 @@ export type MatrixColumnSpec = TimeShift & {
   expr: Expr;
 };
 
-export type MatrixSpec = {
+export type MatrixSpec = OwnMap & {
   title: string;
   dimLabel: string; // header of the first column, e.g. "Region"
   dim: string; // DAX column to group by
@@ -64,22 +68,22 @@ export type MatrixSpec = {
 export type TableColumnSpec = TimeShift & { key: string; label: string; unit: Unit; expr: Expr };
 
 export type ChartSpec =
-  | {
+  | (OwnMap & {
       kind: "table";
       title: string;
       dims: { key: string; label: string; col: string }[];
       columns: TableColumnSpec[];
       total?: boolean;
-      orderBy?: string; // a column key, largest first; default: dims ascending
+      orderBy?: string; // a column key, largest first ("asc:key" = smallest first); default: dims ascending
       limit?: number;
       note?: string;
-    }
-  | (TimeShift & { kind: "months"; title: string; unit: Unit; expr: Expr; years?: number; cumulative?: boolean; note?: string })
+    })
+  | (TimeShift & OwnMap & { kind: "months"; title: string; unit: Unit; expr: Expr; years?: number; cumulative?: boolean; note?: string })
   // Share: either one measure split by a column (dim + expr), or a fixed
   // list of measures shown as slices (items), e.g. boys vs girls.
-  | (TimeShift & { kind: "share"; title: string; unit: Unit; dim?: string; expr?: Expr; items?: { label: string; expr: Expr }[]; limit?: number; note?: string })
+  | (TimeShift & OwnMap & { kind: "share"; title: string; unit: Unit; dim?: string; expr?: Expr; items?: { label: string; expr: Expr }[]; limit?: number; note?: string })
   // Funds raised vs value of services delivered (the portal's funnel card).
-  | (TimeShift & { kind: "value-addition"; title: string; raised: Expr; services: Expr; note?: string });
+  | (TimeShift & OwnMap & { kind: "value-addition"; title: string; raised: Expr; services: Expr; note?: string });
 
 export type PbiReportSpec = {
   dataset?: string; // model name; defaults to the configured model

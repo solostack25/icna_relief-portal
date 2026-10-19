@@ -79,17 +79,22 @@ async function q(run: Run, dax: string): Promise<QueryRow[]> {
 
 // ─── Builders ───────────────────────────────────────────────────────────────
 
+const withMap = (run: Run, map?: ModelMap): Run => (map ? { ...run, map } : run);
+
 async function buildKpis(run: Run, kpis: KpiSpec[]): Promise<Kpi[]> {
   if (!kpis.length) return [];
-  const scope = scopeFilters(run);
-  const cols = kpis.map((k, i) => `"k${i}", ${calc(k.expr, [...timeFilters(run.map, run.f, k), ...scope])}`);
+  const cols = kpis.map((k, i) => {
+    const r = withMap(run, k.map);
+    return `"k${i}", ${calc(k.expr, [...timeFilters(r.map, r.f, k), ...scopeFilters(r)])}`;
+  });
   const [row] = await q(run, `EVALUATE ROW(${cols.join(", ")})`);
   return kpis.map((k, i) => ({ label: k.label, unit: k.unit, value: num(row?.[`k${i}`]), sub: k.sub }));
 }
 
 const yearLabel = yearTokens;
 
-async function buildMatrix(run: Run, m: MatrixSpec): Promise<Matrix> {
+async function buildMatrix(baseRun: Run, m: MatrixSpec): Promise<Matrix> {
+  const run = withMap(baseRun, m.map);
   const scope = scopeFilters(run);
   const measures = m.columns.map((c, i) => `"c${i}", ${calc(c.expr, timeFilters(run.map, run.f, c))}`);
   const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
@@ -147,7 +152,8 @@ async function buildMatrix(run: Run, m: MatrixSpec): Promise<Matrix> {
   };
 }
 
-async function buildChart(run: Run, c: ChartSpec): Promise<Chart> {
+async function buildChart(baseRun: Run, c: ChartSpec): Promise<Chart> {
+  const run = withMap(baseRun, c.map);
   const scope = scopeFilters(run);
   if (c.kind === "table") {
     const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
@@ -162,8 +168,17 @@ async function buildChart(run: Run, c: ChartSpec): Promise<Chart> {
       c.columns.forEach((col, i) => (row[col.key] = num(r[`c${i}`])));
       return row;
     });
-    if (c.orderBy) out.sort((a, b) => (Number(b[c.orderBy!]) || 0) - (Number(a[c.orderBy!]) || 0));
-    else out.sort((a, b) => c.dims.map((d) => String(a[d.key]).localeCompare(String(b[d.key]))).find((x) => x !== 0) ?? 0);
+    if (c.orderBy) {
+      const asc = c.orderBy.startsWith("asc:");
+      const key = asc ? c.orderBy.slice(4) : c.orderBy;
+      const v = (r: Record<string, string | number | null>) => (r[key] == null || r[key] === "" ? null : Number(r[key]));
+      out.sort((a, b) => {
+        const x = v(a), y = v(b);
+        if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // blanks last
+        return asc ? x - y : y - x;
+      });
+    }
+    else out.sort((a, b) => c.dims.map((d) => String(a[d.key]).localeCompare(String(b[d.key]), undefined, { numeric: true })).find((x) => x !== 0) ?? 0);
     if (c.limit) out = out.slice(0, c.limit);
     if (c.total && totalRows[0]) {
       const t: Record<string, string | number | null> = {};
@@ -265,15 +280,26 @@ export async function buildPowerBiReport(key: string, f: PbiFilters): Promise<Re
         rows.map((r) => r[colName(spec.programsFrom!)]).filter((v): v is string => typeof v === "string" && v.trim() !== "").sort()
       )
     : Promise.resolve(undefined);
+  // Each section loads on its own: a section that fails (say, a year the
+  // model has no column for) shows a note instead of breaking the page.
+  const problems: string[] = [];
+  const safe = async <T,>(what: string, p: Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await p;
+    } catch (e) {
+      problems.push(`${what} couldn't load from Power BI: ${e instanceof Error ? e.message : String(e)}`);
+      return fallback;
+    }
+  };
   const [kpis, matrices, charts, refreshed, programs] = await Promise.all([
-    buildKpis(run, t(spec.kpis ?? [])),
-    Promise.all(t(spec.matrices ?? []).map((m) => buildMatrix(run, m))),
-    Promise.all(t(spec.charts ?? []).map((c) => buildChart(run, c))),
+    safe("The summary tiles", buildKpis(run, t(spec.kpis ?? [])), [] as Kpi[]),
+    Promise.all(t(spec.matrices ?? []).map((m) => safe(`"${m.title}"`, buildMatrix(run, m), null))).then((x) => x.filter((m): m is Matrix => !!m)),
+    Promise.all(t(spec.charts ?? []).map((c) => safe(`"${c.title}"`, buildChart(run, c), null))).then((x) => x.filter((c): c is Chart => !!c)),
     lastRefresh(cfg, datasetId),
-    programsQuery,
+    safe("The program list", programsQuery, undefined),
   ]);
 
-  const notes = (spec.notes ?? []).map((n) => yearTokens(n, f.year));
+  const notes = [...(spec.notes ?? []).map((n) => yearTokens(n, f.year)), ...problems];
   const ignored = (["region", "state", "office", "program"] as const).filter((k) => (k === "office" ? f.officeId : f[k]) && !run.map[k]);
   if (ignored.length) notes.push(`The Power BI model has no ${ignored.join("/")} column mapped, so that filter isn't applied here.`);
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { REPORTS } from "@/lib/reportsSuite/catalog";
 import { isMapped } from "@/lib/powerbiReports/engine";
+import { PBI_NO_PAGE } from "@/lib/powerbiReports/specs";
 import { createAdminClient } from "@/lib/supabase/server";
 import ReadModelButton from "./ReadModelButton";
 
@@ -99,7 +100,9 @@ export default async function PowerBiReportsPage() {
                       style={{ background: "rgba(22,48,43,0.04)", color: "rgba(22,48,43,0.4)", border: "1px dashed rgba(22,48,43,0.15)" }}
                     >
                       <div className="text-[13px] font-bold uppercase tracking-wide">{r.title}</div>
-                      <div className="text-[10px] mt-0.5">Not mapped yet</div>
+                      <div className="text-[10px] mt-0.5" title={PBI_NO_PAGE[r.key]}>
+                        {PBI_NO_PAGE[r.key] ? "No Power BI page to mirror" : "Not mapped yet"}
+                      </div>
                     </div>
                   )
                 )}

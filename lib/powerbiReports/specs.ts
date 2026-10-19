@@ -81,6 +81,28 @@ const VOL = "Volunteering";
 const CR_DON = sum(CR, "DONATIONS");
 const crYear = (label: string) => `CALCULATE(${CR_DON}, ${col(CR, "YEAR")} = "${label}")`;
 
+const HSC = "Health Services-Clinics";
+const HSM = "Health Services-Mobile";
+const HSV = "Health Services-Value Addition";
+const CO = "Counselling";
+const FT = "FATE";
+const CC = "Calling Campaigns";
+const RM = "Ramadan";
+const OPP = "OPP";
+const RKG = "RKG - Reporting Unit Base";
+const EX = "Expense-Total";
+const MOBILE_MAP = tableMap(HSM, { year: "Year", month: "Month Number", region: "Region", state: "State", office: "Field Office" });
+const FATE_MAP = tableMap(FT, { state: "STATES " });
+const NO_FILTERS: ModelMap = {};
+const countRows = (table: string) => `COUNTROWS('${table}')`;
+const count = (table: string, c: string) => `COUNT(${col(table, c)})`;
+
+// Reports whose Power BI page has no data to mirror.
+export const PBI_NO_PAGE: Record<string, string> = {
+  "kpis-programs": "Power BI's KPI-Programs page is text only — no data visuals to mirror.",
+  "kpis-regions": "Power BI's KPI-Regions page is text only — no data visuals to mirror.",
+};
+
 export const PBI_REPORTS: Record<string, PbiReportSpec> = {
   "national-revenue": {
     map: REV_MAP,
@@ -499,6 +521,277 @@ export const PBI_REPORTS: Record<string, PbiReportSpec> = {
         orderBy: "hours",
         total: true,
       },
+    ],
+  },
+  "health-services": {
+    map: tableMap(HSC),
+    notes: ["Clinics, mobile health fairs and the value-addition summary are separate tables in Power BI. The value-addition totals have no date or office columns, so they always show all-time figures."],
+    kpis: [
+      { label: "Clinic patients (unduplicated)", unit: "count", expr: sum(HSC, "TOTAL UNDUPLICATED PATIENTS") },
+      { label: "Medical visits", unit: "count", expr: sum(HSC, "TOTAL NUMBER OF MEDICAL VISITS") },
+      { label: "Medications dispensed", unit: "count", expr: sum(HSC, "MEDICATION DISPENSED") },
+      { label: "Clinic volunteer hours", unit: "hours", expr: sum(HSC, "TOTAL VOLUNTEER HOURS") },
+      { label: "Value of clinic services", unit: "money", expr: sum(HSC, "TOTAL VALUE OF ALL SERVICES PROVIDED") },
+      { label: "Health fairs", unit: "count", expr: distinct(HSM, "Health Fair: Health Fair Name"), map: MOBILE_MAP },
+      { label: "Health fair clients", unit: "count", expr: count(HSM, "Health Fair Client: Health Fair Client Number"), map: MOBILE_MAP },
+      { label: "Value of health fair services", unit: "money", expr: sum(HSM, "Value Of Service"), map: MOBILE_MAP },
+      { label: "Cash revenue (all time)", unit: "money", expr: sum(HSV, "CASH REVENUE"), map: NO_FILTERS },
+      { label: "In-kind donations (all time)", unit: "money", expr: sum(HSV, "INKIND DONATION"), map: NO_FILTERS },
+    ],
+    matrices: [
+      {
+        title: "Clinics",
+        dimLabel: "Clinic",
+        dim: col(HSC, "CLINIC"),
+        order: "desc",
+        total: true,
+        columns: [
+          { key: "patients", label: "Patients", unit: "count", expr: sum(HSC, "TOTAL UNDUPLICATED PATIENTS") },
+          { key: "visits", label: "Medical visits", unit: "count", expr: sum(HSC, "TOTAL NUMBER OF MEDICAL VISITS") },
+          { key: "working", label: "Working hours", unit: "hours", expr: sum(HSC, "TOTAL WORKING HOURS") },
+          { key: "volhours", label: "Volunteer hours", unit: "hours", expr: sum(HSC, "TOTAL VOLUNTEER HOURS") },
+          { key: "inkind", label: "In-kind value", unit: "money", expr: sum(HSC, "TOTAL VALUE OF INKIND DONATION") },
+          { key: "value", label: "Value of all services", unit: "money", expr: sum(HSC, "TOTAL VALUE OF ALL SERVICES PROVIDED") },
+        ],
+      },
+      { ...byRegion(HSM, "Health fairs by region", [
+        { key: "fairs", label: "Health fairs", unit: "count", expr: distinct(HSM, "Health Fair: Health Fair Name") },
+        { key: "clients", label: "Clients", unit: "count", expr: count(HSM, "Health Fair Client: Health Fair Client Number") },
+        { key: "volunteers", label: "Volunteers", unit: "count", expr: sum(HSM, "Total Volunteers") },
+        { key: "value", label: "Value of service", unit: "money", expr: sum(HSM, "Value Of Service") },
+      ], { region: "Region", office: "Field Office" }), map: MOBILE_MAP },
+    ],
+    charts: [
+      { kind: "value-addition", title: "Revenue raised vs. value of services (all time)", raised: sum(HSV, "TOTAL REVENUE RAISED"), services: sum(HSV, "VALUE OF SERVICES"), map: NO_FILTERS },
+      { kind: "months", title: "Clinic patients by month", unit: "count", expr: sum(HSC, "TOTAL UNDUPLICATED PATIENTS") },
+      { kind: "months", title: "Health fair value by month", unit: "money", expr: sum(HSM, "Value Of Service"), map: MOBILE_MAP },
+      { kind: "share", title: "Health fair clients by insurance", unit: "count", dim: col(HSM, "Have Insurance"), expr: count(HSM, "Health Fair Client: Health Fair Client Number"), map: MOBILE_MAP },
+      { kind: "share", title: "Health fair clients by ethnicity", unit: "count", dim: col(HSM, "Ethnicity"), expr: count(HSM, "Health Fair Client: Health Fair Client Number"), map: MOBILE_MAP },
+    ],
+  },
+
+  "muslim-family-services": {
+    map: tableMap(CO, { region: "Region", state: "State", office: "Field Office" }),
+    notes: ["Muslim Family Services in Power BI is two pages: Counselling and FATE."],
+    kpis: [
+      { label: "Counseling clients", unit: "count", expr: sum(CO, "Total Clients") },
+      { label: "New counseling clients", unit: "count", expr: sum(CO, "New Clients") },
+      { label: "Counseling hours", unit: "hours", expr: sum(CO, "Total Counseling Hours ") },
+      { label: "Counseling sessions", unit: "count", expr: `${sum(CO, "Individual Sessions ")} + ${sum(CO, "Group Session")} + ${sum(CO, "Family Sessions ")}` },
+      { label: "Counseling value of services", unit: "money", expr: sum(CO, "TOTAL VOS") },
+      { label: "FATE individuals served", unit: "count", expr: sum(FT, "TOTAL INDIVIDUALS SERVED"), map: FATE_MAP },
+      { label: "FATE new families", unit: "count", expr: sum(FT, "Families Served (New)"), map: FATE_MAP },
+      { label: "FATE value of services", unit: "money", expr: sum(FT, "TOTAL VALUE OF SERVICES"), map: FATE_MAP },
+      { label: "FATE donations", unit: "money", expr: sum(FT, "Total Donation"), map: FATE_MAP },
+    ],
+    matrices: [
+      byRegion(CO, "Counselling by region", [
+        { key: "clients", label: "Clients", unit: "count", expr: sum(CO, "Total Clients") },
+        { key: "new", label: "New clients", unit: "count", expr: sum(CO, "New Clients") },
+        { key: "hours", label: "Counseling hours", unit: "hours", expr: sum(CO, "Total Counseling Hours ") },
+        { key: "vos", label: "Value of services", unit: "money", expr: sum(CO, "TOTAL VOS") },
+      ], { region: "Region", office: "Field Office" }),
+      { ...byRegion(FT, "FATE by region", [
+        { key: "individuals", label: "Individuals served", unit: "count", expr: sum(FT, "TOTAL INDIVIDUALS SERVED") },
+        { key: "families", label: "New families", unit: "count", expr: sum(FT, "Families Served (New)") },
+        { key: "hours", label: "Case management hours", unit: "hours", expr: sum(FT, "Consultation/Case Management (Hours)") },
+        { key: "value", label: "Value of services", unit: "money", expr: sum(FT, "TOTAL VALUE OF SERVICES") },
+      ]), map: FATE_MAP },
+    ],
+    charts: [
+      { kind: "value-addition", title: "Counselling: revenue vs. value of services", raised: sum(CO, "Total Revenue"), services: sum(CO, "TOTAL VOS") },
+      { kind: "value-addition", title: "FATE: donations vs. value of services", raised: sum(FT, "Total Donation"), services: sum(FT, "TOTAL VALUE OF SERVICES"), map: FATE_MAP },
+      { kind: "share", title: "Counseling clients by reason", unit: "count", dim: col(CO, "Reason For counseling"), expr: sum(CO, "Total Clients"), limit: 10 },
+      { kind: "share", title: "Counseling clients by gender", unit: "count", items: [
+        { label: "Male", expr: sum(CO, "Male") },
+        { label: "Female", expr: sum(CO, "Female ") },
+      ] },
+      { kind: "months", title: "Counseling clients by month", unit: "count", expr: sum(CO, "Total Clients") },
+    ],
+  },
+
+  "calling-campaign": {
+    map: tableMap(CC),
+    kpis: [
+      { label: "Donors contacted", unit: "count", expr: count(CC, "DONOR") },
+      { label: "Donated after contact", unit: "count", expr: sum(CC, "Donated After Contact") },
+      { label: "Amount donated after contact", unit: "money", expr: sum(CC, "Amount Donated After Contact") },
+      { label: "Udhiya shares booked", unit: "count", expr: sum(CC, "Udhiya Shares Booked After Contact") },
+      { label: "Needs admin attention", unit: "count", expr: sum(CC, "Needs Admin Attention") },
+    ],
+    matrices: [
+      byRegion(CC, "Outreach by region", [
+        { key: "donors", label: "Donors", unit: "count", expr: count(CC, "DONOR") },
+        { key: "phone", label: "Phone calls", unit: "count", expr: sum(CC, "Phone Call") },
+        { key: "text", label: "Texts", unit: "count", expr: sum(CC, "Text Message") },
+        { key: "email", label: "Emails", unit: "count", expr: sum(CC, "Email") },
+        { key: "voicemail", label: "Voicemails", unit: "count", expr: sum(CC, "Voicemail") },
+        { key: "inperson", label: "In person", unit: "count", expr: sum(CC, "In Person") },
+        { key: "goal", label: "Goal", unit: "count", expr: sum(CC, "GOAL") },
+      ]),
+    ],
+    charts: [
+      { kind: "share", title: "Contacts by method", unit: "count", dim: col(CC, "Method"), expr: count(CC, "DONOR") },
+      { kind: "months", title: "Donors contacted by month", unit: "count", expr: count(CC, "DONOR") },
+      {
+        kind: "table",
+        title: "By caller",
+        dims: [{ key: "caller", label: "Caller", col: col(CC, "CALLER") }],
+        columns: [
+          { key: "donors", label: "Donors", unit: "count", expr: count(CC, "DONOR") },
+          { key: "phone", label: "Calls", unit: "count", expr: sum(CC, "Phone Call") },
+          { key: "text", label: "Texts", unit: "count", expr: sum(CC, "Text Message") },
+          { key: "email", label: "Emails", unit: "count", expr: sum(CC, "Email") },
+          { key: "donated", label: "Donated after", unit: "count", expr: sum(CC, "Donated After Contact") },
+          { key: "amount", label: "Amount", unit: "money", expr: sum(CC, "Amount Donated After Contact") },
+        ],
+        orderBy: "donors",
+        total: true,
+      },
+    ],
+  },
+
+  ramadan: {
+    map: NO_FILTERS,
+    notes: ["Power BI's Ramadan table has one column per year (by day of Ramadan), so only years it has columns for (2020–2026) show numbers, and goals only for 2025–2026. Region and office filters don't apply."],
+    kpis: [
+      { label: "{year} raised", unit: "money", expr: sum(RM, "{year}") },
+      { label: "{year} goal", unit: "money", expr: sum(RM, "{year} GOAL") },
+      { label: "{year} variance", unit: "money", expr: sum(RM, "{year} VARIANCE") },
+      { label: "{year-1} raised", unit: "money", expr: sum(RM, "{year-1}") },
+      { label: "{year-2} raised", unit: "money", expr: sum(RM, "{year-2}") },
+    ],
+    charts: [
+      {
+        kind: "table",
+        title: "By day of Ramadan",
+        dims: [{ key: "day", label: "Day", col: col(RM, "DAY") }],
+        columns: [
+          { key: "y2", label: "{year-2}", unit: "money", expr: sum(RM, "{year-2}") },
+          { key: "y1", label: "{year-1}", unit: "money", expr: sum(RM, "{year-1}") },
+          { key: "y0", label: "{year}", unit: "money", expr: sum(RM, "{year}") },
+          { key: "goal", label: "{year} goal", unit: "money", expr: sum(RM, "{year} GOAL") },
+          { key: "variance", label: "{year} variance", unit: "money", expr: sum(RM, "{year} VARIANCE") },
+          { key: "cum", label: "{year} cumulative", unit: "money", expr: sum(RM, "{year} COMMULATIVE") },
+        ],
+        total: true,
+      },
+    ],
+  },
+
+  outreach: {
+    map: { office: col(OPP, "Office") },
+    notes: ["Power BI's OUTREACH page is a market-opportunity view (Muslim population and charitable giving by zip code, Jul–Dec). It has no dates, so the year and month filters don't apply."],
+    kpis: [
+      { label: "Muslim population", unit: "count", expr: sum(OPP, "Total Muslim Population") },
+      { label: "Muslim households", unit: "count", expr: sum(OPP, "Number of Muslim Households") },
+      { label: "Mosques", unit: "count", expr: countRows("MOSQUES"), map: NO_FILTERS },
+      { label: "Charitable pool (Jul–Dec)", unit: "money", expr: sum(OPP, "TOTAL CHARITABLE POOL JUL-DEC") },
+      { label: "Collected Jul–Dec 2024", unit: "money", expr: sum(OPP, "ACTUAL DONATIONS ICNA RELIEF COLLECTED IN JUL-DEC 2024") },
+      { label: "1% market share (Jul–Dec)", unit: "money", expr: sum(OPP, "1% OF MARKET SHARE IN Q3&4") },
+      { label: "2.5% market share (Jul–Dec)", unit: "money", expr: sum(OPP, "2.5% OF MARKET SHARE IN Q3&4") },
+      { label: "5% market share (Jul–Dec)", unit: "money", expr: sum(OPP, "5% OF MARKET SHARE IN Q3&4") },
+    ],
+    charts: [
+      { kind: "share", title: "Muslim population by group", unit: "count", items: [
+        { label: "South Asian", expr: sum(OPP, "Muslim - South Asian") },
+        { label: "Arab", expr: sum(OPP, "Muslim - Arab") },
+        { label: "Black", expr: sum(OPP, "Muslim - Black") },
+        { label: "White", expr: sum(OPP, "Muslim - White") },
+        { label: "Iranic", expr: sum(OPP, "Muslim - Iranic") },
+        { label: "Turkic", expr: sum(OPP, "Muslim - Turkic") },
+        { label: "Southeast Asian", expr: sum(OPP, "Muslim - Southeast Asian") },
+        { label: "East Asian", expr: sum(OPP, "Muslim - East Asian") },
+        { label: "Hispanic or Latino", expr: sum(OPP, "Muslim - Hispanic or Latino") },
+        { label: "Other", expr: sum(OPP, "Muslim - Other") },
+      ] },
+      {
+        kind: "table",
+        title: "Top zip codes by Muslim population",
+        dims: [
+          { key: "zip", label: "Zip code", col: col(OPP, "ZIPCODE") },
+          { key: "office", label: "Office", col: col(OPP, "Office") },
+        ],
+        columns: [
+          { key: "pop", label: "Muslim population", unit: "count", expr: sum(OPP, "Total Muslim Population") },
+          { key: "avg", label: "ICNA Relief avg (Jul–Dec)", unit: "money", expr: sum(OPP, "ICNA RELIEF AVERAGE JUL-DEC") },
+          { key: "loss", label: "Potential loss (Jul–Dec)", unit: "money", expr: sum(OPP, "Potential Revenue Loss Jul-Dec") },
+        ],
+        orderBy: "pop",
+        limit: 25,
+      },
+    ],
+  },
+
+  "office-rankings": {
+    map: { year: "'RKG - Period'[YEAR]", month: "'RKG - Period'[MSN]", region: col(RKG, "REGION"), state: col(RKG, "STATE"), office: col(RKG, "FIELD OFFICE") },
+    notes: ["Scores are year-to-date through the month picked (or the latest month with data). Rank is among the offices shown, as in Power BI."],
+    kpis: [
+      { label: "Offices ranked", unit: "count", expr: `COUNTROWS(FILTER(VALUES(${col(RKG, "FIELD OFFICE")}), NOT ISBLANK([RKG Total Score])))` },
+      { label: "Top score", unit: "count", expr: `MAXX(VALUES(${col(RKG, "FIELD OFFICE")}), [RKG Total Score])` },
+      { label: "Average score", unit: "count", expr: `AVERAGEX(VALUES(${col(RKG, "FIELD OFFICE")}), [RKG Total Score])` },
+    ],
+    charts: [
+      {
+        kind: "table",
+        title: "Office rankings",
+        dims: [
+          { key: "office", label: "Field office", col: col(RKG, "FIELD OFFICE") },
+          { key: "region", label: "Region", col: col(RKG, "REGION") },
+        ],
+        columns: [
+          { key: "rank", label: "Rank", unit: "count", expr: "[RKG Rank]" },
+          { key: "total", label: "Total score", unit: "count", expr: "[RKG Total Score]" },
+          { key: "revexp", label: "Revenue / expense (35)", unit: "count", expr: "[RKG REV EXP Score]" },
+          { key: "fte", label: "Revenue per FTE (15)", unit: "count", expr: "[RKG Revenue per FTE Score]" },
+          { key: "clients", label: "Clients served (20)", unit: "count", expr: "[RKG Clients Served Score]" },
+          { key: "vos", label: "Value of services (15)", unit: "count", expr: "[RKG VOS Score]" },
+          { key: "va", label: "Value addition (15)", unit: "count", expr: "[RKG Value Addition Score]" },
+        ],
+        orderBy: "asc:rank",
+      },
+    ],
+  },
+
+  expenditure: {
+    map: tableMap(EX, { month: "MTN" }),
+    notes: ["From Power BI's EXPENDITURE page (Expense-Total). This table is hidden from Power BI's Public role; the portal reads it as the signed-in admin."],
+    kpis: [
+      { label: "Revenue", unit: "money", expr: sum(EX, "REVENUE") },
+      { label: "Total expenditure", unit: "money", expr: sum(EX, "TOTAL EXPENDITURE") },
+      { label: "Revenue − expenditure", unit: "money", expr: sum(EX, "REVNUE-EXPENDITURE") },
+      { label: "Personnel", unit: "money", expr: sum(EX, "TOTAL 6500 -PERSONNEL") },
+      { label: "Operational cost", unit: "money", expr: sum(EX, "TOTAL 8000 - OPERATIONAL COST") },
+    ],
+    matrices: [
+      byRegion(EX, "Revenue and expenditure by region", [
+        { key: "rev", label: "Revenue", unit: "money", expr: sum(EX, "REVENUE") },
+        { key: "exp", label: "Expenditure", unit: "money", expr: sum(EX, "TOTAL EXPENDITURE") },
+        { key: "net", label: "Revenue − expenditure", unit: "money", expr: sum(EX, "REVNUE-EXPENDITURE") },
+      ]),
+      byRegion(EX, "Expenditure by category", [
+        { key: "salaries", label: "Salaries & wages", unit: "money", expr: sum(EX, "6501-SALARIES & WAGES") },
+        { key: "payroll", label: "Payroll", unit: "money", expr: sum(EX, "66000 - PAYROLL EXPENSES") },
+        { key: "fringe", label: "Fringe benefits", unit: "money", expr: sum(EX, "TOTAL 6502-FRINGE BENEFITS") },
+        { key: "contract", label: "Contractual", unit: "money", expr: sum(EX, "TOTAL 6503 - CONTRACTUAL SERVICES") },
+        { key: "travel", label: "Travel", unit: "money", expr: sum(EX, "TOTAL 6505 - TRAVELLING") },
+        { key: "occupancy", label: "Occupancy", unit: "money", expr: sum(EX, "TOTAL 6510 -OCCUPANCY") },
+        { key: "ops", label: "Operational", unit: "money", expr: sum(EX, "TOTAL 8000 - OPERATIONAL COST") },
+        { key: "outreach", label: "Community outreach", unit: "money", expr: sum(EX, "TOTAL 9000 - COMMUNITY OUTREACH") },
+        { key: "central", label: "Central share", unit: "money", expr: sum(EX, "TOTAL CENTRAL DEPARTMENTS SHARE") },
+      ]),
+    ],
+    charts: [
+      { kind: "share", title: "Expenditure by category", unit: "money", items: [
+        { label: "Personnel", expr: sum(EX, "TOTAL 6500 -PERSONNEL") },
+        { label: "Travel", expr: sum(EX, "TOTAL 6505 - TRAVELLING") },
+        { label: "Occupancy", expr: sum(EX, "TOTAL 6510 -OCCUPANCY") },
+        { label: "Operational", expr: sum(EX, "TOTAL 8000 - OPERATIONAL COST") },
+        { label: "Community outreach", expr: sum(EX, "TOTAL 9000 - COMMUNITY OUTREACH") },
+        { label: "Central share", expr: sum(EX, "TOTAL CENTRAL DEPARTMENTS SHARE") },
+      ] },
+      { kind: "months", title: "Expenditure by month", unit: "money", expr: sum(EX, "TOTAL EXPENDITURE") },
+      { kind: "months", title: "Revenue by month", unit: "money", expr: sum(EX, "REVENUE") },
     ],
   },
 };
