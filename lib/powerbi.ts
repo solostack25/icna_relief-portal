@@ -78,7 +78,8 @@ async function pbiFetch(cfg: PowerBiConfig, path: string, init?: RequestInit) {
 function explain(status: number, body: { error?: { code?: string; message?: string; "pbi.error"?: { details?: { detail?: { value?: string } }[] } } }) {
   const detail = body?.error?.["pbi.error"]?.details?.map((d) => d.detail?.value).filter(Boolean).join(" ");
   const raw = detail || body?.error?.message || body?.error?.code || "";
-  if (status === 401) return "Power BI rejected the app. Check that the tenant settings are on for the app's security group (changes can take ~15 minutes).";
+  if (status === 401)
+    return "Power BI rejected the app. For queries, turn on the \"Semantic Model Execute Queries REST API\" tenant setting (Admin portal → Tenant settings → Integration settings); changes can take ~15 minutes.";
   if (status === 403 || status === 404)
     return `The app can't reach this workspace or model. Add its security group to the workspace as Contributor.${raw ? ` (${raw})` : ""}`;
   if (status === 400) return `Query error: ${raw || "check the DAX"}`;

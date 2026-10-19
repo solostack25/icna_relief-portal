@@ -53,7 +53,17 @@ export async function POST() {
     }
   }
 
-  const { error } = await createAdminClient().from("pbi_model_snapshots").insert(rows);
-  if (error) return NextResponse.json({ error: error.message, summary }, { status: 500 });
+  // Postgres can't store the NUL character, which turns up in some report
+  // definition files; strip it. Insert one row at a time so one oversized
+  // or odd item doesn't lose the rest.
+  const clean = (v: unknown): unknown =>
+    typeof v === "string" ? v.replace(/\u0000/g, "") : Array.isArray(v) ? v.map(clean) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)])) : v;
+  const admin = createAdminClient();
+  const failed: string[] = [];
+  for (const row of rows) {
+    const { error } = await admin.from("pbi_model_snapshots").insert({ ...row, parts: clean(row.parts) });
+    if (error) failed.push(`${row.item_name} (${row.kind}): ${error.message}`);
+  }
+  if (failed.length) return NextResponse.json({ error: `Couldn't save: ${failed.join("; ")}`, summary }, { status: 500 });
   return NextResponse.json({ summary });
 }
