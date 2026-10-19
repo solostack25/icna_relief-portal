@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getFinanceAdminAccess } from "@/lib/financeAdminAccess";
 import { getFinanceTicketDetail } from "@/lib/financeTicketDetail";
+import { signedReceipts } from "@/lib/financeReceipts";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await getFinanceAdminAccess();
@@ -33,5 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("finance_ticket_id", id)
     .order("created_at", { ascending: false });
 
-  return NextResponse.json({ ticket, detail, approvals, log });
+  const receipts = await signedReceipts(id).catch(() => []);
+
+  return NextResponse.json({ ticket, detail, approvals, log, receipts });
 }

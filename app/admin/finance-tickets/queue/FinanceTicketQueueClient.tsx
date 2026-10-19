@@ -9,6 +9,7 @@ import {
   FINANCE_APPROVAL_STATUS_COLORS,
   financeApprovalStatusLabel,
 } from "@/lib/financeTicketStatus";
+import ReceiptStrip, { type ReceiptView } from "@/components/finance/ReceiptStrip";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 
 type Ticket = {
@@ -79,7 +80,7 @@ export default function FinanceTicketQueueClient({ currentEmployeeId, initialVie
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedDetail, setExpandedDetail] = useState<{ detail: unknown; approvals?: Step[] } | null>(null);
+  const [expandedDetail, setExpandedDetail] = useState<{ detail: unknown; approvals?: Step[]; receipts?: ReceiptView[] } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -223,6 +224,7 @@ export default function FinanceTicketQueueClient({ currentEmployeeId, initialVie
                   ) : (
                     expandedDetail && (
                       <div style={{ display: "grid", gap: 12 }}>
+                        <ReceiptStrip receipts={expandedDetail.receipts} />
                         <FinanceTicketDetailView category={t.category} detail={expandedDetail.detail} />
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Approval chain</div>

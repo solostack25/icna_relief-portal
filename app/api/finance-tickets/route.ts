@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { startFinanceTicketApproval } from "@/lib/financeTickets";
 import { SINGLE_RECORD_CATEGORIES } from "@/lib/financeTicketForms";
+import { attachReceipts } from "@/lib/financeReceipts";
 
 const VALID_CATEGORIES = [
   "credit_card_reimbursement",
@@ -184,6 +185,9 @@ export async function POST(req: Request) {
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Something went wrong" }, { status: 500 });
   }
+
+  // Receipt photos snapped on the form (before the ticket existed).
+  await attachReceipts(ticketId, auth.employeeId, (body as { receipt_paths?: unknown }).receipt_paths).catch(() => {});
 
   try {
     await startFinanceTicketApproval(ticketId);

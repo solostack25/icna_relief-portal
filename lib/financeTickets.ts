@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { wfNumber, wfString } from "@/lib/workflowSettings";
 import { graphGet, sendMailAs } from "@/lib/msgraph";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { financeApprovalEmail } from "@/lib/financeApprovalEmail";
 
 // Ports the uploaded PowerApps solution's MainFinanceApproval Power
 // Automate flow. The routing logic below is read directly from that
@@ -125,23 +126,38 @@ async function createApprovalStep(params: {
   return step;
 }
 
-async function sendStepEmail(step: { approver_email: string; approver_name: string; chain_person_name: string; acting_as_delegate_for_email: string | null; approval_token: string }, ticket: { ticket_number: string; title: string; total: number }) {
+async function sendStepEmail(
+  step: { finance_ticket_id: string; approval_level?: number; revision_number?: number; approver_email: string; approver_name: string; chain_person_name: string; acting_as_delegate_for_email: string | null; approval_token: string },
+  ticket: { ticket_number: string; title: string; total: number },
+  opts: { reminder?: boolean } = {}
+) {
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   const link = `${siteUrl}/finance-ticket-approvals/${step.approval_token}`;
-  const delegateNote = step.acting_as_delegate_for_email ? `\n(You're covering this approval for ${step.chain_person_name}.)\n` : "";
 
-  await sendMailAs({
-    fromMailbox: await financeMailbox(),
-    to: step.approver_email,
-    subject: `Finance Approval Needed: ${ticket.title} ($${ticket.total.toLocaleString()}) — ${ticket.ticket_number}`,
-    body:
-      `A finance ticket needs your approval.${delegateNote}\n\n` +
-      `Ticket: ${ticket.ticket_number}\n` +
-      `Title: ${ticket.title}\n` +
-      `Amount: $${ticket.total.toLocaleString()}\n\n` +
-      `Review and decide: ${link}\n\n` +
-      `This link works whether or not you've logged into the ICNA Relief Portal.`,
+  const admin = createAdminClient();
+  const { data: extra } = await admin
+    .from("finance_tickets")
+    .select("category, submitted_at, employees:requestor_id(first_name, last_name)")
+    .eq("id", step.finance_ticket_id)
+    .maybeSingle();
+  const emp = (extra as unknown as { employees?: { first_name?: string; last_name?: string } } | null)?.employees;
+  const requestorName = emp ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() || null : null;
+
+  const { subject, html } = financeApprovalEmail({
+    link,
+    ticketNumber: ticket.ticket_number,
+    title: ticket.title,
+    total: ticket.total,
+    category: (extra as { category?: string } | null)?.category ?? null,
+    requestorName,
+    submittedAt: (extra as { submitted_at?: string } | null)?.submitted_at ?? null,
+    level: step.approval_level ?? 1,
+    revision: step.revision_number ?? 1,
+    coveringFor: step.acting_as_delegate_for_email ? step.chain_person_name : null,
+    reminder: opts.reminder,
   });
+
+  await sendMailAs({ fromMailbox: await financeMailbox(), to: step.approver_email, subject, body: html, html: true });
 }
 
 async function logAndNotifyOutcome(ticketId: string, outcome: "approved" | "denied" | "fixing", note?: string) {
@@ -381,7 +397,7 @@ export async function remindCurrentApprover(ticketId: string, byEmployeeId: stri
   const admin = createAdminClient();
   const { data: step } = await admin
     .from("finance_approvals")
-    .select("approver_email, approver_name, chain_person_name, acting_as_delegate_for_email, approval_token")
+    .select("finance_ticket_id, approval_level, revision_number, approver_email, approver_name, chain_person_name, acting_as_delegate_for_email, approval_token")
     .eq("finance_ticket_id", ticketId)
     .eq("is_current_step", true)
     .eq("approval_status", "pending")
@@ -389,7 +405,8 @@ export async function remindCurrentApprover(ticketId: string, byEmployeeId: stri
   if (!step) return { ok: false as const, error: "This ticket isn't waiting on an approver." };
   const { data: ticket } = await admin.from("finance_tickets").select("ticket_number, title, total").eq("id", ticketId).single();
   if (!ticket) return { ok: false as const, error: "Ticket not found." };
-  await sendStepEmail(step, ticket);
+  await sendStepEmail(step, ticket, { reminder: true });
+  await admin.from("finance_approvals").update({ last_reminded_at: new Date().toISOString() }).eq("approval_token", step.approval_token);
   await admin.from("finance_ticket_log").insert({
     finance_ticket_id: ticketId,
     comment: `Reminder sent to ${step.approver_name}.`,
@@ -398,4 +415,40 @@ export async function remindCurrentApprover(ticketId: string, byEmployeeId: stri
     created_by: byEmployeeId,
   });
   return { ok: true as const, to: step.approver_name as string };
+}
+
+// Daily cron: re-send the approval email to anyone sitting on a step
+// longer than wf_finance_approval_reminder_hours (0 turns it off), at
+// most once per that interval.
+export async function runFinanceApprovalReminders() {
+  const hours = await wfNumber("wf_finance_approval_reminder_hours");
+  if (!hours || hours <= 0) return { reminded: 0, skipped: "off" };
+  const admin = createAdminClient();
+  const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data: steps } = await admin
+    .from("finance_approvals")
+    .select("id, finance_ticket_id, approval_level, revision_number, approver_email, approver_name, chain_person_name, acting_as_delegate_for_email, approval_token, created_at, last_reminded_at, finance_tickets!inner(ticket_number, title, total, status)")
+    .eq("is_current_step", true)
+    .eq("approval_status", "pending")
+    .eq("finance_tickets.status", "pending")
+    .lt("created_at", cutoff)
+    .limit(200);
+  let reminded = 0;
+  for (const s of (steps ?? []) as any[]) {
+    if (s.last_reminded_at && s.last_reminded_at > cutoff) continue;
+    try {
+      await sendStepEmail(s, s.finance_tickets, { reminder: true });
+      await admin.from("finance_approvals").update({ last_reminded_at: new Date().toISOString() }).eq("id", s.id);
+      await admin.from("finance_ticket_log").insert({
+        finance_ticket_id: s.finance_ticket_id,
+        comment: `Automatic reminder sent to ${s.approver_name}.`,
+        comment_type: "status_change",
+        notify_user: false,
+      });
+      reminded++;
+    } catch (e) {
+      console.error("finance reminder failed", s.id, e);
+    }
+  }
+  return { reminded };
 }

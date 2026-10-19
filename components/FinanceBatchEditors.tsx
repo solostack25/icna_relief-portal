@@ -12,6 +12,15 @@ const pillButton = (active: boolean): React.CSSProperties => ({
   cursor: "pointer",
 });
 
+// Set row i, padding with empty entries if rows were added elsewhere
+// (e.g. from a receipt photo) without a matching allocation entry.
+function setAt<T>(rows: T[][], i: number, v: T[]): T[][] {
+  const out = [...rows];
+  while (out.length <= i) out.push([]);
+  out[i] = v;
+  return out;
+}
+
 export type BatchOffice = { id: string; field_office: string };
 export type BatchGrant = { id: string; title: string; funder_name: string | null };
 export type GrantAllocation = { grant_id: string; allocated_amount?: number };
@@ -138,12 +147,12 @@ export function CreditCardBatchEditor({
       <div style={{ fontSize: 13, fontWeight: 700, marginTop: 8 }}>Transactions</div>
       {transactions.map((t, i) => (
         <div key={i} style={{ border: "1px solid rgba(22,48,43,0.1)", borderRadius: 12, padding: 12 }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <input
               placeholder="Expense name"
               value={(t.expense_name as string) ?? ""}
               onChange={(e) => setTransactions((rows) => rows.map((r, idx) => (idx === i ? { ...r, expense_name: e.target.value } : r)))}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, flex: "1 1 220px" }}
             />
             <input
               type="number"
@@ -176,9 +185,9 @@ export function CreditCardBatchEditor({
               grants={grants}
               offices={offices}
               grantAllocations={allocations[i] ?? []}
-              setGrantAllocations={(v) => setAllocations((rows) => rows.map((r, idx) => (idx === i ? v : r)))}
+              setGrantAllocations={(v) => setAllocations((rows) => setAt(rows, i, v))}
               officeIds={officeIdsPerRow[i] ?? []}
-              setOfficeIds={(v) => setOfficeIdsPerRow((rows) => rows.map((r, idx) => (idx === i ? v : r)))}
+              setOfficeIds={(v) => setOfficeIdsPerRow((rows) => setAt(rows, i, v))}
             />
           )}
           {transactions.length > 1 && (
@@ -305,9 +314,9 @@ export function MileageBatchEditor({
               grants={grants}
               offices={offices}
               grantAllocations={allocations[i] ?? []}
-              setGrantAllocations={(v) => setAllocations((rows) => rows.map((r, idx) => (idx === i ? v : r)))}
+              setGrantAllocations={(v) => setAllocations((rows) => setAt(rows, i, v))}
               officeIds={officeIdsPerRow[i] ?? []}
-              setOfficeIds={(v) => setOfficeIdsPerRow((rows) => rows.map((r, idx) => (idx === i ? v : r)))}
+              setOfficeIds={(v) => setOfficeIdsPerRow((rows) => setAt(rows, i, v))}
             />
           )}
           {trips.length > 1 && (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getFinanceTicketDetail } from "@/lib/financeTicketDetail";
+import { signedReceipts } from "@/lib/financeReceipts";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -8,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const { data: step } = await admin
     .from("finance_approvals")
-    .select("id, finance_ticket_id, approval_level, approval_status, chain_person_name, approver_name, approver_email, acting_as_delegate_for_email, approval_amount_threshold, is_final_approval, revision_number")
+    .select("id, finance_ticket_id, approval_level, approval_status, chain_person_name, approver_name, approver_email, acting_as_delegate_for_email, approval_amount_threshold, is_final_approval, revision_number, decision_date")
     .eq("approval_token", token)
     .single();
   if (!step) return NextResponse.json({ error: "Invalid or expired approval link" }, { status: 404 });
@@ -30,5 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     .neq("id", step.id)
     .order("approval_level", { ascending: true });
 
-  return NextResponse.json({ step, ticket, detail, priorSteps });
+  const receipts = await signedReceipts(step.finance_ticket_id).catch(() => []);
+
+  return NextResponse.json({ step, ticket, detail, priorSteps, receipts });
 }

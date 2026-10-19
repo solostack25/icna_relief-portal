@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CATEGORY_LABELS, SINGLE_RECORD_CATEGORIES, isFieldVisible } from "@/lib/financeTicketForms";
 import FinanceTicketFieldInput from "@/components/FinanceTicketFieldInput";
 import { CreditCardBatchEditor, MileageBatchEditor, type GrantAllocation } from "@/components/FinanceBatchEditors";
 import TicketConfirmationCard from "@/components/TicketConfirmationCard";
+import ReceiptCapture, { type CapturedReceipt } from "@/components/finance/ReceiptCapture";
 
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-line, rgba(22,48,43,0.12))",
@@ -70,6 +71,69 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
   const [mileageAllocations, setMileageAllocations] = useState<GrantAllocation[][]>([[]]);
   const [mileageOfficeIds, setMileageOfficeIds] = useState<string[][]>([[]]);
 
+  // ----- receipt photos -----
+  const [receipts, setReceipts] = useState<CapturedReceipt[]>([]);
+  // Refs, because several receipts can finish uploading from one stale
+  // callback; state read through a closure would be out of date.
+  const catRef = useRef(category);
+  catRef.current = category;
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  const receiptLog = useRef<{ vendors: string[]; autoTitle: string | null }>({ vendors: [], autoTitle: null });
+
+  // Fill the form from a receipt the AI just read. The first receipt also
+  // picks the category if the form is still untouched.
+  function applyReceipt(r: CapturedReceipt) {
+    setReceipts((xs) => [...xs, r]);
+    const log = receiptLog.current;
+    const first = log.vendors.length === 0;
+    const ex = r.extracted;
+    log.vendors.push(ex?.vendor ?? "receipt");
+    if (!ex) return;
+
+    let cat = catRef.current;
+    const untouched = first && !titleRef.current.trim() && Object.keys(detail).length === 0 && !ccTransactions.some((t) => Object.keys(t).length);
+    if (untouched) {
+      cat = ex.kind === "utility" ? "utility_payment" : ex.kind === "vendor_invoice" ? "vendor_payment" : "credit_card_reimbursement";
+      if (cat !== catRef.current) resetForCategory(cat);
+      catRef.current = cat;
+    }
+
+    const label = [ex.vendor, ex.description].filter(Boolean).join(" — ");
+    if (!titleRef.current.trim() || titleRef.current === log.autoTitle) {
+      const t = log.vendors.length === 1 ? label || "Receipt" : `Receipts: ${Array.from(new Set(log.vendors)).join(", ")}`.slice(0, 120);
+      log.autoTitle = t;
+      titleRef.current = t;
+      setTitle(t);
+    }
+
+    if (cat === "credit_card_reimbursement") {
+      const row = { expense_name: label || "Receipt", receipt_total: ex.total ?? undefined, transaction_date: ex.date ?? undefined };
+      // New rows have no allocation entry yet; the editor and the API
+      // both treat a missing one as "none".
+      setCcTransactions((rows) => {
+        const i = rows.findIndex((t) => !t.expense_name && !t.receipt_total);
+        if (i >= 0) return rows.map((t, idx) => (idx === i ? { ...t, ...row } : t));
+        return [...rows, row];
+      });
+      if (ex.date) {
+        setCcStatement((st) => ({
+          ...st,
+          start_date: !st.start_date || ex.date! < (st.start_date as string) ? ex.date : st.start_date,
+          end_date: !st.end_date || ex.date! > (st.end_date as string) ? ex.date : st.end_date,
+        }));
+      }
+    } else if (cat === "vendor_payment" || cat === "utility_payment") {
+      setDetail((d) => ({
+        ...d,
+        ...(cat === "vendor_payment" && !d.vendor_name && ex.vendor ? { vendor_name: ex.vendor } : {}),
+        ...(ex.total != null ? { total_amount: Math.round((Number(d.total_amount ?? 0) + ex.total) * 100) / 100 } : {}),
+        ...(!d.expense_date && ex.date ? { expense_date: ex.date } : {}),
+        ...(!d.notes && ex.description ? { notes: ex.description } : {}),
+      }));
+    }
+  }
+
   function resetForCategory(c: keyof typeof CATEGORY_LABELS) {
     setCategory(c);
     setDetail({});
@@ -116,6 +180,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
         };
       }
 
+      payload.receipt_paths = receipts.map((r) => r.path);
       const res = await fetch("/api/finance-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,6 +216,7 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
 
   return (
     <div style={{ ...cardStyle, display: "grid", gap: 16 }}>
+      <ReceiptCapture onReceipt={applyReceipt} />
       <div>
         <div style={labelStyle}>Category</div>
         <select value={category} onChange={(e) => resetForCategory(e.target.value as keyof typeof CATEGORY_LABELS)} style={inputStyle}>

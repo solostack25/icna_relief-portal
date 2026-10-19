@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ReceiptStrip, { type ReceiptView } from "@/components/finance/ReceiptStrip";
 import FinanceTicketDetailView from "@/components/FinanceTicketDetailView";
 import FinanceTicketFieldInput, { type FinanceOffice, type FinancePexCard, type FinanceGrant } from "@/components/FinanceTicketFieldInput";
 import { CreditCardBatchEditor, MileageBatchEditor, type GrantAllocation } from "@/components/FinanceBatchEditors";
@@ -199,6 +200,11 @@ export default function FinanceTicketDetailClient({
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Details</div>
             <FinanceTicketDetailView category={ticket.category} detail={data.detail} />
+            {(data as { receipts?: ReceiptView[] }).receipts?.length ? (
+              <div style={{ marginTop: 12 }}>
+                <ReceiptStrip receipts={(data as { receipts?: ReceiptView[] }).receipts} />
+              </div>
+            ) : null}
           </div>
         )}
 

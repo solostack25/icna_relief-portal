@@ -8,6 +8,7 @@ export const WF_DEFAULTS = {
   wf_finance_csuite_auto_limit: "5000",
   wf_finance_coo_auto_limit: "10000",
   wf_finance_coo_title: "COO",
+  wf_finance_approval_reminder_hours: "48",
   wf_speaker_leadership_threshold: "500",
   wf_speaker_approval_reminder_hours: "48",
   wf_speaker_packet_reminder_hours: "72",

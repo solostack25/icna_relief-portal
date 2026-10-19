@@ -47,6 +47,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/inkind/") ||
     request.nextUrl.pathname === "/inkind" ||
     request.nextUrl.pathname.startsWith("/finance-approvals/") ||
+    // Finance ticket approvals: the token in the emailed link is the
+    // credential, so approvers can decide from their phone without a login.
+    request.nextUrl.pathname.startsWith("/finance-ticket-approvals/") ||
     // Speaker Requests: token-credentialed pages for AMs/leadership
     // approving from email, and for external speakers (agreement + W-9).
     request.nextUrl.pathname.startsWith("/speaker-requests/approve/") ||

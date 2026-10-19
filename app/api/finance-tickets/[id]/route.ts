@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getFinanceTicketDetail } from "@/lib/financeTicketDetail";
+import { signedReceipts } from "@/lib/financeReceipts";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
@@ -30,5 +31,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("finance_ticket_id", id)
     .order("approval_level", { ascending: true });
 
-  return NextResponse.json({ ticket, detail, approvals });
+  // Ticket visibility was checked by RLS above; receipts are read with
+  // the service role via signed URLs.
+  const receipts = await signedReceipts(ticket.id).catch(() => []);
+
+  return NextResponse.json({ ticket, detail, approvals, receipts });
 }

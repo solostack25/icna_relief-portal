@@ -41,6 +41,10 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/cron/finance-reminders",
+      "schedule": "0 15 * * *"
+    },
+    {
       "path": "/api/cron/revenue-sync",
       "schedule": "0 8 * * *"
     }

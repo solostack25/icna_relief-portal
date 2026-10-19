@@ -110,6 +110,8 @@ export async function sendMailAs(params: {
   to: string;
   subject: string;
   body: string;
+  /** Send `body` as HTML instead of plain text. */
+  html?: boolean;
 }): Promise<void> {
   const token = await getGraphToken();
   const res = await fetch(
@@ -120,7 +122,7 @@ export async function sendMailAs(params: {
       body: JSON.stringify({
         message: {
           subject: params.subject,
-          body: { contentType: "Text", content: params.body },
+          body: { contentType: params.html ? "HTML" : "Text", content: params.body },
           toRecipients: [{ emailAddress: { address: params.to } }],
         },
         saveToSentItems: true,
