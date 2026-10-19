@@ -444,7 +444,7 @@ export default function ReportView({
         {loading && <span className="text-[11px] ml-auto" style={{ color: C.ink3 }}>Loading…</span>}
       </div>
 
-      {def.statusNote && (
+      {def.statusNote && source === "portal" && (
         <div className="rounded-2xl px-4 py-2.5 text-[12px]" style={{ background: def.status === "waiting" ? "#EFEAF4" : "#FBF0D9", color: def.status === "waiting" ? "#4F3F60" : "#6B4E12" }}>
           {def.statusNote}
         </div>
