@@ -422,7 +422,7 @@ export default function InsightsClient({
       </div>
 
       {/* One filter row for every chart below */}
-      <div style={{ ...card, padding: "12px 14px" }} className="flex flex-wrap items-center gap-2 sticky top-2 z-10">
+      <div style={{ ...card, padding: "12px 14px" }} className="flex flex-wrap items-center gap-2 md:sticky md:top-2 z-10">
         <div className="flex flex-wrap gap-1">
           {PRESETS.map((p) => (
             <button

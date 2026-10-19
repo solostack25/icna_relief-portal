@@ -377,7 +377,7 @@ export default function ReportView({ reportKey, offices, lockedRegion, lockedOff
       </div>
 
       {/* Filter row */}
-      <div style={{ ...card, padding: "10px 12px" }} className="flex flex-wrap gap-2 items-center sticky top-2 z-10">
+      <div style={{ ...card, padding: "10px 12px" }} className="flex flex-wrap gap-2 items-center md:sticky md:top-2 z-10">
         {has("year") && (
           <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={sel} aria-label="Year">
             {Array.from({ length: 7 }, (_, i) => thisYear + 1 - i).map((y) => (
