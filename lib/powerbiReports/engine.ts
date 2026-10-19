@@ -168,6 +168,8 @@ async function buildChart(baseRun: Run, c: ChartSpec): Promise<Chart> {
       c.columns.forEach((col, i) => (row[col.key] = num(r[`c${i}`])));
       return row;
     });
+    // Drop rows that aren't tied to anything (every grouping column blank).
+    out = out.filter((r) => c.dims.some((d) => String(r[d.key] ?? "").trim() !== ""));
     if (c.orderBy) {
       const asc = c.orderBy.startsWith("asc:");
       const key = asc ? c.orderBy.slice(4) : c.orderBy;

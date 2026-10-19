@@ -94,6 +94,8 @@ const EX = "Expense-Total";
 const MOBILE_MAP = tableMap(HSM, { year: "Year", month: "Month Number", region: "Region", state: "State", office: "Field Office" });
 const FATE_MAP = tableMap(FT, { state: "STATES " });
 const NO_FILTERS: ModelMap = {};
+// Offices with a name (Power BI has rows not tied to any office).
+const RKG_OFFICES = `FILTER(VALUES('RKG - Reporting Unit Base'[FIELD OFFICE]), 'RKG - Reporting Unit Base'[FIELD OFFICE] <> "")`;
 const countRows = (table: string) => `COUNTROWS('${table}')`;
 const count = (table: string, c: string) => `COUNT(${col(table, c)})`;
 
@@ -727,18 +729,17 @@ export const PBI_REPORTS: Record<string, PbiReportSpec> = {
     map: { year: "'RKG - Period'[YEAR]", month: "'RKG - Period'[MSN]", region: col(RKG, "REGION"), state: col(RKG, "STATE"), office: col(RKG, "FIELD OFFICE") },
     notes: ["Scores are year-to-date through the month picked (or the latest month with data). Rank is among the offices shown, as in Power BI."],
     kpis: [
-      { label: "Offices ranked", unit: "count", expr: `COUNTROWS(FILTER(VALUES(${col(RKG, "FIELD OFFICE")}), NOT ISBLANK([RKG Total Score])))` },
-      { label: "Top score", unit: "count", expr: `MAXX(VALUES(${col(RKG, "FIELD OFFICE")}), [RKG Total Score])` },
-      { label: "Average score", unit: "count", expr: `AVERAGEX(VALUES(${col(RKG, "FIELD OFFICE")}), [RKG Total Score])` },
+      { label: "Offices ranked", unit: "count", expr: `COUNTROWS(FILTER(${RKG_OFFICES}, NOT ISBLANK([RKG Total Score])))` },
+      { label: "Top score", unit: "count", expr: `MAXX(${RKG_OFFICES}, [RKG Total Score])` },
+      { label: "Average score", unit: "count", expr: `AVERAGEX(${RKG_OFFICES}, [RKG Total Score])` },
     ],
     charts: [
       {
         kind: "table",
         title: "Office rankings",
-        dims: [
-          { key: "office", label: "Field office", col: col(RKG, "FIELD OFFICE") },
-          { key: "region", label: "Region", col: col(RKG, "REGION") },
-        ],
+        // Field office only: grouping by region too would make Power BI rank
+        // offices within each region instead of across all of them.
+        dims: [{ key: "office", label: "Field office", col: col(RKG, "FIELD OFFICE") }],
         columns: [
           { key: "rank", label: "Rank", unit: "count", expr: "[RKG Rank]" },
           { key: "total", label: "Total score", unit: "count", expr: "[RKG Total Score]" },
