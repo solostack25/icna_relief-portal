@@ -6,6 +6,8 @@ import { getCoursesWithStatus } from "@/lib/lms";
 import SelectAppView, { HeroStat } from "./SelectAppView";
 import MyMeetingsCard, { MyMeetingsSkeleton } from "./MyMeetingsCard";
 import MeetingsTodayLink, { MeetingsTodayLinkSkeleton } from "./MeetingsTodayLink";
+import MyDay, { MyDaySkeleton } from "./MyDay";
+import { loadMyDay } from "@/lib/myDay";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -151,6 +153,11 @@ export default async function SelectAppPage() {
           <MyMeetingsCard email={employee.email} />
         </Suspense>
       }
+      myDaySlot={
+        <Suspense fallback={<MyDaySkeleton />}>
+          <MyDaySection employee={{ id: employee.id, email: employee.email, role: employee.role }} trainingDue={trainingDueCount} />
+        </Suspense>
+      }
       meetingsTodaySlot={
         <Suspense fallback={<MeetingsTodayLinkSkeleton />}>
           <MeetingsTodayLink email={employee.email} />
@@ -165,6 +172,16 @@ export default async function SelectAppPage() {
       hourNow={now.getHours()}
     />
   );
+}
+
+async function MyDaySection({ employee, trainingDue }: { employee: { id: string; email: string; role: string | null }; trainingDue: number }) {
+  try {
+    const data = await loadMyDay(employee, { trainingDue });
+    return <MyDay data={data} />;
+  } catch (e) {
+    console.error("my day failed", e);
+    return null;
+  }
 }
 
 async function ItTicketHeroStat({ fullName }: { fullName: string }) {

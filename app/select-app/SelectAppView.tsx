@@ -18,6 +18,7 @@ export default function SelectAppView({
   itTicketSlot,
   meetingsSlot,
   meetingsTodaySlot,
+  myDaySlot,
   showClientIntake,
   visibleApps,
   programStats,
@@ -35,6 +36,7 @@ export default function SelectAppView({
   itTicketSlot: React.ReactNode;
   meetingsSlot: React.ReactNode;
   meetingsTodaySlot: React.ReactNode;
+  myDaySlot?: React.ReactNode;
   showClientIntake: boolean;
   visibleApps: ProgramApp[];
   programStats: Record<string, string>;
@@ -119,6 +121,9 @@ export default function SelectAppView({
             </div>
           </div>
         </div>
+
+        {/* ---------- MY DAY: what's waiting on me, my requests, my office ---------- */}
+        {myDaySlot}
 
         {/* ---------- QUICK ACTIONS ---------- */}
         <SectionHead title={t("selectApp.quickActions.title")} note={t("selectApp.quickActions.note")} />
