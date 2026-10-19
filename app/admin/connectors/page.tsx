@@ -7,6 +7,7 @@ import CioApproversManager from "./CioApproversManager";
 import ZakatApproversManager from "./ZakatApproversManager";
 import ZakatFinanceAccessManager from "./ZakatFinanceAccessManager";
 import SquareLocationMapClient from "./SquareLocationMapClient";
+import PowerBiSignIn from "./PowerBiSignIn";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -116,6 +117,7 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="powerbi_client_id" label="Application (client) ID" envFallbackKey="PBI_CLIENT_ID" />
         <ConnectorKeyField settingKey="powerbi_client_secret" label="Client secret" envFallbackKey="PBI_CLIENT_SECRET" />
         <ConnectorKeyField settingKey="powerbi_workspace_id" label="Workspace ID" envFallbackKey="PBI_WORKSPACE_ID" />
+        <PowerBiSignIn />
       </ConnectorSection>
 
       <ConnectorSection

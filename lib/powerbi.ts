@@ -1,4 +1,5 @@
 import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Read-only Power BI client for the temporary Power BI check
 // (Reports → Power BI, app/admin/powerbi). Signs in as an Entra app registration
@@ -60,8 +61,89 @@ async function getToken(cfg: PowerBiConfig, scope = POWERBI_SCOPE): Promise<stri
   return body.access_token;
 }
 
-async function pbiFetch(cfg: PowerBiConfig, path: string, init?: RequestInit) {
-  const token = await getToken(cfg);
+// ─── Signed-in user (delegated) ─────────────────────────────────────────────
+// Models with security roles (RLS/OLS) can't be queried by an app login, so
+// queries run as an admin who signed in once under Settings → Connectors →
+// Power BI. The refresh token lives in integration_settings (admin-only) and
+// rotates on every use; it stays valid while it's used at least every 90 days.
+export const USER_SCOPE = "https://analysis.windows.net/powerbi/api/Dataset.Read.All offline_access openid profile";
+let userToken: { token: string; expiresAt: number } | null = null;
+
+export async function hasSignedInUser(): Promise<boolean> {
+  return !!(await getIntegrationSetting("powerbi_user_refresh_token"));
+}
+
+async function getUserToken(cfg: PowerBiConfig): Promise<string | null> {
+  if (userToken && userToken.expiresAt > Date.now() + 60_000) return userToken.token;
+  const refresh = await getIntegrationSetting("powerbi_user_refresh_token");
+  if (!refresh) return null;
+  const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(cfg.tenantId)}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      refresh_token: refresh,
+      scope: USER_SCOPE,
+    }),
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token) {
+    throw new PowerBiError(
+      `The Power BI sign-in has expired or was revoked — sign in again under Settings → Connectors → Power BI. (${body.error_description?.split("\r\n")[0] ?? body.error ?? res.statusText})`,
+      401
+    );
+  }
+  if (body.refresh_token && body.refresh_token !== refresh) {
+    // Keep who signed in (updated_by); only the token value rotates.
+    await createAdminClient()
+      .from("integration_settings")
+      .update({ value: body.refresh_token, updated_at: new Date().toISOString() })
+      .eq("key", "powerbi_user_refresh_token");
+  }
+  userToken = { token: body.access_token, expiresAt: Date.now() + Number(body.expires_in ?? 3600) * 1000 };
+  return body.access_token;
+}
+
+// Exchange the sign-in code for tokens (OAuth callback).
+export async function redeemSignInCode(cfg: PowerBiConfig, code: string, redirectUri: string) {
+  const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(cfg.tenantId)}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      scope: USER_SCOPE,
+    }),
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.refresh_token) {
+    throw new PowerBiError(body.error_description?.split("\r\n")[0] ?? body.error ?? "Sign-in failed", res.status);
+  }
+  let name: string | null = null;
+  try {
+    const claims = JSON.parse(Buffer.from(String(body.id_token).split(".")[1], "base64url").toString("utf8"));
+    name = claims.preferred_username ?? claims.name ?? null;
+  } catch {
+    /* no id token */
+  }
+  userToken = { token: body.access_token, expiresAt: Date.now() + Number(body.expires_in ?? 3600) * 1000 };
+  return { refreshToken: body.refresh_token as string, name };
+}
+
+export function forgetUserToken() {
+  userToken = null;
+}
+
+async function pbiFetch(cfg: PowerBiConfig, path: string, opts?: RequestInit & { asUser?: boolean }) {
+  const { asUser, ...init } = opts ?? {};
+  const token = (asUser ? await getUserToken(cfg) : null) ?? (await getToken(cfg));
   const res = await fetch(`https://api.powerbi.com/v1.0/myorg/groups/${encodeURIComponent(cfg.workspaceId)}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -100,6 +182,7 @@ export type QueryRow = Record<string, string | number | boolean | null>;
 
 export async function executeDax(cfg: PowerBiConfig, datasetId: string, dax: string): Promise<QueryRow[]> {
   const body = await pbiFetch(cfg, `/datasets/${encodeURIComponent(datasetId)}/executeQueries`, {
+    asUser: true,
     method: "POST",
     body: JSON.stringify({ queries: [{ query: dax }], serializerSettings: { includeNulls: true } }),
   });
