@@ -6,7 +6,7 @@ import { fillDax } from "@/lib/powerbiCompare";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST { datasetId, dax, year?, month? } -> first 50 rows. Used by the
+// POST { datasetId, dax, year?, month? } -> first 1,000 rows. Used by the
 // explorer and the metric editor's Test button. Read-only by nature:
 // Execute Queries only accepts DAX EVALUATE queries.
 export async function POST(req: Request) {
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const filled = fillDax(dax, parsePeriod(body.year, body.month));
   try {
     const rows = await executeDax(cfg, datasetId, filled);
-    return NextResponse.json({ query: filled, rowCount: rows.length, rows: rows.slice(0, 50), value: firstNumber(rows) });
+    return NextResponse.json({ query: filled, rowCount: rows.length, rows: rows.slice(0, 1000), value: firstNumber(rows) });
   } catch (e) {
     return NextResponse.json({ query: filled, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
   }

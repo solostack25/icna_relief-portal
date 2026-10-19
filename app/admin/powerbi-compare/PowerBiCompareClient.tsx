@@ -646,7 +646,8 @@ function MetricEditor({
 
 function Explorer({ datasets, year, month }: { datasets: Dataset[]; year: number; month: number | null }) {
   const [datasetId, setDatasetId] = useState("");
-  const [dax, setDax] = useState("EVALUATE TOPN(20, 'TableName')");
+  const [dax, setDax] = useState("EVALUATE COLUMNSTATISTICS()");
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{ rows?: Record<string, unknown>[]; rowCount?: number; error?: string } | null>(null);
 
@@ -662,6 +663,19 @@ function Explorer({ datasets, year, month }: { datasets: Dataset[]; year: number
   }
 
   const cols = out?.rows?.length ? Object.keys(out.rows[0]) : [];
+
+  function copyCsv() {
+    if (!out?.rows) return;
+    const cell = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [cols.map(cell).join(","), ...out.rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n");
+    navigator.clipboard.writeText(csv).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
   return (
     <div className="px-5 pb-5">
       <div className="flex flex-wrap gap-2 mb-2">
@@ -685,7 +699,7 @@ function Explorer({ datasets, year, month }: { datasets: Dataset[]; year: number
         style={{ ...input, width: "100%", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5 }}
       />
       <p className="text-[11px] mt-1 mb-3" style={{ color: "rgba(22,48,43,0.5)" }}>
-        Shows up to 50 rows. Use it to look at a table&apos;s columns before writing a metric&apos;s query.
+        <code>EVALUATE COLUMNSTATISTICS()</code> lists every table and column in the model. <code>EVALUATE TOPN(20, &apos;Table Name&apos;)</code> shows sample rows from one table.
       </p>
       {out?.error && (
         <p className="text-sm" style={{ color: "#B5566B" }}>
@@ -693,7 +707,7 @@ function Explorer({ datasets, year, month }: { datasets: Dataset[]; year: number
         </p>
       )}
       {out?.rows && (
-        <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid rgba(22,48,43,0.08)" }}>
+        <div className="overflow-auto rounded-xl" style={{ border: "1px solid rgba(22,48,43,0.08)", maxHeight: 480 }}>
           <table className="text-xs w-full" style={{ borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -716,10 +730,15 @@ function Explorer({ datasets, year, month }: { datasets: Dataset[]; year: number
               ))}
             </tbody>
           </table>
-          <p className="text-[11px] px-3 py-2" style={{ color: "rgba(22,48,43,0.5)" }}>
-            {out.rowCount} row{out.rowCount === 1 ? "" : "s"}
-            {out.rowCount && out.rowCount > 50 ? " (first 50 shown)" : ""}
-          </p>
+          <div className="flex items-center gap-3 px-3 py-2">
+            <span className="text-[11px]" style={{ color: "rgba(22,48,43,0.5)" }}>
+              {out.rowCount} row{out.rowCount === 1 ? "" : "s"}
+              {out.rowCount && out.rowCount > 1000 ? " (first 1,000 shown)" : ""}
+            </span>
+            <button onClick={copyCsv} className="text-[11px] font-semibold underline" style={{ color: "var(--portal-emerald)" }}>
+              {copied ? "Copied" : "Copy as CSV"}
+            </button>
+          </div>
         </div>
       )}
     </div>
