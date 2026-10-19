@@ -179,7 +179,19 @@ async function buildChart(run: Run, c: ChartSpec): Promise<Chart> {
       note: c.note,
     };
   }
+  if (c.kind === "value-addition") {
+    const f = [...timeFilters(run.map, run.f, c), ...scope];
+    const [row] = await q(run, `EVALUATE ROW("r", ${calc(c.raised, f)}, "s", ${calc(c.services, f)})`);
+    return { kind: "value-addition", title: c.title, raised: num(row?.r) ?? 0, services: num(row?.s) ?? 0, note: c.note };
+  }
+  if (c.kind === "share" && c.items) {
+    const f = [...timeFilters(run.map, run.f, c), ...scope];
+    const [row] = await q(run, `EVALUATE ROW(${c.items.map((it, i) => `"i${i}", ${calc(it.expr, f)}`).join(", ")})`);
+    const items = c.items.map((it, i) => ({ label: it.label, value: num(row?.[`i${i}`]) ?? 0 })).filter((i) => i.value);
+    return { kind: "share", title: c.title, unit: c.unit, items, note: c.note };
+  }
   if (c.kind === "share") {
+    if (!c.dim || !c.expr) throw new Error(`Share chart "${c.title}" needs dim + expr or items`);
     const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
     const rows = await q(run, `EVALUATE SUMMARIZECOLUMNS(${c.dim}${filterArgs}, "v", ${calc(c.expr, timeFilters(run.map, run.f, c))})`);
     const dimKey = colName(c.dim);
@@ -248,11 +260,17 @@ export async function buildPowerBiReport(key: string, f: PbiFilters): Promise<Re
 
   // Fill {year}/{year-1}/... in every expression, label and title.
   const t = <T,>(x: T): T => JSON.parse(yearTokens(JSON.stringify(x), f.year));
-  const [kpis, matrices, charts, refreshed] = await Promise.all([
+  const programsQuery = spec.programsFrom
+    ? q(run, `EVALUATE DISTINCT(${spec.programsFrom})`).then((rows) =>
+        rows.map((r) => r[colName(spec.programsFrom!)]).filter((v): v is string => typeof v === "string" && v.trim() !== "").sort()
+      )
+    : Promise.resolve(undefined);
+  const [kpis, matrices, charts, refreshed, programs] = await Promise.all([
     buildKpis(run, t(spec.kpis ?? [])),
     Promise.all(t(spec.matrices ?? []).map((m) => buildMatrix(run, m))),
     Promise.all(t(spec.charts ?? []).map((c) => buildChart(run, c))),
     lastRefresh(cfg, datasetId),
+    programsQuery,
   ]);
 
   const notes = (spec.notes ?? []).map((n) => yearTokens(n, f.year));
@@ -269,5 +287,6 @@ export async function buildPowerBiReport(key: string, f: PbiFilters): Promise<Re
     kpis,
     matrices,
     charts,
+    programs,
   };
 }

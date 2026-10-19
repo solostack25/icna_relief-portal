@@ -75,7 +75,11 @@ export type ChartSpec =
       note?: string;
     }
   | (TimeShift & { kind: "months"; title: string; unit: Unit; expr: Expr; years?: number; cumulative?: boolean; note?: string })
-  | (TimeShift & { kind: "share"; title: string; unit: Unit; dim: string; expr: Expr; limit?: number; note?: string });
+  // Share: either one measure split by a column (dim + expr), or a fixed
+  // list of measures shown as slices (items), e.g. boys vs girls.
+  | (TimeShift & { kind: "share"; title: string; unit: Unit; dim?: string; expr?: Expr; items?: { label: string; expr: Expr }[]; limit?: number; note?: string })
+  // Funds raised vs value of services delivered (the portal's funnel card).
+  | (TimeShift & { kind: "value-addition"; title: string; raised: Expr; services: Expr; note?: string });
 
 export type PbiReportSpec = {
   dataset?: string; // model name; defaults to the configured model
@@ -84,4 +88,6 @@ export type PbiReportSpec = {
   matrices?: MatrixSpec[];
   charts?: ChartSpec[];
   notes?: string[];
+  // Column whose values fill the Program filter dropdown.
+  programsFrom?: string;
 };
