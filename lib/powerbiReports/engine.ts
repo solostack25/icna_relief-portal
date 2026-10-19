@@ -32,13 +32,18 @@ function timeFilters(map: ModelMap, f: PbiFilters, t: TimeShift = {}): string[] 
   if (t.noTime) return [];
   const y = f.year + (t.yearOffset ?? 0);
   const m = t.wholeYear ? null : f.month;
+  if (t.monthOnly) {
+    if (!m) return [];
+    if (map.date) return [`FILTER(ALL(${map.date}), MONTH(${map.date}) = ${m})`];
+    return map.month ? [`TREATAS({${m}}, ${map.month})`] : [];
+  }
   if (map.date) {
     const last = m ? new Date(Date.UTC(y, m, 0)).getUTCDate() : 31;
     const d = map.date;
     return [`FILTER(ALL(${d}), ${d} >= DATE(${y}, ${m ?? 1}, 1) && ${d} <= DATE(${y}, ${m ?? 12}, ${last}))`];
   }
   const out: string[] = [];
-  if (map.year) out.push(`TREATAS({${y}}, ${map.year})`);
+  if (map.year) out.push(`TREATAS({${yv(map, y)}}, ${map.year})`);
   if (map.month && m) out.push(`TREATAS({${m}}, ${map.month})`);
   return out;
 }
@@ -54,6 +59,9 @@ function scopeFilters(run: Run): string[] {
 }
 
 const calc = (expr: string, filters: string[]) => (filters.length ? `CALCULATE(${expr}, ${filters.join(", ")})` : `CALCULATE(${expr})`);
+const yearTokens = (s: string, year: number) => s.replace(/\{year([+-]\d+)?\}/g, (_, off) => String(year + (off ? Number(off) : 0)));
+// The column's value for a year: "2026" for text year columns, 2026 otherwise.
+const yv = (map: ModelMap, y: number) => (map.yearText ? `"${y}"` : String(y));
 const num = (v: unknown) => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 
 // Identical queries within a few minutes (several people opening the same
@@ -79,22 +87,45 @@ async function buildKpis(run: Run, kpis: KpiSpec[]): Promise<Kpi[]> {
   return kpis.map((k, i) => ({ label: k.label, unit: k.unit, value: num(row?.[`k${i}`]), sub: k.sub }));
 }
 
-const yearLabel = (label: string, year: number) => label.replace(/\{year([+-]\d+)?\}/g, (_, off) => String(year + (off ? Number(off) : 0)));
+const yearLabel = yearTokens;
 
 async function buildMatrix(run: Run, m: MatrixSpec): Promise<Matrix> {
   const scope = scopeFilters(run);
   const measures = m.columns.map((c, i) => `"c${i}", ${calc(c.expr, timeFilters(run.map, run.f, c))}`);
   const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
+  const dims = m.childDim ? `${m.dim}, ${m.childDim}` : m.dim;
   const [rows, totalRows] = await Promise.all([
-    q(run, `EVALUATE SUMMARIZECOLUMNS(${m.dim}${filterArgs}, ${measures.join(", ")})`),
+    q(run, `EVALUATE SUMMARIZECOLUMNS(${dims}${filterArgs}, ${measures.join(", ")})`),
     m.total ? q(run, `EVALUATE ROW(${m.columns.map((c, i) => `"c${i}", ${calc(c.expr, [...timeFilters(run.map, run.f, c), ...scope])}`).join(", ")})`) : Promise.resolve([]),
   ]);
 
   const dimKey = colName(m.dim);
-  let out: MatrixRow[] = rows.map((r) => {
-    const label = r[dimKey] == null || r[dimKey] === "" ? "(blank)" : String(r[dimKey]);
-    return { key: label, label, values: Object.fromEntries(m.columns.map((c, i) => [c.key, num(r[`c${i}`])])) };
-  });
+  const childKey = m.childDim ? colName(m.childDim) : null;
+  const label = (v: unknown) => (v == null || v === "" ? "(blank)" : String(v));
+  const values = (r: QueryRow) => Object.fromEntries(m.columns.map((c, i) => [c.key, num(r[`c${i}`])]));
+
+  let out: MatrixRow[];
+  if (!childKey) {
+    out = rows.map((r) => ({ key: label(r[dimKey]), label: label(r[dimKey]), values: values(r) }));
+  } else {
+    // Parent totals come from a second, parent-only query so ratios
+    // (e.g. % to goal) are computed by Power BI, not summed here.
+    const parents = await q(run, `EVALUATE SUMMARIZECOLUMNS(${m.dim}${filterArgs}, ${measures.join(", ")})`);
+    const kids = new Map<string, MatrixRow[]>();
+    for (const r of rows) {
+      const p = label(r[dimKey]);
+      const list = kids.get(p) ?? [];
+      list.push({ key: `${p}/${label(r[childKey])}`, label: label(r[childKey]), values: values(r) });
+      kids.set(p, list);
+    }
+    const first = m.columns[0]?.key;
+    out = parents.map((r) => {
+      const p = label(r[dimKey]);
+      const children = (kids.get(p) ?? []).sort((a, b) => (first ? (b.values[first] ?? -Infinity) - (a.values[first] ?? -Infinity) : 0) || a.label.localeCompare(b.label));
+      return { key: p, label: p, values: values(r), children };
+    });
+  }
+
   const first = m.columns[0]?.key;
   if (m.order === "regions") {
     const pos = (l: string) => {
@@ -118,6 +149,36 @@ async function buildMatrix(run: Run, m: MatrixSpec): Promise<Matrix> {
 
 async function buildChart(run: Run, c: ChartSpec): Promise<Chart> {
   const scope = scopeFilters(run);
+  if (c.kind === "table") {
+    const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
+    const measures = c.columns.map((col, i) => `"c${i}", ${calc(col.expr, timeFilters(run.map, run.f, col))}`);
+    const [rows, totalRows] = await Promise.all([
+      q(run, `EVALUATE SUMMARIZECOLUMNS(${c.dims.map((d) => d.col).join(", ")}${filterArgs}, ${measures.join(", ")})`),
+      c.total ? q(run, `EVALUATE ROW(${c.columns.map((col, i) => `"c${i}", ${calc(col.expr, [...timeFilters(run.map, run.f, col), ...scope])}`).join(", ")})`) : Promise.resolve([]),
+    ]);
+    let out = rows.map((r) => {
+      const row: Record<string, string | number | null> = {};
+      for (const d of c.dims) row[d.key] = r[colName(d.col)] == null ? "" : String(r[colName(d.col)]);
+      c.columns.forEach((col, i) => (row[col.key] = num(r[`c${i}`])));
+      return row;
+    });
+    if (c.orderBy) out.sort((a, b) => (Number(b[c.orderBy!]) || 0) - (Number(a[c.orderBy!]) || 0));
+    else out.sort((a, b) => c.dims.map((d) => String(a[d.key]).localeCompare(String(b[d.key]))).find((x) => x !== 0) ?? 0);
+    if (c.limit) out = out.slice(0, c.limit);
+    if (c.total && totalRows[0]) {
+      const t: Record<string, string | number | null> = {};
+      c.dims.forEach((d, i) => (t[d.key] = i === 0 ? "Total" : ""));
+      c.columns.forEach((col, i) => (t[col.key] = num(totalRows[0][`c${i}`])));
+      out.push(t);
+    }
+    return {
+      kind: "table",
+      title: yearLabel(c.title, run.f.year),
+      columns: [...c.dims.map((d) => ({ key: d.key, label: d.label })), ...c.columns.map((col) => ({ key: col.key, label: yearLabel(col.label, run.f.year), unit: col.unit }))],
+      rows: out,
+      note: c.note,
+    };
+  }
   if (c.kind === "share") {
     const filterArgs = scope.length ? `, ${scope.join(", ")}` : "";
     const rows = await q(run, `EVALUATE SUMMARIZECOLUMNS(${c.dim}${filterArgs}, "v", ${calc(c.expr, timeFilters(run.map, run.f, c))})`);
@@ -136,7 +197,7 @@ async function buildChart(run: Run, c: ChartSpec): Promise<Chart> {
   const monthFilter = (y: number) =>
     map.date
       ? `FILTER(ALL(${map.date}), YEAR(${map.date}) = ${y} && MONTH(${map.date}) = m)`
-      : [map.year && `TREATAS({${y}}, ${map.year})`, map.month && `TREATAS({m}, ${map.month})`].filter(Boolean).join(", ");
+      : [map.year && `TREATAS({${yv(map, y)}}, ${map.year})`, map.month && `TREATAS({m}, ${map.month})`].filter(Boolean).join(", ");
   const cols = years.map((y) => `"y${y}", VAR m = [Value] RETURN ${calc(c.expr, [monthFilter(y), ...scope].filter(Boolean))}`);
   const rows = await q(run, `EVALUATE ADDCOLUMNS(GENERATESERIES(1, 12, 1), ${cols.join(", ")})`);
   const byMonth = new Map(rows.map((r) => [Number(r.Value), r]));
@@ -185,14 +246,16 @@ export async function buildPowerBiReport(key: string, f: PbiFilters): Promise<Re
   }
   const run: Run = { cfg, datasetId, map: { ...SHARED_MAP, ...(spec.map ?? {}) }, f, officeName };
 
+  // Fill {year}/{year-1}/... in every expression, label and title.
+  const t = <T,>(x: T): T => JSON.parse(yearTokens(JSON.stringify(x), f.year));
   const [kpis, matrices, charts, refreshed] = await Promise.all([
-    buildKpis(run, spec.kpis ?? []),
-    Promise.all((spec.matrices ?? []).map((m) => buildMatrix(run, m))),
-    Promise.all((spec.charts ?? []).map((c) => buildChart(run, c))),
+    buildKpis(run, t(spec.kpis ?? [])),
+    Promise.all(t(spec.matrices ?? []).map((m) => buildMatrix(run, m))),
+    Promise.all(t(spec.charts ?? []).map((c) => buildChart(run, c))),
     lastRefresh(cfg, datasetId),
   ]);
 
-  const notes = [...(spec.notes ?? [])];
+  const notes = (spec.notes ?? []).map((n) => yearTokens(n, f.year));
   const ignored = (["region", "state", "office", "program"] as const).filter((k) => (k === "office" ? f.officeId : f[k]) && !run.map[k]);
   if (ignored.length) notes.push(`The Power BI model has no ${ignored.join("/")} column mapped, so that filter isn't applied here.`);
 

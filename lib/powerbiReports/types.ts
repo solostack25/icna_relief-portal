@@ -11,7 +11,9 @@ export type ModelMap = {
   date?: string;
   // ...or numeric year and month columns.
   year?: string;
-  month?: string;
+  // The year column holds text ("2026", "2026 GOAL"), not numbers.
+  yearText?: boolean;
+  month?: string; // month number 1-12
   region?: string;
   state?: string;
   office?: string; // matched by office name (b2s_offices.field_office)
@@ -19,7 +21,8 @@ export type ModelMap = {
 };
 
 // A DAX scalar expression: a measure like "[Total Revenue]" or an
-// aggregation like "SUM('Gifts'[Amount])".
+// aggregation like "SUM('Gifts'[Amount])". "{year}", "{year-1}" etc. are
+// replaced with the picked year (handy for text years like "{year} GOAL").
 export type Expr = string;
 
 export type TimeShift = {
@@ -29,6 +32,9 @@ export type TimeShift = {
   wholeYear?: boolean;
   // Ignore the year/month filter entirely (the measure handles time itself).
   noTime?: boolean;
+  // Apply the month filter but not the year (the expression picks its own
+  // year, e.g. 'T'[YEAR] = "{year} GOAL").
+  monthOnly?: boolean;
 };
 
 export type KpiSpec = TimeShift & { label: string; unit: Unit; expr: Expr; sub?: string };
@@ -45,6 +51,7 @@ export type MatrixSpec = {
   title: string;
   dimLabel: string; // header of the first column, e.g. "Region"
   dim: string; // DAX column to group by
+  childDim?: string; // optional second level (rows expand to show these)
   columns: MatrixColumnSpec[];
   total?: boolean;
   note?: string;
@@ -54,7 +61,19 @@ export type MatrixSpec = {
   limit?: number;
 };
 
+export type TableColumnSpec = TimeShift & { key: string; label: string; unit: Unit; expr: Expr };
+
 export type ChartSpec =
+  | {
+      kind: "table";
+      title: string;
+      dims: { key: string; label: string; col: string }[];
+      columns: TableColumnSpec[];
+      total?: boolean;
+      orderBy?: string; // a column key, largest first; default: dims ascending
+      limit?: number;
+      note?: string;
+    }
   | (TimeShift & { kind: "months"; title: string; unit: Unit; expr: Expr; years?: number; cumulative?: boolean; note?: string })
   | (TimeShift & { kind: "share"; title: string; unit: Unit; dim: string; expr: Expr; limit?: number; note?: string });
 
