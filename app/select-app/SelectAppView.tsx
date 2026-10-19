@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { INTL_LOCALE } from "@/lib/i18n/translations";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PortalHeader from "@/app/PortalHeader";
 import PortalAssistantLauncher from "@/components/PortalAssistant/PortalAssistantLauncher";
 import ClockControl from "./ClockControl";
+import { HERO_CELL } from "./heroCell";
 
 type ProgramApp = { slug: string; display_name: string; route: string };
 
@@ -45,12 +48,26 @@ export default function SelectAppView({
   todayLabel: string;
   hourNow: number;
 }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+
+  // Date and greeting come from the viewer's own clock. The server runs on
+  // UTC, so its "now" is hours ahead of US staff in the evening.
+  const [clock, setClock] = useState<{ hour: number; label: string } | null>(null);
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setClock({ hour: d.getHours(), label: d.toLocaleDateString(INTL_LOCALE[locale] ?? "en-US", { weekday: "long", month: "long", day: "numeric" }) });
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [locale]);
+  const hour = clock?.hour ?? hourNow;
 
   const greeting =
-    hourNow < 12
+    hour < 12
       ? t("selectApp.greeting.morning")
-      : hourNow < 17
+      : hour < 17
       ? t("selectApp.greeting.afternoon")
       : t("selectApp.greeting.evening");
 
@@ -83,7 +100,7 @@ export default function SelectAppView({
                   color: "var(--portal-gold-soft)",
                 }}
               >
-                {todayLabel}
+                <span style={{ visibility: clock ? "visible" : "hidden" }}>{clock?.label ?? todayLabel}</span>
               </div>
               <h1
                 style={{
@@ -96,7 +113,8 @@ export default function SelectAppView({
                   margin: "0 0 10px",
                 }}
               >
-                {greeting},<br />
+                <span style={{ visibility: clock ? "visible" : "hidden" }}>{greeting},</span>
+                <br />
                 <span style={{ fontStyle: "normal", fontWeight: 600, color: "var(--portal-gold-soft)" }}>
                   {employeeFirstName}.
                 </span>
@@ -111,7 +129,7 @@ export default function SelectAppView({
             </div>
 
             <div
-              className="flex flex-wrap rounded-2xl overflow-hidden"
+              className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap rounded-2xl overflow-hidden"
               style={{ background: "rgba(251,247,239,0.08)", border: "1px solid rgba(251,247,239,0.18)" }}
             >
               <HeroStat value={openTicketsCount} label={t("selectApp.stat.openTickets")} />
@@ -377,10 +395,7 @@ export function HeroStat({
   last?: boolean;
 }) {
   return (
-    <div
-      className="px-5 py-4 min-w-[100px]"
-      style={{ borderRight: last ? "none" : "1px solid rgba(251,247,239,0.16)" }}
-    >
+    <div className={HERO_CELL} data-last={last ? "" : undefined}>
       <div
         style={{
           fontFamily: "'IBM Plex Mono', monospace",

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getOpenItTicketCountForTechnician } from "@/lib/sharepoint";
 import { getCoursesWithStatus } from "@/lib/lms";
 import SelectAppView, { HeroStat } from "./SelectAppView";
+import { HERO_CELL } from "./heroCell";
 import MyMeetingsCard, { MyMeetingsSkeleton } from "./MyMeetingsCard";
 import MeetingsTodayLink, { MeetingsTodayLinkSkeleton } from "./MeetingsTodayLink";
 import MyDay, { MyDaySkeleton } from "./MyDay";
@@ -195,7 +196,7 @@ async function ItTicketHeroStat({ fullName }: { fullName: string }) {
 
 function HeroStatSkeleton({ label }: { label: string }) {
   return (
-    <div className="px-5 py-4 min-w-[100px] animate-pulse">
+    <div className={`${HERO_CELL} animate-pulse`}>
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 24, color: "rgba(251,247,239,0.4)" }}>…</div>
       <div className="text-[11px]" style={{ color: "rgba(251,247,239,0.5)" }}>
         {label}

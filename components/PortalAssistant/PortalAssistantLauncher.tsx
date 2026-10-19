@@ -22,8 +22,15 @@ export default function PortalAssistantLauncher() {
         </div>
       )}
 
-      <button type="button" className="pa-launcher" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        {open ? "Close assistant" : "Ask the assistant"}
+      <button
+        type="button"
+        className="pa-launcher"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={open ? "Close assistant" : "Ask the assistant"}
+      >
+        <span className="pa-icon" aria-hidden>{open ? "×" : "✦"}</span>
+        <span className="pa-text">{open ? "Close assistant" : "Ask the assistant"}</span>
       </button>
 
       <style jsx>{`
@@ -55,6 +62,9 @@ export default function PortalAssistantLauncher() {
           box-shadow: 0 10px 28px rgba(18, 59, 45, 0.32);
           transition: transform 140ms ease;
         }
+        .pa-icon {
+          display: none;
+        }
         .pa-launcher:hover {
           transform: translateY(-1px);
         }
@@ -65,6 +75,27 @@ export default function PortalAssistantLauncher() {
         @media (prefers-reduced-motion: reduce) {
           .pa-launcher {
             transition: none;
+          }
+        }
+        @media (max-width: 640px) {
+          /* A small round button on phones so it doesn't cover content */
+          .pa-launcher {
+            right: 14px;
+            bottom: 14px;
+            width: 52px;
+            height: 52px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .pa-text {
+            display: none;
+          }
+          .pa-icon {
+            display: block;
+            font-size: 22px;
+            line-height: 1;
           }
         }
         @media (max-width: 480px) {
