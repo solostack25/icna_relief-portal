@@ -27,6 +27,12 @@ type Dict = Record<string, string>;
 // ------------------------------------------------------------------
 
 const en: Dict = {
+  "reportsHub.tab.overview": "Overview",
+  "reportsHub.tab.programs": "Programs",
+  "reportsHub.tab.standard": "Standard reports",
+  "reportsHub.tab.custom": "Custom reports",
+  "revenueHub.tab.all": "All revenue",
+  "revenueHub.tab.grants": "Grants",
   // Shared chrome (PortalHeader, AdminSidebar, etc.)
   "chrome.logout": "Log out",
   "chrome.back": "Back",
@@ -248,6 +254,12 @@ const en: Dict = {
 };
 
 const es: Dict = {
+  "reportsHub.tab.overview": "Resumen",
+  "reportsHub.tab.programs": "Programas",
+  "reportsHub.tab.standard": "Informes estándar",
+  "reportsHub.tab.custom": "Informes personalizados",
+  "revenueHub.tab.all": "Todos los ingresos",
+  "revenueHub.tab.grants": "Subvenciones",
   "chrome.logout": "Cerrar sesión",
   "chrome.back": "Atrás",
 
@@ -467,6 +479,12 @@ const es: Dict = {
 };
 
 const fa: Dict = {
+  "reportsHub.tab.overview": "نمای کلی",
+  "reportsHub.tab.programs": "برنامه‌ها",
+  "reportsHub.tab.standard": "گزارش‌های استاندارد",
+  "reportsHub.tab.custom": "گزارش‌های سفارشی",
+  "revenueHub.tab.all": "همه عواید",
+  "revenueHub.tab.grants": "کمک‌های مالی",
   "chrome.logout": "خروج",
   "chrome.back": "بازگشت",
 
@@ -686,6 +704,12 @@ const fa: Dict = {
 };
 
 const ar: Dict = {
+  "reportsHub.tab.overview": "نظرة عامة",
+  "reportsHub.tab.programs": "البرامج",
+  "reportsHub.tab.standard": "التقارير القياسية",
+  "reportsHub.tab.custom": "التقارير المخصصة",
+  "revenueHub.tab.all": "جميع الإيرادات",
+  "revenueHub.tab.grants": "المنح",
   "chrome.logout": "تسجيل الخروج",
   "chrome.back": "رجوع",
 
@@ -905,6 +929,12 @@ const ar: Dict = {
 };
 
 const ps: Dict = {
+  "reportsHub.tab.overview": "لنډیز",
+  "reportsHub.tab.programs": "پروګرامونه",
+  "reportsHub.tab.standard": "معیاري راپورونه",
+  "reportsHub.tab.custom": "ځانګړي راپورونه",
+  "revenueHub.tab.all": "ټول عاید",
+  "revenueHub.tab.grants": "مرستې",
   "chrome.logout": "وتل",
   "chrome.back": "شاته",
 

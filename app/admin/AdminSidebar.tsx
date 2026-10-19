@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AdminAccess } from "@/lib/adminAccess";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { reportsHubTabs, REPORTS_HUB_PREFIXES, REVENUE_PREFIXES } from "@/lib/adminNav";
 
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
@@ -151,28 +152,27 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-type NavItem = { href: string; label: string; icon: keyof typeof ICONS; external?: boolean };
+// `match` lets one item stay highlighted across a group of routes (the
+// Reports hub and Revenue are several pages behind one sidebar item).
+type NavItem = { href: string; label: string; icon: keyof typeof ICONS; external?: boolean; match?: string[] };
 type NavSection = { title: string; items: NavItem[] };
 
 export default function AdminSidebar({ access }: { access: AdminAccess }) {
   const pathname = usePathname();
   const { t } = useLanguage();
 
+  // Reports opens on the first tab this person can see.
+  const reportsHref = reportsHubTabs(access)[0].href;
+
   const sections: NavSection[] = [
     {
       title: t("sidebar.section.overview"),
       items: [
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
-        { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "dashboard" },
-        { href: "/admin/reports", label: t("sidebar.nav.reports"), icon: "dashboard" },
+        { href: reportsHref, label: t("sidebar.nav.reports"), icon: "dashboard", match: REPORTS_HUB_PREFIXES },
+        access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard", match: REVENUE_PREFIXES },
         access.isAdmin && { href: "/admin/workflows", label: t("sidebar.nav.workflows"), icon: "dashboard" },
-        (access.canReview || access.hasOfficeInfo) && { href: "/admin/insights", label: t("sidebar.nav.insights"), icon: "dashboard" },
-        (access.canReview || access.hasOfficeInfo) && { href: "/admin/insights/reports", label: t("sidebar.nav.dashboards"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/goals", label: t("sidebar.nav.goals"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/exec-dashboard", label: t("sidebar.nav.execDashboard"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/revenue", label: t("sidebar.nav.revenue"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/grants", label: t("sidebar.nav.grants"), icon: "dashboard" },
-        access.isAdmin && { href: "/admin/salesforce-sync", label: t("sidebar.nav.salesforceSync"), icon: "dashboard" },
+        { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "dashboard" },
       ].filter(Boolean) as NavItem[],
     },
     {
@@ -212,6 +212,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       title: t("sidebar.section.programs"),
       items: [
         access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
+        access.isAdmin && { href: "/admin/goals", label: t("sidebar.nav.goals"), icon: "finance" },
         access.isAdmin && { href: "/admin/rates", label: t("sidebar.nav.ratesValues"), icon: "finance" },
         access.isAdmin && { href: "/admin/data-quality", label: t("sidebar.nav.dataQuality"), icon: "officeInfo" },
         access.isAdmin && { href: "/admin/geography", label: t("sidebar.nav.geography"), icon: "officeInfo" },
@@ -245,6 +246,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         access.isAdmin && { href: "/admin/push", label: t("sidebar.nav.pushNotifications"), icon: "bell" },
         access.isAdmin && { href: "/admin/connectors", label: t("sidebar.nav.connectors"), icon: "connectors" },
+        access.isAdmin && { href: "/admin/salesforce-sync", label: t("sidebar.nav.salesforceSync"), icon: "connectors" },
       ].filter(
         Boolean
       ) as NavItem[],
@@ -299,7 +301,9 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
           </div>
           <div className="space-y-0.5">
             {section.items.map((item) => {
-              const active = pathname === item.href || (item.href.split("/").length > 2 && pathname.startsWith(item.href + "/") && !(item.href === "/admin/insights" && pathname.startsWith("/admin/insights/reports")));
+              const active = item.match
+                ? item.match.some((p) => pathname === p || pathname.startsWith(p + "/"))
+                : pathname === item.href || (item.href.split("/").length > 2 && pathname.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.href}

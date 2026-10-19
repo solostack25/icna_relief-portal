@@ -49,15 +49,12 @@ export default async function ReportsHubPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "#16302B" }}>Reports</h1>
+          <h1 className="text-xl font-bold" style={{ color: "#16302B" }}>Standard reports</h1>
           <p className="text-xs mt-1 max-w-2xl" style={{ color: "rgba(22,48,43,0.62)" }}>
             Every Power BI report, rebuilt on live portal data. Each report has the same filters (year, month, region, state, field office) and exports to CSV.
             {access.lockedOffice ? " You're seeing your office's numbers." : access.lockedRegion ? ` You're seeing ${access.lockedRegion}.` : ""}
           </p>
         </div>
-        <Link href="/admin/insights" className="text-xs font-semibold rounded-full px-3 py-1.5" style={{ border: "1.5px solid rgba(22,48,43,0.12)", color: "rgba(22,48,43,0.7)" }}>
-          ← Insights
-        </Link>
       </div>
 
       <div className="rounded-2xl px-4 py-3 text-[12px]" style={{ background: "#22427A", color: "#fff" }}>
