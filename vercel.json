@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/powerbi-compare",
       "schedule": "30 12 * * *"
+    },
+    {
+      "path": "/api/cron/quickbooks-keepalive",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

@@ -177,6 +177,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         { href: "/admin", label: t("sidebar.nav.dashboard"), icon: "dashboard" },
         hub("reports", t("sidebar.nav.reports"), "dashboard"),
         hub("revenue", t("sidebar.nav.revenue"), "finance"),
+        access.canManageFinance && { href: "/admin/expenses", label: t("sidebar.nav.expenses"), icon: "finance" },
         access.isAdmin && { href: "/admin/workflows", label: t("sidebar.nav.workflows"), icon: "dashboard" },
         { href: "/irfas", label: t("sidebar.nav.irfas"), icon: "finance" },
       ].filter(Boolean) as NavItem[],

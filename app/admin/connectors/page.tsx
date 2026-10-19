@@ -8,6 +8,7 @@ import ZakatApproversManager from "./ZakatApproversManager";
 import ZakatFinanceAccessManager from "./ZakatFinanceAccessManager";
 import SquareLocationMapClient from "./SquareLocationMapClient";
 import PowerBiSignIn from "./PowerBiSignIn";
+import { QuickBooksDesktopConnect, QuickBooksOnlineConnect } from "./QuickBooksConnect";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -106,6 +107,26 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="salesforce_username" label="Integration User Username" placeholder="integration@icnarelief.org" />
         <ConnectorKeyField settingKey="salesforce_password_token" label="Password + Security Token" placeholder="password + token, concatenated" />
         <ConnectorKeyField settingKey="salesforce_instance_url" label="Instance URL" placeholder="https://icnarelief.my.salesforce.com" />
+      </ConnectorSection>
+
+      <ConnectorSection
+        id="quickbooks"
+        title="QuickBooks Online"
+        description="Lets finance pull a month's Profit & Loss by Class straight into Admin → Expenses (read-only — nothing is written to QuickBooks). Create an app at developer.intuit.com with the Accounting scope, then paste its Production client ID and secret here and click Connect. Use 'sandbox' as the environment only for testing."
+      >
+        <ConnectorKeyField settingKey="qbo_client_id" label="Client ID" envFallbackKey="QBO_CLIENT_ID" />
+        <ConnectorKeyField settingKey="qbo_client_secret" label="Client secret" envFallbackKey="QBO_CLIENT_SECRET" />
+        <ConnectorKeyField settingKey="qbo_environment" label="Environment (production or sandbox)" placeholder="production" />
+        <QuickBooksOnlineConnect />
+      </ConnectorSection>
+
+      <ConnectorSection
+        title="QuickBooks Desktop (Web Connector)"
+        description="For QuickBooks Desktop / Enterprise: Intuit's free Web Connector runs on the finance PC, checks in on a schedule, and sends the months queued on Admin → Expenses → QuickBooks. Read-only — the only thing it asks QuickBooks for is the P&L by Class report."
+      >
+        <ConnectorKeyField settingKey="qbwc_username" label="Web Connector username" placeholder="e.g. icna-portal" />
+        <ConnectorKeyField settingKey="qbwc_password" label="Web Connector password" placeholder="A long random password" />
+        <QuickBooksDesktopConnect />
       </ConnectorSection>
 
       <ConnectorSection
