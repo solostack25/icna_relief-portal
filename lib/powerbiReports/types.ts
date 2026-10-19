@@ -94,4 +94,7 @@ export type PbiReportSpec = {
   notes?: string[];
   // Column whose values fill the Program filter dropdown.
   programsFrom?: string;
+  // Filters to show, when they differ from the catalog's (e.g. reports that
+  // are plain links on the Standard side).
+  filters?: ("year" | "month" | "region" | "state" | "office" | "program")[];
 };

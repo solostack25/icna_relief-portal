@@ -11,7 +11,7 @@ export const maxDuration = 60;
 // Power BI's own row-level security doesn't apply.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   if (!(await requirePowerBiAdmin())) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-  const { key } = await params;
+  const key = decodeURIComponent((await params).key);
   const sp = req.nextUrl.searchParams;
   const { year, month } = parsePeriod(sp.get("year"), sp.get("month"));
   const uuid = (s: string | null) => (s && /^[0-9a-f-]{36}$/i.test(s) ? s : null);

@@ -101,9 +101,91 @@ const count = (table: string, c: string) => `COUNT(${col(table, c)})`;
 
 // Reports whose Power BI page has no data to mirror.
 export const PBI_NO_PAGE: Record<string, string> = {
+  programs: "Power BI's Programs Dashboard is a menu of buttons linking to each program page — open those reports instead.",
   "kpis-programs": "Power BI's KPI-Programs page is text only — no data visuals to mirror.",
   "kpis-regions": "Power BI's KPI-Regions page is text only — no data visuals to mirror.",
 };
+
+// ─── Region profile tables ──────────────────────────────────────────────────
+// One table per region (DMV, Midwest 1, ...) plus All Regions, each with one
+// row per field office per year: revenue vs goal, value of services (VOS),
+// individuals served (IS), volunteers, staff, donors, Muslim population.
+// Annual figures: no month column.
+const regionProfile = (table: string, opts: { allRegions?: boolean } = {}): PbiReportSpec => {
+  const s = (c: string) => sum(table, c);
+  const map: ModelMap = { year: col(table, "YEAR"), region: col(table, "REGION"), state: col(table, "STATE"), office: col(table, "FIELD OFFICE") };
+  const officeCols: MatrixColumnSpec[] = [
+    { key: "revenue", label: "Revenue", unit: "money", expr: s("TOTAL REVENUE CURRENT") },
+    { key: "goal", label: "Goal", unit: "money", expr: s("REVENUE GOAL") },
+    { key: "pct", label: "% of goal", unit: "pct", expr: `DIVIDE(${s("TOTAL REVENUE CURRENT")}, ${s("REVENUE GOAL")}) * 100` },
+    { key: "vos", label: "Value of services", unit: "money", expr: s("VOS TOTAL") },
+    { key: "is", label: "Individuals served", unit: "count", expr: s("TOTAL-IS") },
+    { key: "volunteers", label: "Volunteers", unit: "count", expr: s("UNIQUE VOLUNTEERS ENGAGED") },
+    { key: "hours", label: "Volunteer hours", unit: "hours", expr: s("VOLUNTEER HOURS UTILIZED") },
+  ];
+  return {
+    map,
+    filters: opts.allRegions ? ["year", "region", "state", "office"] : ["year", "state", "office"],
+    notes: ["Annual figures from Power BI's region profile tables (one row per office per year), so the month filter doesn't apply. Population, mosques, staff and donors are as recorded for that year."],
+    kpis: [
+      { label: "Revenue", unit: "money", expr: s("TOTAL REVENUE CURRENT") },
+      { label: "Revenue goal", unit: "money", expr: s("REVENUE GOAL") },
+      { label: "% of goal", unit: "pct", expr: `DIVIDE(${s("TOTAL REVENUE CURRENT")}, ${s("REVENUE GOAL")}) * 100` },
+      { label: "Raised by grants", unit: "money", expr: s("AMOUNT RAISED BY GRANTS") },
+      { label: "In-kind received", unit: "money", expr: s("IN-KIND DONATIONS RECEIVED") },
+      { label: "Cash + in-kind raised", unit: "money", expr: s("TOTAL CASH + IN-KIND RAISED") },
+      { label: "Value of services", unit: "money", expr: s("VOS TOTAL") },
+      { label: "Individuals served", unit: "count", expr: s("TOTAL-IS") },
+      { label: "Unique volunteers", unit: "count", expr: s("UNIQUE VOLUNTEERS ENGAGED") },
+      { label: "Volunteer hours", unit: "hours", expr: s("VOLUNTEER HOURS UTILIZED") },
+      ...(opts.allRegions ? [] : [{ label: "Expenditure", unit: "money" as const, expr: s("EXPENDITURE") }]),
+      { label: "Muslim population", unit: "count", expr: s("MUSLIM POPULATION") },
+      { label: "Mosques", unit: "count", expr: s("NUMBER OF MOSQUES") },
+      { label: "Registered donors (Salesforce)", unit: "count", expr: s("REGISTERED DONORS IN SALESFORCE") },
+      { label: "Tapped donors", unit: "count", expr: s("TAPPED DONORS") },
+      { label: "Full-time staff", unit: "count", expr: s("FT-STAFF") },
+      { label: "Part-time staff", unit: "count", expr: s("PT-STAFF") },
+    ],
+    matrices: [
+      opts.allRegions
+        ? byRegion(table, "By region", officeCols)
+        : { title: "By field office", dimLabel: "Field office", dim: col(table, "FIELD OFFICE"), order: "desc", total: true, columns: officeCols },
+    ],
+    charts: [
+      { kind: "value-addition", title: "Cash + in-kind raised vs. value of services", raised: s("TOTAL CASH + IN-KIND RAISED"), services: s("VOS TOTAL") },
+      { kind: "share", title: "Value of services by program", unit: "money", items: [
+        { label: "Back2School", expr: s("B2S VOS") },
+        { label: "Disaster Relief", expr: s("DRS VOS") },
+        { label: "Transitional Housing", expr: s("TH VOS") },
+        { label: "Refugee Services", expr: s("RS VOS") },
+        { label: "IRFAS", expr: s("IRFAS VOS") },
+        { label: "Counselling", expr: s("COUNSELLING VOS") },
+        { label: "FATE", expr: s("FATE VOS") },
+        { label: "Health Services", expr: s("HS VOS") },
+        { label: "Hunger Prevention", expr: s("HP VOS") },
+      ] },
+      {
+        kind: "table",
+        title: "Year over year",
+        dims: [{ key: "year", label: "Year", col: col(table, "YEAR") }],
+        columns: [
+          { key: "revenue", label: "Revenue", unit: "money", expr: s("TOTAL REVENUE CURRENT"), noTime: true },
+          { key: "goal", label: "Goal", unit: "money", expr: s("REVENUE GOAL"), noTime: true },
+          { key: "grants", label: "Grants", unit: "money", expr: s("AMOUNT RAISED BY GRANTS"), noTime: true },
+          ...(opts.allRegions ? [] : [{ key: "exp", label: "Expenditure", unit: "money" as const, expr: s("EXPENDITURE"), noTime: true }]),
+          { key: "vos", label: "Value of services", unit: "money", expr: s("VOS TOTAL"), noTime: true },
+          { key: "is", label: "Individuals served", unit: "count", expr: s("TOTAL-IS"), noTime: true },
+        ],
+      },
+    ],
+  };
+};
+
+// ─── Finance (central and grant expenses) ───────────────────────────────────
+const EXC = "Expenses-Central";
+const EXG = "Expenses-Grants";
+const EXC_MAP: ModelMap = { year: col(EXC, "YEAR"), month: col(EXC, "MSN") };
+const EXG_MAP = tableMap(EXG);
 
 export const PBI_REPORTS: Record<string, PbiReportSpec> = {
   "national-revenue": {
@@ -793,6 +875,69 @@ export const PBI_REPORTS: Record<string, PbiReportSpec> = {
       ] },
       { kind: "months", title: "Expenditure by month", unit: "money", expr: sum(EX, "TOTAL EXPENDITURE") },
       { kind: "months", title: "Revenue by month", unit: "money", expr: sum(EX, "REVENUE") },
+    ],
+  },
+  "regional-profiles": regionProfile("All Regions", { allRegions: true }),
+  "region-DMV": regionProfile("DMV"),
+  "region-MIDWEST 1": regionProfile("Midwest 1"),
+  "region-MIDWEST 2": regionProfile("Midwest 2"),
+  "region-NORTHEAST": regionProfile("Northeast"),
+  "region-SOUTH CENTRAL": regionProfile("South Central"),
+  "region-SOUTHEAST": regionProfile("Southeast"),
+  "region-WEST": regionProfile("West"),
+
+  finance: {
+    map: EXC_MAP,
+    filters: ["year", "month", "region", "state", "office"],
+    notes: ["From Power BI's Expenses-Central and Expenses-Grants pages. Central expenses aren't tied to an office, so the region/state/office filters only narrow the grant figures."],
+    kpis: [
+      { label: "Central expenditure", unit: "money", expr: sum(EXC, "TOTAL EXPENDITURE") },
+      { label: "Salaries & wages (central)", unit: "money", expr: sum(EXC, "Salaries & Wages") },
+      { label: "Fringe benefits (central)", unit: "money", expr: sum(EXC, "Total Fringe Benefits") },
+      { label: "PEX card", unit: "money", expr: sum(EXC, "PEX Card") },
+      { label: "C-suite credit card", unit: "money", expr: sum(EXC, "C-Suite Credit Card") },
+      { label: "Marketing (ads, social, print)", unit: "money", expr: `${sum(EXC, "Advertising")} + ${sum(EXC, "Social Media & Marketing")} + ${sum(EXC, "Printing & Publication")}` },
+      { label: "Grant revenue", unit: "money", expr: sum(EXG, "GRANT REVENUE"), map: EXG_MAP },
+      { label: "Grant expenditure", unit: "money", expr: sum(EXG, "TOTAL"), map: EXG_MAP },
+      { label: "Grant surplus / deficit", unit: "money", expr: sum(EXG, "SURPLUS/DEFICIT"), map: EXG_MAP },
+    ],
+    matrices: [
+      {
+        title: "Central expenditure by department",
+        dimLabel: "Department",
+        dim: col(EXC, "DEPARTMENT"),
+        childDim: col(EXC, "DEPARTMENT SUBHEADS"),
+        order: "desc",
+        total: true,
+        columns: [{ key: "total", label: "Expenditure", unit: "money", expr: sum(EXC, "TOTAL EXPENDITURE") }],
+      },
+      { ...byRegion(EXG, "Grants by region", [
+        { key: "revenue", label: "Grant revenue", unit: "money", expr: sum(EXG, "GRANT REVENUE") },
+        { key: "spent", label: "Expenditure", unit: "money", expr: sum(EXG, "TOTAL") },
+        { key: "net", label: "Surplus / deficit", unit: "money", expr: sum(EXG, "SURPLUS/DEFICIT") },
+      ]), map: EXG_MAP },
+    ],
+    charts: [
+      { kind: "share", title: "Central expenditure by category", unit: "money", items: [
+        { label: "Salaries & wages", expr: sum(EXC, "Salaries & Wages") },
+        { label: "Fringe benefits", expr: sum(EXC, "Total Fringe Benefits") },
+        { label: "Contractual", expr: sum(EXC, "Total Contractual Services") },
+        { label: "Travel", expr: sum(EXC, "TOTAL TRAVELLING") },
+        { label: "Occupancy", expr: sum(EXC, "TOTAL OCCUPANCY") },
+        { label: "Operational", expr: sum(EXC, "OPERATIONAL COST") },
+        { label: "Community outreach", expr: sum(EXC, "TOTAL COMMUNITY OUTREACH") },
+      ] },
+      { kind: "months", title: "Central expenditure by month", unit: "money", expr: sum(EXC, "TOTAL EXPENDITURE") },
+      { kind: "share", title: "Grant spending by category", unit: "money", map: EXG_MAP, items: [
+        { label: "Salaries & wages", expr: sum(EXG, "6501 · SALARIES AND WAGES") },
+        { label: "Fringe benefits", expr: sum(EXG, "Total 6502 · FRINGE BENEFITS") },
+        { label: "Contractual", expr: sum(EXG, "Total 6503 · CONTRATUALSERVICES") },
+        { label: "Travel", expr: sum(EXG, "Total 6505 · TRAVELLING") },
+        { label: "Occupancy", expr: sum(EXG, "Total 6510 · OCCUPANCY") },
+        { label: "Operational", expr: sum(EXG, "Total 8000 · OPERATIONAL COST") },
+        { label: "Community outreach", expr: sum(EXG, "Total 9000 · COMMUNITY OUTREACH") },
+      ] },
+      { kind: "months", title: "Grant expenditure by month", unit: "money", expr: sum(EXG, "TOTAL"), map: EXG_MAP },
     ],
   },
 };

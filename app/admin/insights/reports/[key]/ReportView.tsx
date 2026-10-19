@@ -324,12 +324,16 @@ export default function ReportView({
   lockedRegion,
   lockedOffice,
   source = "portal",
+  filters,
 }: {
   reportKey: string;
   offices: Office[];
   lockedRegion: string | null;
   lockedOffice: string | null;
   source?: "portal" | "powerbi";
+  // Overrides the catalog's filter list (Power BI versions of reports that
+  // are plain links on the Standard side, like the region tiles).
+  filters?: string[];
 }) {
   const api = source === "powerbi" ? "/api/admin/powerbi/reports" : "/api/admin/insights/reports";
   const backHref = source === "powerbi" ? "/admin/powerbi" : "/admin/insights/reports";
@@ -357,7 +361,7 @@ export default function ReportView({
     if (state) qs.set("state", state);
     if (office) qs.set("office", office);
     if (program) qs.set("program", program);
-    fetch(`${api}/${reportKey}?${qs}`, { signal: ctrl.signal })
+    fetch(`${api}/${encodeURIComponent(reportKey)}?${qs}`, { signal: ctrl.signal })
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Couldn't load the report");
@@ -374,7 +378,7 @@ export default function ReportView({
     return () => clearTimeout(t);
   }, [data]);
 
-  const has = (f: string) => def.filters.includes(f as any);
+  const has = (f: string) => (filters ?? (def.filters as string[])).includes(f);
   const file = `${reportKey}_${year}${month ? `-${month}` : ""}`;
   const scopeLabel = [lockedOffice || office ? offices.find((o) => o.id === (lockedOffice || office))?.name : null, state || null, region || null].find(Boolean) ?? "All regions";
 

@@ -1,19 +1,51 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { REPORTS } from "@/lib/reportsSuite/catalog";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { REPORTS, type ReportDef } from "@/lib/reportsSuite/catalog";
 import { isMapped } from "@/lib/powerbiReports/engine";
 import { PBI_NO_PAGE } from "@/lib/powerbiReports/specs";
-import { createAdminClient } from "@/lib/supabase/server";
 import ReadModelButton from "./ReadModelButton";
 
 export const dynamic = "force-dynamic";
 
+// Same layout and colors as Standard reports (app/admin/insights/reports),
+// so the two read side by side; every tile here opens the Power BI version.
 const COLUMN = {
-  programs: "Programs",
-  central: "Revenue & operations",
-  regions: "Regions",
+  programs: { title: "Programs", bg: "#1F6F54", fg: "#fff" },
+  central: { title: "Revenue & operations", bg: "#22427A", fg: "#fff" },
+  regions: { title: "Regions", bg: "#E9A92E", fg: "#2B1D00" },
 } as const;
+const ACCENT = { red: { bg: "#A93226", fg: "#fff" }, purple: { bg: "#7B3F98", fg: "#fff" } };
+
+function Tile({ r }: { r: ReportDef }) {
+  const noPage = PBI_NO_PAGE[r.key];
+  if (!isMapped(r.key)) {
+    return (
+      <div
+        className="rounded-xl px-4 py-3 text-center"
+        style={{ background: "rgba(22,48,43,0.04)", color: "rgba(22,48,43,0.42)", border: "1px dashed rgba(22,48,43,0.15)" }}
+        title={noPage}
+      >
+        <div className="text-[13px] font-bold uppercase tracking-wide">{r.title}</div>
+        <div className="mt-1.5 flex justify-center">
+          <span className="text-[10px] font-semibold rounded-full px-2 py-0.5" style={{ background: "rgba(22,48,43,0.06)" }}>
+            {noPage ? "No Power BI page" : "Not mapped yet"}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  const col = r.color ? ACCENT[r.color] : COLUMN[r.column];
+  return (
+    <Link
+      href={`/admin/powerbi/${encodeURIComponent(r.key)}`}
+      className="block rounded-xl px-4 py-3 transition-transform hover:-translate-y-0.5"
+      style={{ background: col.bg, color: col.fg, boxShadow: "0 2px 0 rgba(0,0,0,0.12)" }}
+    >
+      <div className="text-[13px] font-bold uppercase tracking-wide text-center">{r.title}</div>
+    </Link>
+  );
+}
 
 // Temporary: the same reports as Standard reports, with every number drawn
 // from the Power BI model, until Power BI is retired.
@@ -37,11 +69,8 @@ export default async function PowerBiReportsPage() {
     ? new Date(last.captured_at).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : null;
 
-  const reports = REPORTS.filter((r) => !r.href);
-  const mapped = reports.filter((r) => isMapped(r.key)).length;
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -53,7 +82,7 @@ export default async function PowerBiReportsPage() {
             </span>
           </div>
           <p className="text-xs mt-1 max-w-2xl" style={{ color: "rgba(22,48,43,0.62)" }}>
-            The same reports and filters as Standard reports, with every number pulled from Power BI. As current as Power BI&apos;s last refresh.
+            The same reports as Standard reports, with every number pulled from Power BI. Each report has the same filters and exports to CSV, and is as current as Power BI&apos;s last refresh.
           </p>
         </div>
         <Link
@@ -65,51 +94,25 @@ export default async function PowerBiReportsPage() {
         </Link>
       </div>
 
+      <div className="rounded-2xl px-4 py-3 text-[12px]" style={{ background: "#22427A", color: "#fff" }}>
+        <span className="font-semibold">No Power BI page</span> = Power BI has no data page for this one (it&apos;s a menu or text only). Hover a tile to see why.
+      </div>
+
       <ReadModelButton lastRead={lastRead} />
 
-      {mapped === 0 && (
-        <div className="rounded-2xl px-4 py-3 text-[13px]" style={{ background: "#FBF0DC", color: "#7A5617" }}>
-          No reports are connected to the Power BI model yet. They appear here as each one is mapped.
-        </div>
-      )}
-
       <div className="grid md:grid-cols-3 gap-6">
-        {(["programs", "central", "regions"] as const).map((c) => {
-          const list = reports.filter((r) => r.column === c);
-          if (!list.length) return null;
-          return (
-            <div key={c}>
-              <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "rgba(22,48,43,0.5)" }}>
-                {COLUMN[c]}
-              </div>
-              <div className="grid gap-2.5">
-                {list.map((r) =>
-                  isMapped(r.key) ? (
-                    <Link
-                      key={r.key}
-                      href={`/admin/powerbi/${r.key}`}
-                      className="block rounded-xl px-4 py-3 text-center text-[13px] font-bold uppercase tracking-wide transition-transform hover:-translate-y-0.5"
-                      style={{ background: "#F2C811", color: "#2B2300", boxShadow: "0 2px 0 rgba(0,0,0,0.12)" }}
-                    >
-                      {r.title}
-                    </Link>
-                  ) : (
-                    <div
-                      key={r.key}
-                      className="rounded-xl px-4 py-3 text-center"
-                      style={{ background: "rgba(22,48,43,0.04)", color: "rgba(22,48,43,0.4)", border: "1px dashed rgba(22,48,43,0.15)" }}
-                    >
-                      <div className="text-[13px] font-bold uppercase tracking-wide">{r.title}</div>
-                      <div className="text-[10px] mt-0.5" title={PBI_NO_PAGE[r.key]}>
-                        {PBI_NO_PAGE[r.key] ? "No Power BI page to mirror" : "Not mapped yet"}
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
+        {(["programs", "central", "regions"] as const).map((c) => (
+          <div key={c}>
+            <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "rgba(22,48,43,0.5)" }}>
+              {COLUMN[c].title}
             </div>
-          );
-        })}
+            <div className="grid gap-2.5">
+              {REPORTS.filter((r) => r.column === c).map((r) => (
+                <Tile key={r.key} r={r} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
