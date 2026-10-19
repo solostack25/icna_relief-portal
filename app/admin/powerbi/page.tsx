@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { REPORTS } from "@/lib/reportsSuite/catalog";
 import { isMapped } from "@/lib/powerbiReports/engine";
+import { createAdminClient } from "@/lib/supabase/server";
+import ReadModelButton from "./ReadModelButton";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,17 @@ export default async function PowerBiReportsPage() {
   if (!user) redirect("/");
   const { data: me } = await supabase.from("employees").select("role").eq("auth_user_id", user.id).single();
   if (me?.role !== "admin") redirect("/admin");
+
+  const { data: last } = await createAdminClient()
+    .from("pbi_model_snapshots")
+    .select("captured_at")
+    .is("error", null)
+    .order("captured_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const lastRead = last?.captured_at
+    ? new Date(last.captured_at).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : null;
 
   const reports = REPORTS.filter((r) => !r.href);
   const mapped = reports.filter((r) => isMapped(r.key)).length;
@@ -50,6 +63,8 @@ export default async function PowerBiReportsPage() {
           Compare with portal →
         </Link>
       </div>
+
+      <ReadModelButton lastRead={lastRead} />
 
       {mapped === 0 && (
         <div className="rounded-2xl px-4 py-3 text-[13px]" style={{ background: "#FBF0DC", color: "#7A5617" }}>

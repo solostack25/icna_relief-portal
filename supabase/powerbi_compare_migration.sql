@@ -57,3 +57,19 @@ alter table pbi_compare_metrics enable row level security;
 alter table pbi_compare_runs enable row level security;
 create policy "pbi_compare_metrics admin only" on pbi_compare_metrics for all using (is_admin());
 create policy "pbi_compare_runs admin only" on pbi_compare_runs for all using (is_admin());
+
+-- Snapshots of the Power BI model and report definitions (tables, columns,
+-- measures with their DAX, report pages/visuals), taken from the Power BI
+-- tab with "Read Power BI model". Used to map each report to the model.
+create table if not exists pbi_model_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  captured_at timestamptz not null default now(),
+  captured_by uuid references employees(id),
+  kind text not null check (kind in ('semantic_model', 'report', 'column_stats')),
+  item_id text not null,
+  item_name text,
+  parts jsonb, -- [{ path, text }] or column statistics rows
+  error text
+);
+alter table pbi_model_snapshots enable row level security;
+create policy "pbi_model_snapshots admin only" on pbi_model_snapshots for all using (is_admin());

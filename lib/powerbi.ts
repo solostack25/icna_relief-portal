@@ -32,12 +32,15 @@ export class PowerBiError extends Error {
   }
 }
 
-// Tokens last an hour; reuse one per warm server instance.
-let cached: { key: string; token: string; expiresAt: number } | null = null;
+// Tokens last an hour; reuse one per scope per warm server instance.
+const POWERBI_SCOPE = "https://analysis.windows.net/powerbi/api/.default";
+const FABRIC_SCOPE = "https://api.fabric.microsoft.com/.default";
+const tokens = new Map<string, { token: string; expiresAt: number }>();
 
-async function getToken(cfg: PowerBiConfig): Promise<string> {
-  const key = `${cfg.tenantId}:${cfg.clientId}`;
-  if (cached && cached.key === key && cached.expiresAt > Date.now() + 60_000) return cached.token;
+async function getToken(cfg: PowerBiConfig, scope = POWERBI_SCOPE): Promise<string> {
+  const key = `${cfg.tenantId}:${cfg.clientId}:${scope}`;
+  const hit = tokens.get(key);
+  if (hit && hit.expiresAt > Date.now() + 60_000) return hit.token;
   const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(cfg.tenantId)}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -45,7 +48,7 @@ async function getToken(cfg: PowerBiConfig): Promise<string> {
       grant_type: "client_credentials",
       client_id: cfg.clientId,
       client_secret: cfg.clientSecret,
-      scope: "https://analysis.windows.net/powerbi/api/.default",
+      scope,
     }),
     cache: "no-store",
   });
@@ -53,7 +56,7 @@ async function getToken(cfg: PowerBiConfig): Promise<string> {
   if (!res.ok || !body.access_token) {
     throw new PowerBiError(`Sign-in failed: ${body.error_description?.split("\r\n")[0] ?? body.error ?? res.statusText}`, res.status);
   }
-  cached = { key, token: body.access_token, expiresAt: Date.now() + Number(body.expires_in ?? 3600) * 1000 };
+  tokens.set(key, { token: body.access_token, expiresAt: Date.now() + Number(body.expires_in ?? 3600) * 1000 });
   return body.access_token;
 }
 
@@ -128,4 +131,50 @@ export async function lastRefresh(cfg: PowerBiConfig, datasetId: string): Promis
   } catch {
     return null;
   }
+}
+
+export type ReportInfo = { id: string; name: string; datasetId: string | null };
+
+export async function listReports(cfg: PowerBiConfig): Promise<ReportInfo[]> {
+  const body = await pbiFetch(cfg, "/reports");
+  return ((body.value ?? []) as { id: string; name: string; datasetId?: string }[]).map((r) => ({ id: r.id, name: r.name, datasetId: r.datasetId ?? null }));
+}
+
+export type DefinitionPart = { path: string; text: string };
+
+// Full definition of a semantic model (TMDL: tables, columns, measures with
+// their DAX, relationships) or a report (pages and visuals) through the
+// Fabric REST API. Long-running: Fabric answers 202 and we poll.
+export async function getItemDefinition(cfg: PowerBiConfig, kind: "semanticModels" | "reports", id: string): Promise<DefinitionPart[]> {
+  const token = await getToken(cfg, FABRIC_SCOPE);
+  const base = `https://api.fabric.microsoft.com/v1/workspaces/${encodeURIComponent(cfg.workspaceId)}/${kind}/${encodeURIComponent(id)}/getDefinition`;
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  let res = await fetch(kind === "semanticModels" ? `${base}?format=TMDL` : base, { method: "POST", headers, cache: "no-store" });
+
+  if (res.status === 202) {
+    const location = res.headers.get("location");
+    if (!location) throw new PowerBiError("Fabric didn't say where to poll for the definition");
+    const deadline = Date.now() + 50_000;
+    for (;;) {
+      const wait = Number(res.headers.get("retry-after") ?? 2);
+      await new Promise((r) => setTimeout(r, Math.min(Math.max(wait, 1), 5) * 1000));
+      const op = await fetch(location, { headers, cache: "no-store" });
+      const opBody = await op.json().catch(() => ({}));
+      if (opBody.status === "Succeeded") {
+        res = await fetch(`${location.replace(/\/$/, "")}/result`, { headers, cache: "no-store" });
+        break;
+      }
+      if (opBody.status === "Failed") throw new PowerBiError(`Fabric couldn't export the ${kind === "reports" ? "report" : "model"}: ${opBody.error?.message ?? "unknown error"}`);
+      if (Date.now() > deadline) throw new PowerBiError("Timed out waiting for Fabric to export the definition");
+      res = op;
+    }
+  }
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = body?.message ?? body?.error?.message ?? res.statusText;
+    throw new PowerBiError(`Fabric ${res.status}: ${msg}`, res.status);
+  }
+  const parts = (body.definition?.parts ?? []) as { path: string; payload: string; payloadType: string }[];
+  return parts.map((p) => ({ path: p.path, text: p.payloadType === "InlineBase64" ? Buffer.from(p.payload, "base64").toString("utf8") : p.payload }));
 }
