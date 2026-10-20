@@ -7,6 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 import SuccessScreen from "@/app/components/SuccessScreen";
 import { getClientIntakeKindMessage } from "@/lib/kindMessages";
 import IntakeReview, { withSharedAddress } from "@/components/intake/IntakeReview";
+import {
+  useDuplicateClientCheck,
+  DuplicateClientModal,
+  DuplicateClientBanner,
+} from "@/components/intake/DuplicateClientCheck";
 
 type Member = {
   first_name: string;
@@ -73,6 +78,13 @@ export default function NewHouseholdIntakePage() {
   const [newClientRedirectId, setNewClientRedirectId] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
 
+  // Same name + same address as an existing client blocks the intake.
+  const dup = useDuplicateClientCheck(
+    members[0].first_name,
+    members[0].last_name,
+    members[0].address_line1
+  );
+
   function updateMember(i: number, field: keyof Member, value: string | boolean) {
     setMembers((m) => m.map((mem, idx) => (idx === i ? { ...mem, [field]: value } : mem)));
   }
@@ -106,6 +118,15 @@ export default function NewHouseholdIntakePage() {
       return;
     }
 
+    if (dup.checking) {
+      setError("Still checking for an existing client with this name and address — try again in a moment.");
+      return;
+    }
+    if (dup.blocked) {
+      dup.openModal();
+      return;
+    }
+
     setReviewing(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -123,6 +144,11 @@ export default function NewHouseholdIntakePage() {
   // Step 2: saved only after Confirm on the review screen.
   async function confirmAndSave() {
     setError(null);
+    if (dup.blocked) {
+      setReviewing(false);
+      dup.openModal();
+      return;
+    }
     setSaving(true);
 
     const payload = withSharedAddress(members, sameAddress).map((m) => ({
@@ -174,6 +200,10 @@ export default function NewHouseholdIntakePage() {
             ← Back to search
           </Link>
         </div>
+
+        {dup.modalOpen && dup.blocked && (
+          <DuplicateClientModal matches={dup.matches} onClose={dup.closeModal} profileHref={dup.profileHref} />
+        )}
 
         {reviewing && (
           <IntakeReview
@@ -302,6 +332,7 @@ export default function NewHouseholdIntakePage() {
                       <input value={member.zip} onChange={(e) => updateMember(i, "zip", e.target.value)} className={inputClass} />
                     </div>
                   </div>
+                  {dup.blocked && <DuplicateClientBanner count={dup.matches.length} onView={dup.openModal} />}
                 </div>
               )}
 
@@ -396,7 +427,7 @@ export default function NewHouseholdIntakePage() {
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || dup.blocked}
             className="w-full rounded-lg bg-[var(--color-accent)] text-white font-medium py-3 text-sm disabled:opacity-50"
           >
             Review Household ({members.length} member{members.length > 1 ? "s" : ""}) →
