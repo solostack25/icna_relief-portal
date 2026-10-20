@@ -134,7 +134,7 @@ export default async function ClientProfilePage({
     supabase.from("employees").select("id, first_name, last_name").eq("auth_user_id", user.id).maybeSingle(),
     supabase
       .from("rsce_cases")
-      .select("id, status, opened_on, closed_on, closed_reason, arrival_date, referral_source, notes, case_manager_id")
+      .select("id, status, opened_on, closed_on, closed_reason, arrival_date, referral_source, notes, case_manager_id, id_document_type, id_document_path, id_document_name, id_uploaded_at")
       .eq("client_id", id)
       .order("opened_on", { ascending: false }),
     supabase
@@ -151,6 +151,9 @@ export default async function ClientProfilePage({
       .order("name"),
   ]);
   const rsceCase = (rsceCases ?? []).find((c) => c.status === "open") ?? (rsceCases ?? [])[0] ?? null;
+  // Most recent ID uploaded on any of this client's cases — offered for reuse
+  // when a closed case is reopened.
+  const rscePreviousId = (rsceCases ?? []).find((c) => c.id_document_path) ?? null;
   const rsceEmployeeIds = [
     ...new Set([
       ...(rsceServices ?? []).map((s) => s.employee_id),
@@ -459,6 +462,16 @@ export default async function ClientProfilePage({
           householdSize={householdSize}
           currentEmployeeId={me?.id ?? null}
           rsceCase={rsceCase}
+          previousId={
+            rscePreviousId
+              ? {
+                  type: rscePreviousId.id_document_type,
+                  path: rscePreviousId.id_document_path,
+                  name: rscePreviousId.id_document_name,
+                  uploaded_at: rscePreviousId.id_uploaded_at,
+                }
+              : null
+          }
           services={(rsceServices ?? []).map((sv) => ({
             id: sv.id,
             service_name: sv.service_name,
