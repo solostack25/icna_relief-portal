@@ -267,6 +267,21 @@ export default function SelectAppView({
             }
           />
           <QuickCard
+            href="/mileage"
+            title="Mileage Tracker"
+            desc="Tap Start when you drive, End when you arrive — miles go straight to a reimbursement ticket"
+            tint="#E7F3EE"
+            iconColor="#1F6F54"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 17h14M6 17l1.5-5.5A2 2 0 019.4 10h5.2a2 2 0 011.9 1.5L18 17" />
+                <circle cx="8" cy="17" r="2" />
+                <circle cx="16" cy="17" r="2" />
+                <path d="M12 3v4M9 5h6" />
+              </svg>
+            }
+          />
+          <QuickCard
             href="/marketing/donor-calling"
             title={t("selectApp.card.donorCalling.title")}
             desc={t("selectApp.card.donorCalling.desc")}

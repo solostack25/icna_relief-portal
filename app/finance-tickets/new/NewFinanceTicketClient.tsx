@@ -269,6 +269,12 @@ export default function NewFinanceTicketClient({ offices }: { offices: Office[] 
       )}
 
       {category === "mileage_reimbursement" && (
+        <a href="/mileage" style={{ fontSize: 13, color: "#1F6F54", fontWeight: 600 }}>
+          Driving now? Use the Mileage Tracker instead — tap Start and End and the miles fill in for you →
+        </a>
+      )}
+
+      {category === "mileage_reimbursement" && (
         <MileageBatchEditor
           batch={mileageBatch}
           setBatch={setMileageBatch}

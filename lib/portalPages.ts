@@ -101,6 +101,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["finance", "ticket", "expense", "reimbursement", "vendor", "pex", "honorarium", "mileage"],
   },
   {
+    name: "Mileage Tracker",
+    path: "/mileage",
+    description: "Start and end a work drive from your phone; miles are calculated from the route and submitted as a mileage reimbursement ticket.",
+    keywords: ["mileage", "miles", "drive", "driving", "trip", "gas", "car", "mileage reimbursement", "log miles", "track miles"],
+  },
+  {
     name: "My Finance Approvals",
     path: "/finance-ticket-approvals",
     description: "Finance tickets waiting on your approval.",
