@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { createGuardedResend } from "@/lib/emailGuard";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
 
 // DB-first (Connectors tab), falling back to RESEND_API_KEY /
@@ -8,5 +9,5 @@ export async function getResendClient(): Promise<{ client: Resend; fromAddress: 
   const apiKey = await getIntegrationSetting("resend_api_key", process.env.RESEND_API_KEY);
   const fromAddress = await getIntegrationSetting("resend_from_email", process.env.EMAIL_FROM);
   if (!apiKey || !fromAddress) return null;
-  return { client: new Resend(apiKey), fromAddress };
+  return { client: createGuardedResend(apiKey), fromAddress };
 }

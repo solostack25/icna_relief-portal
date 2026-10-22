@@ -9,7 +9,7 @@
 // The Salesforce field mapping is intentionally NOT done yet - see
 // buildSalesforcePayload / CASH_CHECK_SF_OBJECT below.
 
-import { Resend } from "resend";
+import { createGuardedResend } from "@/lib/emailGuard";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getSalesforceAuth, isSalesforceConfigured } from "./salesforceAuth";
 
@@ -57,7 +57,7 @@ export async function sendCashCheckReceipt(donationId: string): Promise<{ sent: 
 </table>
 <p style="font-size:12px;color:#666;">ICNA Relief USA is a 501(c)(3) nonprofit organization. No goods or services were provided in exchange for this contribution. Please keep this receipt for your tax records.</p>`;
 
-  const resend = new Resend(resendKey);
+  const resend = createGuardedResend(resendKey);
   const { error } = await resend.emails.send({
     from,
     to: d.donor_email,

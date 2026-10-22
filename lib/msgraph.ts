@@ -1,3 +1,4 @@
+import { allowedRecipients, emailSendingEnabled, logBlockedEmail, toAddressList } from "@/lib/emailGuard";
 // Microsoft Graph client-credentials helper — app-only auth, used
 // server-side only (AD role sync, first-login provisioning).
 // Requires AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET env vars.
@@ -113,6 +114,16 @@ export async function sendMailAs(params: {
   /** Send `body` as HTML instead of plain text. */
   html?: boolean;
 }): Promise<void> {
+  let toRecipients = [{ emailAddress: { address: params.to } }];
+  if (!emailSendingEnabled()) {
+    const all = toAddressList(params.to);
+    const keep = allowedRecipients(all);
+    if (keep.length === 0) {
+      logBlockedEmail("graph", params.subject, all);
+      return;
+    }
+    toRecipients = keep.map((address) => ({ emailAddress: { address } }));
+  }
   const token = await getGraphToken();
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(params.fromMailbox)}/sendMail`,
@@ -123,7 +134,7 @@ export async function sendMailAs(params: {
         message: {
           subject: params.subject,
           body: { contentType: params.html ? "HTML" : "Text", content: params.body },
-          toRecipients: [{ emailAddress: { address: params.to } }],
+          toRecipients,
         },
         saveToSentItems: true,
       }),

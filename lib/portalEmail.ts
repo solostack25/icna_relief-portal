@@ -1,3 +1,4 @@
+import { allowedRecipients, logBlockedEmail } from "@/lib/emailGuard";
 import { getResendClient } from "@/lib/resendClient";
 import { getGraphToken } from "@/lib/msgraph";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
@@ -21,9 +22,14 @@ export async function sendPortalEmail(params: {
   attachments?: EmailAttachment[];
   replyTo?: string;
 }): Promise<SendResult> {
-  const to = dedupe(params.to);
-  const cc = dedupe(params.cc ?? []).filter((e) => !to.includes(e));
-  if (to.length === 0) return { ok: false, via: null, error: "No recipients" };
+  const requestedTo = dedupe(params.to);
+  const to = allowedRecipients(requestedTo);
+  const cc = allowedRecipients(dedupe(params.cc ?? []).filter((e) => !to.includes(e)));
+  if (requestedTo.length === 0) return { ok: false, via: null, error: "No recipients" };
+  if (to.length === 0) {
+    logBlockedEmail("portal", params.subject, [...requestedTo, ...(params.cc ?? [])]);
+    return { ok: true, via: null };
+  }
 
   const errors: string[] = [];
 

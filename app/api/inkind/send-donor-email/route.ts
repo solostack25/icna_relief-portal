@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { createGuardedResend } from "@/lib/emailGuard";
 import { renderDonorInvoicePdf, type DonorInvoiceLine } from "@/lib/inkind/donorInvoicePdf";
 
 // This route is called by the donor screen right after signing — no
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     invoiceNumber
   )}) is attached as a PDF.</p>`;
 
-  const resend = new Resend(resendKey);
+  const resend = createGuardedResend(resendKey);
   const { error } = await resend.emails.send({
     from: fromAddress,
     to: donor.email,
