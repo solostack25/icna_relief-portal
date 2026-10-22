@@ -107,6 +107,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["mileage", "miles", "drive", "driving", "trip", "gas", "car", "mileage reimbursement", "log miles", "track miles"],
   },
   {
+    name: "Grant Management",
+    path: "/grant-management",
+    description: "Grant budgets, budget vs. actual, expenses and receipts coded to grants, approvals, PEX coding and the national Master Grant Budget Tracker.",
+    keywords: ["grant", "grants", "grant budget", "budget vs actual", "master tracker", "grant expense", "receipt", "pex", "funder", "award", "grant report"],
+  },
+  {
     name: "My Finance Approvals",
     path: "/finance-ticket-approvals",
     description: "Finance tickets waiting on your approval.",
