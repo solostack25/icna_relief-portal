@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPexConfig, pexAllTransactions, pexBusinessBalance, pexCardholders, pexCardholderTransactions, type PexConfig, type PexTransaction } from "./client";
 import { suggest, type Designation, type GrantInfo, type LineInfo } from "./rules";
+import { ensurePexAccess } from "./access";
 
 // PEX -> portal sync.
 //
@@ -124,6 +125,9 @@ export async function syncCards(cfg: PexConfig): Promise<NonNullable<SyncStats["
       stats.inserted++;
     }
   }
+  // Everyone holding a card gets the PEX tile on their portal home.
+  const { data: held } = await db.from("pex_cards").select("employee_id").not("employee_id", "is", null);
+  await ensurePexAccess(db, (held ?? []).map((h) => h.employee_id as string));
   return stats;
 }
 

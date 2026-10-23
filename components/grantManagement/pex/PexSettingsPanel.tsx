@@ -18,7 +18,7 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   const [origin, setOrigin] = useState("");
 
   async function load() {
-    const r = await api<Settings>("/api/grant-management/pex/settings");
+    const r = await api<Settings>("/api/pex/settings");
     if (!r.error) {
       setS(r);
       setForm((f) => ({ ...f, url: r.url, tagId: r.tagId ?? "" }));
@@ -32,7 +32,7 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   async function save() {
     setBusy("save");
     setMsg(null);
-    const r = await api<{ changed: string[] }>("/api/grant-management/pex/settings", { method: "POST", json: form });
+    const r = await api<{ changed: string[] }>("/api/pex/settings", { method: "POST", json: form });
     setBusy(null);
     if (r.error) return setMsg({ tone: "error", text: r.error });
     setForm((f) => ({ ...f, token: "", webhookSecret: "" }));
@@ -42,14 +42,14 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   async function test() {
     setBusy("test");
     setMsg(null);
-    const r = await api<{ balance: number | null }>("/api/grant-management/pex/settings", { method: "POST", json: { test: true } });
+    const r = await api<{ balance: number | null }>("/api/pex/settings", { method: "POST", json: { test: true } });
     setBusy(null);
     setMsg(r.error ? { tone: "error", text: r.error } : { tone: "ok", text: `Connected to PEX. Business balance ${r.balance != null ? money(r.balance, true) : "unavailable"}.` });
   }
   async function sync() {
     setBusy("sync");
     setMsg({ tone: "info", text: "Syncing cards and the last 45 days of transactions…" });
-    const r = await api<{ ok: boolean; stats?: { cards?: { seen: number }; transactions?: { inserted: number; updated: number; settled: number } } }>("/api/grant-management/pex/sync", { method: "POST", json: { days: 45 } });
+    const r = await api<{ ok: boolean; stats?: { cards?: { seen: number }; transactions?: { inserted: number; updated: number; settled: number } } }>("/api/pex/sync", { method: "POST", json: { days: 45 } });
     setBusy(null);
     if (r.error) return setMsg({ tone: "error", text: r.error });
     const t = r.stats?.transactions;
@@ -61,17 +61,17 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
     if (!confirm("Turn on PEX demo mode? This adds 6 demo cards (all assigned to you, so no one else sees them) and about 90 days of fake transactions, and links some of them to your active grants. You can remove it all later.")) return;
     setBusy("demo");
     setMsg({ tone: "info", text: "Building demo cards and 90 days of transactions…" });
-    const r = await api<{ stats?: { cards?: { seen: number }; transactions?: { inserted: number } }; linked: number }>("/api/grant-management/pex/demo", { method: "POST" });
+    const r = await api<{ stats?: { cards?: { seen: number }; transactions?: { inserted: number } }; linked: number }>("/api/pex/demo", { method: "POST" });
     setBusy(null);
     if (r.error) return setMsg({ tone: "error", text: r.error });
-    setMsg({ tone: "ok", text: `Demo is on: ${r.stats?.cards?.seen ?? 0} cards, ${r.stats?.transactions?.inserted ?? 0} transactions, ${r.linked} grant links. Head to the Transactions tab and start coding.` });
+    setMsg({ tone: "ok", text: `Demo is on: ${r.stats?.cards?.seen ?? 0} cards, ${r.stats?.transactions?.inserted ?? 0} transactions, ${r.linked} grant links. Look around the Dashboard and Cards, then code grant spending in Grant Management → PEX.` });
     load();
     router.refresh();
   }
   async function clearDemo() {
     if (!confirm("Remove all PEX demo data? This deletes the demo cards, their transactions, and any expenses coded from them (including receipts).")) return;
     setBusy("demo");
-    const r = await api<{ transactions: number; expenses: number; cards: number }>("/api/grant-management/pex/demo", { method: "DELETE" });
+    const r = await api<{ transactions: number; expenses: number; cards: number }>("/api/pex/demo", { method: "DELETE" });
     setBusy(null);
     if (r.error) return setMsg({ tone: "error", text: r.error });
     setMsg({ tone: "ok", text: `Removed ${r.cards} demo cards, ${r.transactions} transactions and ${r.expenses} coded expenses. Demo mode is off.` });
@@ -148,7 +148,7 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
         </div>
         {!isAdmin && (
           <p className="text-xs" style={{ color: faint }}>
-            Only a Grant Management admin can change these settings.
+            Only Finance or a PEX admin can change these settings.
           </p>
         )}
         <p className="text-xs" style={{ color: faint }}>

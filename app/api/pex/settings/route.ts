@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
+import { fail, readJson } from "@/lib/grantManagement/api";
+import { requirePex } from "@/lib/pex/access";
 import { getIntegrationSetting, setIntegrationSetting } from "@/lib/integrationSettings";
 import { getPexConfig, pexBusinessBalance, PEX_DEFAULT_URL } from "@/lib/pex/client";
 import { audit, createAdminClient } from "@/lib/grantManagement/server";
@@ -9,7 +10,7 @@ import { audit, createAdminClient } from "@/lib/grantManagement/server";
 const mask = (v: string | null) => (v ? `••••${v.slice(-4)}` : null);
 
 export async function GET() {
-  const auth = await requireViewer({ manager: true });
+  const auth = await requirePex({ admin: true });
   if ("res" in auth) return auth.res;
   const [url, token, secret, tagId] = await Promise.all([
     getIntegrationSetting("pex_api_url", process.env.PEX_API_URL),
@@ -20,10 +21,10 @@ export async function GET() {
   return NextResponse.json({ url: url || PEX_DEFAULT_URL, token: mask(token), webhookSecret: mask(secret), tagId: tagId ?? "" });
 }
 
-// Save (portal / Grant Management admins only), or { test: true } to
+// Save (Finance / PEX admins), or { test: true } to
 // check the saved token works.
 export async function POST(req: Request) {
-  const auth = await requireViewer({ manager: true });
+  const auth = await requirePex({ admin: true });
   if ("res" in auth) return auth.res;
   const { viewer } = auth;
   const body = await readJson(req);
@@ -39,7 +40,6 @@ export async function POST(req: Request) {
     }
   }
 
-  if (!viewer.isAdmin) return fail("Only a Grant Management admin can change the PEX connection.", 403);
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : null);
   const changed: string[] = [];
   const url = str(body.url);

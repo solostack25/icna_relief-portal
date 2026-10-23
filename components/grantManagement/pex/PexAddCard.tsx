@@ -22,10 +22,10 @@ export default function PexAddCard({ employees }: { employees: { id: string; nam
   async function add() {
     setBusy(true);
     setErr(null);
-    const r = await api<{ id: string }>("/api/grant-management/pex/cards", { method: "POST", json: { last4, employee_id: emp || null } });
+    const r = await api<{ id: string }>("/api/pex/cards", { method: "POST", json: { last4, employee_id: emp || null } });
     setBusy(false);
     if (r.error) return setErr(r.fields?.last4 ?? r.error);
-    router.push(`/grant-management/pex/cards/${r.id}`);
+    router.push(`/pex/cards/${r.id}`);
   }
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-2xl p-4" style={{ background: "#fff", border: "1px solid var(--portal-line)" }}>
