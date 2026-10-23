@@ -77,11 +77,11 @@ export default function ImportClient({ initialKind, expenseTemplate, pexTemplate
     const good = checked.rows.length - checked.errorCount;
     if (!confirm(kind === "expenses" ? `Save ${checked.rows.length} expenses totalling ${money(checked.total, true)} as ${status}?` : `Add ${good} PEX transactions to the coding queue?`)) return;
     setBusy(true);
-    const r = await api<{ rows: number; total: number; skipped?: number }>("/api/grant-management/import", { method: "POST", json: { kind, rows: file.rows, file_name: file.name, commit: true, status } });
+    const r = await api<{ rows: number; total: number; skipped?: number; notGrant?: number }>("/api/grant-management/import", { method: "POST", json: { kind, rows: file.rows, file_name: file.name, commit: true, status } });
     setBusy(false);
     if (r.error) return setMsg({ tone: "error", text: r.error });
     reset();
-    setMsg({ tone: "ok", text: `Saved ${r.rows} ${kind === "pex" ? "PEX transactions" : "expenses"} (${money(r.total, true)})${r.skipped ? `, skipped ${r.skipped} already imported` : ""}.` });
+    setMsg({ tone: "ok", text: `Saved ${r.rows} ${kind === "pex" ? "PEX transactions" : "expenses"} (${money(r.total, true)})${r.skipped ? `, skipped ${r.skipped} already imported` : ""}.${r.notGrant ? ` ${r.notGrant} of them are on cards not marked as used for grants, so they won't appear in the PEX queue until Finance switches those cards on in PEX → Cards.` : ""}` });
     router.refresh();
   }
 

@@ -66,11 +66,11 @@ export default function PexRowActions({
               className="text-xs font-semibold whitespace-nowrap"
               style={{ color: rose }}
               onClick={() => {
-                const note = prompt("Not a grant expense. Reason (optional):");
+                const note = prompt("Exclude this charge from grants (it isn't a grant expense). Reason (optional):");
                 if (note !== null) post({ action: "ignore", note });
               }}
             >
-              Not grant
+              Exclude
             </button>
           )}
         </>

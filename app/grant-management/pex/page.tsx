@@ -21,10 +21,10 @@ const TABS = [
 ] as const;
 
 const FILTERS = [
-  ["waiting", "Waiting"],
+  ["waiting", "To code"],
   ["partial", "Partly coded"],
   ["coded", "Coded"],
-  ["ignored", "Not grant"],
+  ["ignored", "Excluded"],
   ["pending", "Pending at PEX"],
   ["all", "All"],
 ] as const;
@@ -185,6 +185,9 @@ async function Transactions({ sp, viewer }: { sp: SP; viewer: NonNullable<Awaite
           <input name="q" defaultValue={sp.q ?? ""} placeholder="Search merchant" className="text-sm rounded-full px-4 py-1.5" style={{ border: "1px solid var(--portal-line)", background: "#fff", minWidth: 180 }} />
         </form>
       </div>
+      <p className="text-xs mb-4 -mt-1" style={{ color: faint }}>
+        <b>To code</b>: nothing assigned yet · <b>Partly coded</b>: split, with some of the amount still unassigned · <b>Coded</b>: the full amount is assigned to grant(s) and/or excluded · <b>Excluded</b>: the whole charge isn&apos;t a grant expense · <b>Pending at PEX</b>: not settled yet, can be coded once it settles.
+      </p>
       {(filterGrant || sp.card || sp.flagged) && (
         <div className="flex flex-wrap gap-2 mb-3 text-xs" style={{ color: dim }}>
           {filterGrant && <Chip label={`Grant: ${filterGrant.code}`} href={href({ grant: undefined })} />}
@@ -270,11 +273,11 @@ async function Transactions({ sp, viewer }: { sp: SP; viewer: NonNullable<Awaite
                           </span>
                         ) : r.status === "ignored" ? (
                           <span className="text-xs" style={{ color: faint }}>
-                            Not a grant expense
+                            Excluded: not a grant expense
                           </span>
                         ) : (
-                          <span className="text-xs" style={{ color: faint }}>
-                            Not a grant card
+                          <span className="text-xs" style={{ color: "#A57420" }} title="This card is used for grants, but no grant is picked for this date. Pick one when coding, or set the card's grants on the Grant cards tab.">
+                            No grant picked for this date
                           </span>
                         )}
                       </td>
@@ -392,8 +395,8 @@ async function Cards() {
                             );
                           })
                         ) : (
-                          <span className="text-xs" style={{ color: faint }}>
-                            Not a grant card
+                          <span className="text-xs" style={{ color: "#A57420" }}>
+                            No grant picked yet
                           </span>
                         )}
                       </td>

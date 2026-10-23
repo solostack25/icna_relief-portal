@@ -330,3 +330,36 @@ export async function linkUploadedToCards(db: Admin = admin()) {
   for (const id of touched) await resuggestCard(db, id);
   return touched.size;
 }
+
+// Uploaded (CSV) transactions carry only a card's last 4. Make sure each
+// of those cards exists in the PEX app - as a regular card, not a grant
+// card; Finance switches it on for grants in PEX -> Cards - then link the
+// rows to it. Returns how many cards were created.
+export async function cardsFromUploads(db: Admin = admin()) {
+  const { data: rows } = await db.from("gm_pex_transactions").select("card_last4, card_holder, employee_id").is("card_id", null).not("card_last4", "is", null);
+  const { data: cards } = await db.from("pex_cards").select("id, last4, employee_id");
+  const known = cards ?? [];
+  const seen = new Set<string>();
+  const created: string[] = [];
+  for (const r of rows ?? []) {
+    const last4 = String(r.card_last4).trim();
+    const key = `${last4}|${r.employee_id ?? ""}`;
+    if (!/^\d{4}$/.test(last4) || seen.has(key)) continue;
+    seen.add(key);
+    const exists = known.some((c) => c.last4 === last4 && (!r.employee_id || !c.employee_id || c.employee_id === r.employee_id));
+    if (exists) continue;
+    const [first, ...rest] = String(r.card_holder ?? "").trim().split(/\s+/);
+    const { data: c } = await db
+      .from("pex_cards")
+      .insert({ last4, employee_id: r.employee_id ?? null, first_name: first || null, last_name: rest.join(" ") || null, card_status: "ACTIVE", grant_eligible: false, notes: "Added from a PEX CSV upload" })
+      .select("id, last4, employee_id")
+      .single();
+    if (c) {
+      known.push(c);
+      created.push(c.id);
+    }
+  }
+  await ensurePexAccess(db, (rows ?? []).map((r) => r.employee_id));
+  await linkUploadedToCards(db);
+  return created.length;
+}
