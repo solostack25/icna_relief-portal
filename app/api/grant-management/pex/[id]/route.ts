@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
 import { audit } from "@/lib/grantManagement/server";
+import { setNonGrant } from "@/lib/pex/allocation";
 
-// PEX queue housekeeping. Coding a transaction to a grant happens through
-// POST /api/grant-management/expenses with pex_transaction_id.
-//   assign  { employee_id }  - Grant Management routes it to a person
-//   ignore  { note }         - not a grant expense (Grant Management)
-//   restore                  - back to unmatched
+// PEX queue housekeeping (Grant Management). Coding / splitting a
+// transaction happens at /api/grant-management/pex/[id]/allocate.
+//   assign  { employee_id }  - route it to a person
+//   ignore  { note }         - whole transaction is not a grant expense
+//   restore                  - clear the non-grant portion
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await requireViewer({ manager: true });
@@ -26,9 +27,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true });
   }
   if (action === "ignore" || action === "restore") {
-    if (tx.status === "coded") return fail("Already coded to an expense.");
-    await admin.from("gm_pex_transactions").update({ status: action === "ignore" ? "ignored" : "unmatched" }).eq("id", id);
-    await audit(admin, { entity: "pex", entityId: id, action: action === "ignore" ? "ignored" : "restored", actorId: viewer.employeeId, note: typeof body.note === "string" ? body.note : null });
+    const r = await setNonGrant(admin, viewer, id, action, typeof body.note === "string" && body.note.trim() ? body.note.trim() : null);
+    if ("error" in r && r.error) return fail(r.error);
     return NextResponse.json({ ok: true });
   }
   return fail("Unknown action.");

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, loadEntryGrants } from "@/lib/grantManagement/server";
 import ExpenseForm from "@/components/grantManagement/ExpenseForm";
@@ -5,6 +6,8 @@ import { Notice, PageTitle } from "@/components/grantManagement/ui";
 
 export default async function NewExpensePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
+  // PEX transactions are coded (and split) on their own screen now.
+  if (sp.pex) redirect(`/grant-management/pex/${encodeURIComponent(sp.pex)}`);
   const viewer = (await getGmViewer())!;
   const admin = createAdminClient();
   const grants = await loadEntryGrants(viewer, [], admin);

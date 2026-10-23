@@ -44,7 +44,7 @@ export default async function GrantManagementLayout({ children }: { children: Re
     if (ids) q = q.in("grant_id", ids);
     approvals = (await q).count ?? 0;
   }
-  let pexQ = admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).eq("status", "unmatched");
+  let pexQ = admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).in("status", ["unmatched", "partial"]).eq("is_pending", false);
   if (!viewer.isManager) pexQ = pexQ.eq("employee_id", viewer.employeeId);
   const pex = (await pexQ).count ?? 0;
   const { count: returned } = await admin.from("gm_expenses").select("id", { count: "exact", head: true }).eq("created_by", viewer.employeeId).eq("status", "returned");

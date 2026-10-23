@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { audit, grantAccess, type GmViewer } from "./server";
+import { refreshForExpense } from "@/lib/pex/allocation";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -94,5 +95,7 @@ export async function reviewExpense(
     changes: { status: { from: e.status, to: status } },
     note,
   });
+  // Rejecting (or reopening) a PEX portion changes what's left to code.
+  if (decision === "reject" || decision === "reopen") await refreshForExpense(admin, e.id);
   return { status };
 }
