@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createAdminClient, getGmViewer, nameMap } from "@/lib/grantManagement/server";
+import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { isDemoUrl } from "@/lib/pex/demo";
 import { fmtDate, money } from "@/lib/grantManagement/shared";
 import { mccCategory } from "@/lib/pex/rules";
 import { Card, Empty, PageTitle, Stat } from "@/components/grantManagement/ui";
@@ -56,8 +58,22 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
     ? await admin.from("gm_pex_card_grants").select("card_id", { count: "exact", head: true }).lte("start_date", new Date().toISOString().slice(0, 10)).or(`end_date.is.null,end_date.gte.${new Date().toISOString().slice(0, 10)}`)
     : { count: null };
 
+  const demo = isDemoUrl(await getIntegrationSetting("pex_api_url", process.env.PEX_API_URL));
+
   return (
     <div>
+      {demo && (
+        <div className="mb-4 rounded-xl px-4 py-2.5 text-sm flex flex-wrap items-center justify-between gap-2" style={{ background: `${gold}14`, border: `1px solid ${gold}55`, color: ink }}>
+          <span>
+            <b>Demo mode:</b> these PEX cards and transactions are fake, for trying things out.
+          </span>
+          {viewer.isManager && (
+            <Link href="/grant-management/pex?tab=connection" className="text-xs font-bold" style={{ color: emerald }}>
+              Manage demo →
+            </Link>
+          )}
+        </div>
+      )}
       <PageTitle
         eyebrow={viewer.isManager ? "PEX cards · grant spending" : "Your PEX card"}
         title="PEX"

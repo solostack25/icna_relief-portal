@@ -57,6 +57,29 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
     router.refresh();
   }
 
+  async function startDemo() {
+    if (!confirm("Turn on PEX demo mode? This adds 6 demo cards (held by real employees, matched by email) and about 90 days of fake transactions, and links some of them to your active grants. You can remove it all later.")) return;
+    setBusy("demo");
+    setMsg({ tone: "info", text: "Building demo cards and 90 days of transactions…" });
+    const r = await api<{ stats?: { cards?: { seen: number }; transactions?: { inserted: number } }; linked: number }>("/api/grant-management/pex/demo", { method: "POST" });
+    setBusy(null);
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "ok", text: `Demo is on: ${r.stats?.cards?.seen ?? 0} cards, ${r.stats?.transactions?.inserted ?? 0} transactions, ${r.linked} grant links. Head to the Transactions tab and start coding.` });
+    load();
+    router.refresh();
+  }
+  async function clearDemo() {
+    if (!confirm("Remove all PEX demo data? This deletes the demo cards, their transactions, and any expenses coded from them (including receipts).")) return;
+    setBusy("demo");
+    const r = await api<{ transactions: number; expenses: number; cards: number }>("/api/grant-management/pex/demo", { method: "DELETE" });
+    setBusy(null);
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "ok", text: `Removed ${r.cards} demo cards, ${r.transactions} transactions and ${r.expenses} coded expenses. Demo mode is off.` });
+    load();
+    router.refresh();
+  }
+
+  const demo = s?.url?.toLowerCase() === "demo";
   const webhookUrl = origin ? `${origin}/api/pex/webhook` : "/api/pex/webhook";
   return (
     <Card>
@@ -67,6 +90,30 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
         Uses a PEX API token for a dedicated API admin. Request API access at developer.pexcard.com, then generate the token. Cards and transactions sync nightly and on every PEX webhook.
       </p>
       <div className="space-y-4">
+        {demo ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "#C99A3D14", border: "1px solid #C99A3D55", color: ink }}>
+            <b>Demo mode is on.</b> Cards and transactions come from a built-in fake PEX, so you can try syncing, splitting and coding safely. Real employees hold the demo cards, and anything you code becomes a real draft or submitted expense until you remove the demo data.
+            {isAdmin && (
+              <div className="mt-2">
+                <button type="button" className="text-xs font-bold" style={{ color: "#B5566B" }} disabled={!!busy} onClick={clearDemo}>
+                  {busy === "demo" ? "Working…" : "Remove demo data and turn demo off"}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          !s?.token &&
+          isAdmin && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(22,48,43,0.04)", color: ink }}>
+              <b>No PEX keys yet?</b> Try it with demo data: fake cards and about 90 days of realistic transactions, including pending holds, refunds and receipts.
+              <div className="mt-2">
+                <PillButton variant="ghost" onClick={startDemo} disabled={!!busy}>
+                  {busy === "demo" ? "Setting up…" : "Try demo data"}
+                </PillButton>
+              </div>
+            </div>
+          )
+        )}
         <Field label="API URL" hint="Production is https://coreapi.pexcard.com/v4. Use the sandbox URL while testing.">
           <input style={inputStyle} value={form.url} disabled={!isAdmin} onChange={(e) => setForm({ ...form, url: e.target.value })} />
         </Field>

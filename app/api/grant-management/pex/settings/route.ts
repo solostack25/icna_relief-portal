@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const changed: string[] = [];
   const url = str(body.url);
   if (url !== null) {
-    if (url && !/^https:\/\/[^\s]+$/i.test(url)) return fail("The PEX API URL must start with https://", 400, { url: "Use the https URL from PEX." });
+    if (url && url.toLowerCase() !== "demo" && !/^https:\/\/[^\s]+$/i.test(url)) return fail("The PEX API URL must start with https://", 400, { url: "Use the https URL from PEX." });
     await setIntegrationSetting("pex_api_url", url || PEX_DEFAULT_URL, viewer.employeeId);
     changed.push("url");
   }

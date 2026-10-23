@@ -1,4 +1,5 @@
 import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { demoRequest, isDemoUrl } from "./demo";
 
 // Thin client for the PEX REST API (https://developer.pexcard.com).
 //
@@ -27,6 +28,7 @@ export async function getPexConfig(): Promise<PexConfig | null> {
     getIntegrationSetting("pex_api_url", process.env.PEX_API_URL),
     getIntegrationSetting("pex_api_token", process.env.PEX_API_TOKEN),
   ]);
+  if (isDemoUrl(url)) return { baseUrl: "demo", token: "demo" };
   if (!token) return null;
   return { baseUrl: (url || PEX_DEFAULT_URL).replace(/\/+$/, ""), token };
 }
@@ -41,6 +43,14 @@ export class PexError extends Error {
 type Query = Record<string, string | number | boolean | undefined | null>;
 
 async function request<T>(cfg: PexConfig, method: "GET" | "POST", path: string, query?: Query, body?: unknown): Promise<T> {
+  if (isDemoUrl(cfg.baseUrl)) {
+    try {
+      return (await demoRequest(method, path, query)) as T;
+    } catch (e) {
+      const status = (e as { status?: number }).status ?? 500;
+      throw new PexError(errorMessage(status, e instanceof Error ? e.message : ""), status);
+    }
+  }
   const url = new URL(`${cfg.baseUrl}${path}`);
   for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
   const init: RequestInit = {
