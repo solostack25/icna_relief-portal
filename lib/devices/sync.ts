@@ -326,7 +326,7 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
           else
             await admin
               .from("it_devices")
-              .update({ compliance_reasons: rep.reasons, compliance_checked_at: rep.checkedAt })
+              .update({ compliance_reasons: rep.reasons, compliance_checked_at: rep.checkedAt, compliance_raw: rep.raw })
               .eq("device_key", r.device_key as string);
         })
       );

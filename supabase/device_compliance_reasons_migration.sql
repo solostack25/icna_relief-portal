@@ -4,3 +4,5 @@
 -- reasons with a fix. Run after device_management_migration.sql.
 alter table it_devices add column if not exists compliance_reasons jsonb;
 alter table it_devices add column if not exists compliance_checked_at timestamptz;
+-- Raw Graph responses from the last check, for troubleshooting reasons.
+alter table it_devices add column if not exists compliance_raw jsonb;

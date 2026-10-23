@@ -1,4 +1,4 @@
-import { gGet, gGetAll, explainGraphError } from "./graph";
+import { gGet, gGetAll, gPost, explainGraphError } from "./graph";
 
 // Why an Intune device is out of compliance: reads each compliance
 // policy's per-setting results for the device from Graph and turns the
@@ -92,33 +92,98 @@ export function explainSetting(setting: string, name: string | null): { title: s
 type SettingState = { setting?: string; settingName?: string; state?: string; currentValue?: string | null; errorDescription?: string | null; instanceDisplayName?: string | null };
 type PolicyState = { id: string; displayName?: string; state?: string; settingStates?: SettingState[] };
 
-export async function fetchComplianceReasons(intuneId: string): Promise<ComplianceReport> {
+export type ComplianceReportWithRaw = ComplianceReport & { raw: Record<string, unknown> };
+
+const isBad = (v: unknown) => BAD.has(String(v ?? "").toLowerCase().replace(/[^a-z]/g, ""));
+
+// The Intune reports API answers as a table: { Schema: [{Column}], Values: [[...]] }.
+function tableRows(data: unknown): Record<string, unknown>[] {
+  const d = data as { Schema?: { Column: string }[]; Values?: unknown[][] } | null;
+  if (!d?.Schema || !d?.Values) return [];
+  const cols = d.Schema.map((c) => c.Column);
+  return d.Values.map((row) => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
+}
+
+// Per-setting results for one policy on one device, trying each place
+// Graph exposes them (they differ by tenant and policy type).
+async function settingsFor(intuneId: string, p: PolicyState, policyIdByName: Map<string, string>, raw: Record<string, unknown>): Promise<SettingState[]> {
+  if (p.settingStates?.length) return p.settingStates;
+
+  try {
+    const full = await gGet(`/beta/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates/${p.id}`);
+    raw[`state:${p.id}`] = full;
+    if (full?.settingStates?.length) return full.settingStates as SettingState[];
+  } catch (e) {
+    raw[`state:${p.id}:error`] = e instanceof Error ? e.message.slice(0, 300) : String(e);
+  }
+
+  // Same table the Intune admin center shows under Device → Device compliance → policy.
+  const policyIds = Array.from(new Set([p.id, p.id.split("_")[0], policyIdByName.get((p.displayName ?? "").toLowerCase())].filter(Boolean) as string[]));
+  for (const pid of policyIds) {
+    try {
+      const rep = await gPost(`/beta/deviceManagement/reports/getDevicePolicySettingsComplianceReport`, {
+        filter: `(PolicyId eq '${pid}') and (DeviceId eq '${intuneId}')`,
+        skip: 0,
+        top: 100,
+      });
+      raw[`report:${pid}`] = rep;
+      const rows = tableRows(rep);
+      if (rows.length) {
+        return rows.map((r) => {
+          const pick = (re: RegExp) => {
+            const k = Object.keys(r).find((c) => re.test(c));
+            return k ? r[k] : undefined;
+          };
+          return {
+            setting: String(pick(/^SettingId$|^Setting$|SettingName$/i) ?? pick(/Setting/i) ?? "Unknown setting"),
+            settingName: String(pick(/SettingName(_loc)?$/i) ?? pick(/Setting.*_loc$/i) ?? ""),
+            state: String(pick(/(SettingStatus|Status|State)_loc$/i) ?? pick(/SettingStatus|ComplianceStatus|^Status$|^State$/i) ?? ""),
+            currentValue: (pick(/CurrentValue|ActualValue|Value$/i) as string | null) ?? null,
+            errorDescription: (pick(/ErrorDescription|Error.*_loc$/i) as string | null) ?? null,
+          } as SettingState;
+        });
+      }
+    } catch (e) {
+      raw[`report:${pid}:error`] = e instanceof Error ? e.message.slice(0, 300) : String(e);
+    }
+  }
+  return [];
+}
+
+export async function fetchComplianceReasons(intuneId: string): Promise<ComplianceReportWithRaw> {
   const checkedAt = new Date().toISOString();
+  const raw: Record<string, unknown> = {};
   let policies: PolicyState[];
   try {
-    policies = await gGetAll<PolicyState>(`/v1.0/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates`);
+    policies = await gGetAll<PolicyState>(`/beta/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates`);
   } catch (e) {
     try {
-      policies = await gGetAll<PolicyState>(`/beta/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates`);
+      policies = await gGetAll<PolicyState>(`/v1.0/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates`);
     } catch {
-      return { reasons: [], checkedAt, error: explainGraphError(e, "DeviceManagementConfiguration.Read.All") };
+      return { reasons: [], checkedAt, error: explainGraphError(e, "DeviceManagementConfiguration.Read.All"), raw };
+    }
+  }
+  raw.policies = policies;
+
+  const policyIdByName = new Map<string, string>();
+  if (policies.some((p) => isBad(p.state) && !p.settingStates?.some((s) => isBad(s.state)))) {
+    try {
+      const all = await gGetAll<{ id: string; displayName: string }>(`/v1.0/deviceManagement/deviceCompliancePolicies?$select=id,displayName`);
+      for (const x of all) policyIdByName.set(x.displayName.toLowerCase(), x.id);
+    } catch (e) {
+      raw.policyListError = e instanceof Error ? e.message.slice(0, 300) : String(e);
     }
   }
 
   const reasons: ComplianceReason[] = [];
   for (const p of policies) {
-    let settings = p.settingStates;
-    if (!settings && BAD.has(String(p.state).toLowerCase())) {
-      try {
-        const full = await gGet(`/beta/deviceManagement/managedDevices/${intuneId}/deviceCompliancePolicyStates/${p.id}`);
-        settings = full?.settingStates;
-      } catch {}
-    }
-    for (const s of settings ?? []) {
-      const state = String(s.state ?? "").toLowerCase();
-      if (!BAD.has(state)) continue;
-      const setting = s.setting ?? s.settingName ?? "Unknown setting";
-      const { title, fix } = explainSetting(setting, s.settingName ?? null);
+    if (!isBad(p.state) && !p.settingStates?.some((s) => isBad(s.state))) continue;
+    const settings = await settingsFor(intuneId, p, policyIdByName, raw);
+    for (const s of settings) {
+      if (!isBad(s.state)) continue;
+      const state = String(s.state ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const setting = s.setting || s.settingName || "Unknown setting";
+      const { title, fix } = explainSetting(setting, s.settingName || null);
       reasons.push({
         policy: p.displayName ?? "Compliance policy",
         setting,
@@ -129,20 +194,18 @@ export async function fetchComplianceReasons(intuneId: string): Promise<Complian
         detail: s.errorDescription || null,
       });
     }
-    // Policy failed but reported no setting detail.
-    if (BAD.has(String(p.state).toLowerCase()) && !(settings ?? []).some((s) => BAD.has(String(s.state ?? "").toLowerCase()))) {
+    if (!settings.some((s) => isBad(s.state))) {
       reasons.push({
         policy: p.displayName ?? "Compliance policy",
         setting: "policy",
         title: `Fails "${p.displayName ?? "a compliance policy"}"`,
-        fix: "Intune didn't report which setting. Press Sync, wait 15 minutes, then recheck.",
+        fix: "Intune didn't say which setting. Open the device in Intune → Device compliance → this policy to see it, and tell IT so the portal can learn this case.",
         state: String(p.state),
         currentValue: null,
         detail: null,
       });
     }
   }
-  // Same rule failing in several policies: show once.
   const seen = new Set<string>();
   return {
     reasons: reasons.filter((r) => {
@@ -152,5 +215,6 @@ export async function fetchComplianceReasons(intuneId: string): Promise<Complian
       return true;
     }),
     checkedAt,
+    raw,
   };
 }

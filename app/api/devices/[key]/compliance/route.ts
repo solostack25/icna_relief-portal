@@ -31,7 +31,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ key: s
   const reasons = state === "compliant" ? [] : rep.reasons;
   await createAdminClient()
     .from("it_devices")
-    .update({ compliance_reasons: reasons.length ? reasons : null, compliance_checked_at: rep.checkedAt })
+    .update({ compliance_reasons: reasons.length ? reasons : null, compliance_checked_at: rep.checkedAt, compliance_raw: rep.raw })
     .eq("device_key", device.device_key);
   return NextResponse.json({ state, reasons, checkedAt: rep.checkedAt });
 }
