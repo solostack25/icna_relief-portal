@@ -58,7 +58,7 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function startDemo() {
-    if (!confirm("Turn on PEX demo mode? This adds 6 demo cards (held by real employees, matched by email) and about 90 days of fake transactions, and links some of them to your active grants. You can remove it all later.")) return;
+    if (!confirm("Turn on PEX demo mode? This adds 6 demo cards (all assigned to you, so no one else sees them) and about 90 days of fake transactions, and links some of them to your active grants. You can remove it all later.")) return;
     setBusy("demo");
     setMsg({ tone: "info", text: "Building demo cards and 90 days of transactions…" });
     const r = await api<{ stats?: { cards?: { seen: number }; transactions?: { inserted: number } }; linked: number }>("/api/grant-management/pex/demo", { method: "POST" });
@@ -92,7 +92,7 @@ export default function PexSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
       <div className="space-y-4">
         {demo ? (
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "#C99A3D14", border: "1px solid #C99A3D55", color: ink }}>
-            <b>Demo mode is on.</b> Cards and transactions come from a built-in fake PEX, so you can try syncing, splitting and coding safely. Real employees hold the demo cards, and anything you code becomes a real draft or submitted expense until you remove the demo data.
+            <b>Demo mode is on.</b> Cards and transactions come from a built-in fake PEX, so you can try syncing, splitting and coding safely. The demo cards are all assigned to you. Anything you code becomes a real draft or submitted expense until you remove the demo data.
             {isAdmin && (
               <div className="mt-2">
                 <button type="button" className="text-xs font-bold" style={{ color: "#B5566B" }} disabled={!!busy} onClick={clearDemo}>

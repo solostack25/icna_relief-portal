@@ -30,6 +30,9 @@ export async function POST() {
   if (!run.ok) return fail(run.error ?? "Demo sync failed.", 500);
 
   const db = createAdminClient();
+  // Only the person trying the demo sees its transactions.
+  await db.from("pex_cards").update({ employee_id: viewer.employeeId }).gte("pex_account_id", DEMO_ACCOUNT_MIN).lte("pex_account_id", DEMO_ACCOUNT_MAX);
+  await db.from("gm_pex_transactions").update({ employee_id: viewer.employeeId }).gte("pex_account_id", DEMO_ACCOUNT_MIN).lte("pex_account_id", DEMO_ACCOUNT_MAX);
   const linked = await linkDemoCards(db, viewer.employeeId);
   await audit(db, { entity: "pex", action: "demo_started", actorId: viewer.employeeId, changes: { stats: run.stats, linked } });
   return NextResponse.json({ ok: true, stats: run.stats, linked });

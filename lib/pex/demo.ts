@@ -1,4 +1,3 @@
-import { createAdminClient } from "@/lib/supabase/server";
 
 // Demo PEX: a stand-in for the PEX API so the whole PEX module can be
 // tried before real API keys exist. Turned on by setting the PEX API URL
@@ -13,8 +12,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 //     under a new TransactionId with AuthTransactionId pointing at the
 //     hold (gas and restaurant holds settle at a different amount)
 //   - about half of settled purchases have a receipt in "the PEX app"
-// Cardholders are real active portal employees (by email), so the sync's
-// email matching links the cards to people automatically.
+// Cardholders are made-up names; the demo endpoint assigns every demo
+// card to the admin who turned demo on.
 //
 // Demo cards use PEX account ids 9100001+; demo transaction ids start
 // at 9,000,000,000. "Remove demo data" deletes exactly those.
@@ -54,20 +53,11 @@ const FALLBACK = [
 
 type DemoHolder = { AccountId: number; FirstName: string; LastName: string; Email: string | null; idx: number };
 
+// Made-up cardholders with no email, so the sync never matches them to
+// real staff. The "Try demo data" endpoint routes every demo card to
+// the admin who turned demo on, so only they see the demo queue.
 async function holders(): Promise<DemoHolder[]> {
-  const db = createAdminClient();
-  const { data } = await db.from("employees").select("first_name, last_name, email").eq("is_active", true).not("email", "is", null).order("first_name").limit(6);
-  const people = ((data ?? []) as { first_name: string | null; last_name: string | null; email: string | null }[]).filter((e) => e.email);
-  return LAST4.map((_, i) => {
-    const p = people[i];
-    return {
-      AccountId: DEMO_ACCOUNT_MIN + 1 + i,
-      FirstName: p?.first_name ?? FALLBACK[i][0],
-      LastName: p?.last_name ?? FALLBACK[i][1],
-      Email: p?.email ?? null,
-      idx: i,
-    };
-  });
+  return LAST4.map((_, i) => ({ AccountId: DEMO_ACCOUNT_MIN + 1 + i, FirstName: FALLBACK[i][0], LastName: `${FALLBACK[i][1]} (demo)`, Email: null, idx: i }));
 }
 
 // ---------- merchants ----------
