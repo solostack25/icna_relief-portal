@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fetchAllRows, lastSecuritySync } from "../data";
 import { SecSyncButton, SecSyncStatus } from "../ui";
 import { PageHead, SeverityPill, card, dim, faint, ink, line, relTime } from "../style";
@@ -55,6 +56,9 @@ export default async function RiskyUsersPage() {
               </div>
               <div className="flex items-center gap-2">
                 <SeverityPill severity={r.risk_level} />
+                <Link href={`/admin/security/user?id=${r.user_id}`} className="text-xs font-bold rounded-full px-3 py-1.5" style={{ background: "#1F6F54", color: "#fff" }}>
+                  Respond
+                </Link>
                 <a
                   href={`https://entra.microsoft.com/#view/Microsoft_AAD_IAM/IdentityProtectionMenuBlade/~/RiskyUsers`}
                   target="_blank"

@@ -39,6 +39,7 @@ const en: Dict = {
   "securityHub.tab.score": "Secure Score",
   "securityHub.tab.mfa": "MFA",
   "securityHub.tab.risky": "Risky users",
+  "securityHub.tab.log": "Response log",
   "devicesHub.tab.devices": "Devices",
   "devicesHub.tab.licenses": "Licenses",
   "devicesHub.tab.join": "Join tracker",

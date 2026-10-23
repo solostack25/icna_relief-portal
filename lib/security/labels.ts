@@ -1,0 +1,18 @@
+// Client-safe labels for security response actions.
+export const SEC_ACTION_LABELS: Record<string, string> = {
+  revoke_sessions: "Signed out everywhere",
+  block_signin: "Blocked sign-in",
+  unblock_signin: "Unblocked sign-in",
+  dismiss_risk: "Dismissed risk",
+  confirm_compromised: "Confirmed compromised",
+  incident_assign: "Assigned incident",
+  incident_in_progress: "Marked in progress",
+  incident_resolve: "Resolved incident",
+  incident_reopen: "Reopened incident",
+  isolate_full: "Isolated device (full)",
+  isolate_selective: "Isolated device (Outlook/Teams allowed)",
+  release: "Released from isolation",
+  scan_quick: "Quick antivirus scan",
+  scan_full: "Full antivirus scan",
+  update_signatures: "Updated antivirus definitions",
+};

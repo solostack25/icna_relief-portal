@@ -83,6 +83,7 @@ export const HUBS = {
         a.canManageDevices && { href: "/admin/security/score", labelKey: "securityHub.tab.score" },
         a.canManageDevices && { href: "/admin/security/mfa", labelKey: "securityHub.tab.mfa" },
         a.canManageDevices && { href: "/admin/security/risky", labelKey: "securityHub.tab.risky" },
+        a.canManageDevices && { href: "/admin/security/log", labelKey: "securityHub.tab.log" },
       ]),
     prefixes: ["/admin/security"],
   },

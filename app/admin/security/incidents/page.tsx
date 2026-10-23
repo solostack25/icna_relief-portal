@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
 import { lastSecuritySync } from "../data";
+import { getDeviceViewer } from "@/lib/devices/access";
+import IncidentActions from "./IncidentActions";
 import { SecSyncButton, SecSyncStatus } from "../ui";
 import { PageHead, SeverityPill, card, dim, faint, fmtDate, ink, line, relTime } from "../style";
 
@@ -33,7 +35,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
   if (status === "open") q = q.in("status", ["active", "inProgress"]);
   else if (status !== "all") q = q.eq("status", status);
   if (severity) q = q.eq("severity", severity);
-  const [{ data }, run] = await Promise.all([q, lastSecuritySync()]);
+  const [{ data }, run, viewer] = await Promise.all([q, lastSecuritySync(), getDeviceViewer()]);
   const rows = (data ?? []) as Inc[];
 
   const pill = (key: string, value: string, label: string, current: string) => {
@@ -117,7 +119,23 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
                     ))}
                   </div>
                 )}
-                {i.users.length > 0 && <div>Users: {i.users.slice(0, 6).join(", ")}</div>}
+                {i.users.length > 0 && (
+                  <div>
+                    Users:{" "}
+                    {i.users.slice(0, 6).map((u, k) => (
+                      <span key={u}>
+                        {k > 0 && ", "}
+                        {u.includes("@") ? (
+                          <Link href={`/admin/security/user?upn=${encodeURIComponent(u)}`} className="underline" style={{ color: ink }}>
+                            {u}
+                          </Link>
+                        ) : (
+                          u
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div>Assigned: {i.assigned_to ?? "nobody"}</div>
                 <div>
                   Created {fmtDate(i.created_at)} · updated {relTime(i.last_update_at)}
@@ -129,6 +147,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
                   </div>
                 )}
               </div>
+              <IncidentActions id={i.id} status={i.status} assignedTo={i.assigned_to} me={viewer?.email ?? ""} />
             </section>
           ))}
         </div>

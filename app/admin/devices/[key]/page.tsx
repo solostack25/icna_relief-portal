@@ -8,6 +8,7 @@ import { RequestDecision } from "../ui";
 import { CoveragePill, card, dim, emerald, faint, fmtDate, gold, ink, line, relTime, rose } from "../style";
 import DeviceActions from "./DeviceActions";
 import ComplianceCard from "./ComplianceCard";
+import ActionPanel from "../../security/ActionPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,12 @@ export default async function DevicePage({ params }: { params: Promise<{ key: st
         </section>
       )}
 
+      {d.mde_isolation_state === "isolated" && (
+        <div className="rounded-2xl px-4 py-3 text-sm mb-6 font-bold" style={{ background: `${rose}12`, border: `1px solid ${rose}55`, color: rose }}>
+          Isolated from the network by Defender since {fmtDate(d.mde_isolation_changed_at)}. Release it from the Microsoft Defender card below once it&apos;s clean.
+        </div>
+      )}
+
       {d.intune_id && <ComplianceCard deviceKey={d.device_key} state={d.compliance_state} reasons={d.compliance_reasons} checkedAt={d.compliance_checked_at} />}
 
       <div className="grid lg:grid-cols-2 gap-5 mb-6">
@@ -208,6 +215,30 @@ export default async function DevicePage({ params }: { params: Promise<{ key: st
                 compliance risk rule can pass.
               </p>
             )}
+            {(() => {
+              const onboarded = !!d.mde_device_id && String(d.mde_onboarding ?? "").toLowerCase() === "onboarded";
+              const isolated = d.mde_isolation_state === "isolated";
+              if (!onboarded && !d.intune_id) return null;
+              return (
+                <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${line}` }}>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: emerald }}>
+                    Respond
+                  </div>
+                  <ActionPanel
+                    endpoint={`/api/devices/${encodeURIComponent(d.device_key)}/defender`}
+                    note={onboarded ? undefined : "Not in Defender for Endpoint: scans and definition updates go through Intune; isolation needs onboarding."}
+                    actions={[
+                      { key: "isolate_full", label: "Isolate", danger: true, hidden: !onboarded || isolated, help: "Cuts the PC off from every network except Defender, so an attacker or malware can't use it. The user sees a notice. Release it once it's clean." },
+                      { key: "isolate_selective", label: "Isolate, keep Outlook/Teams", danger: true, hidden: !onboarded || isolated, help: "Same as Isolate, but Outlook, Teams and Skype keep working so the person can still communicate." },
+                      { key: "release", label: "Release from isolation", hidden: !onboarded || d.mde_isolation_state === "released", help: "Reconnects the PC to the network. Only do this once the threat is cleaned up." },
+                      { key: "scan_quick", label: "Quick scan", help: "Runs a Microsoft Defender quick antivirus scan now. Results show in Defender/Intune." },
+                      { key: "scan_full", label: "Full scan", help: "Runs a full antivirus scan. It can take hours and slow the PC down." },
+                      { key: "update_signatures", label: "Update definitions", hidden: !d.intune_id, help: "Tells Defender Antivirus to download the latest definitions." },
+                    ]}
+                  />
+                </div>
+              );
+            })()}
           </section>
         )}
 

@@ -168,7 +168,9 @@ export default function MfaClient({ people, adminsOnly }: { people: MfaPerson[];
                   <tr key={p.user_id} style={{ borderTop: `1px solid ${line}` }}>
                     <td className="px-4 py-2.5">
                       <div className="font-bold" style={{ color: ink }}>
-                        {p.name}
+                        <a href={`/admin/security/user?id=${p.user_id}`} className="hover:underline">
+                          {p.name}
+                        </a>
                         {p.isAdmin && (
                           <span className="ml-2 text-[10px] font-bold rounded-full px-2 py-0.5" style={{ color: rose, border: `1px solid ${rose}55` }}>
                             ADMIN
