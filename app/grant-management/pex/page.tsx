@@ -1,53 +1,182 @@
 import Link from "next/link";
-import { createAdminClient } from "@/lib/grantManagement/server";
-import { getGmViewer, nameMap } from "@/lib/grantManagement/server";
+import { createAdminClient, getGmViewer, nameMap } from "@/lib/grantManagement/server";
 import { fmtDate, money } from "@/lib/grantManagement/shared";
-import { Card, Empty, PageTitle } from "@/components/grantManagement/ui";
-import { dim, emerald, faint, ink, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
+import { mccCategory } from "@/lib/pex/rules";
+import { Card, Empty, PageTitle, Stat } from "@/components/grantManagement/ui";
+import { dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
+import { ago, CardStatusPill, FlagPills, holderName, PexStatusPill } from "@/components/grantManagement/pex/pexUi";
 import PexRowActions from "./PexRowActions";
+import PexSettingsPanel from "@/components/grantManagement/pex/PexSettingsPanel";
+import PexAddCard from "@/components/grantManagement/pex/PexAddCard";
 
-export default async function PexPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+type SP = Record<string, string | undefined>;
+
+const TABS = [
+  ["transactions", "Transactions"],
+  ["cards", "Cards"],
+  ["connection", "Connection & sync"],
+] as const;
+
+const FILTERS = [
+  ["waiting", "Waiting"],
+  ["partial", "Partly coded"],
+  ["coded", "Coded"],
+  ["ignored", "Not grant"],
+  ["pending", "Pending at PEX"],
+  ["all", "All"],
+] as const;
+
+export default async function PexPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const viewer = (await getGmViewer())!;
   const admin = createAdminClient();
-  const status = ["unmatched", "coded", "ignored"].includes(sp.status ?? "") ? sp.status! : "unmatched";
-  let q = admin.from("gm_pex_transactions").select("id, transaction_date, card_holder, card_last4, merchant, amount, memo, employee_id, status, expense_id").eq("status", status).order("transaction_date", { ascending: false }).limit(500);
-  if (!viewer.isManager) q = q.eq("employee_id", viewer.employeeId);
-  const { data } = await q;
-  const rows = data ?? [];
-  const names = await nameMap(admin, rows.map((r) => r.employee_id));
-  const { data: emps } = viewer.isManager ? await admin.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name") : { data: [] };
-  const employees = (emps ?? []).map((e: { id: string; first_name: string; last_name: string }) => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }));
+  const tab = viewer.isManager && TABS.some(([k]) => k === sp.tab) ? (sp.tab as string) : "transactions";
+
+  // ---------- headline numbers ----------
+  const monthStart = new Date().toISOString().slice(0, 8) + "01";
+  // Managers see every card; everyone else only their own transactions.
+  const own: Record<string, string> = viewer.isManager ? {} : { employee_id: viewer.employeeId };
+  const [waitingQ, partialQ, codedQ, pendingQ, flaggedQ, lastRunQ] = await Promise.all([
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("status", "unmatched").eq("is_pending", false),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("status", "partial"),
+    admin.from("gm_pex_transactions").select("allocated_amount").match(own).eq("status", "coded").gte("transaction_date", monthStart),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).eq("is_pending", true),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).in("status", ["unmatched", "partial"]).neq("flags", "{}"),
+    admin.from("pex_sync_runs").select("started_at, finished_at, ok, error, stats, kind").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const left = (rows: { amount: number; allocated_amount: number; non_grant_amount: number }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.amount) - Number(r.allocated_amount) - Number(r.non_grant_amount), 0);
+  const waitingRows = waitingQ.data ?? [];
+  const partialRows = partialQ.data ?? [];
+  const codedMonth = (codedQ.data ?? []).reduce((s, r) => s + Number(r.allocated_amount), 0);
+  const lastRun = lastRunQ.data;
+  const balance = (lastRun?.stats as { balance?: number | null } | null)?.balance ?? null;
+
+  const { count: grantCards } = viewer.isManager
+    ? await admin.from("gm_pex_card_grants").select("card_id", { count: "exact", head: true }).lte("start_date", new Date().toISOString().slice(0, 10)).or(`end_date.is.null,end_date.gte.${new Date().toISOString().slice(0, 10)}`)
+    : { count: null };
 
   return (
     <div>
-      <PageTitle eyebrow="Card transactions to code to a grant" title="PEX transactions" />
-      <p className="text-sm -mt-3 mb-4 max-w-3xl" style={{ color: dim }}>
-        Each PEX transaction needs its receipt and the grant and budget category it belongs to. Tap <b>Code it</b>, snap the receipt, pick the grant and category, and submit.
-        {viewer.isManager && (
-          <>
-            {" "}
-            New transactions come in through{" "}
-            <Link href="/grant-management/import?kind=pex" className="font-semibold underline" style={{ color: emerald }}>
-              Bulk upload → PEX
+      <PageTitle
+        eyebrow={viewer.isManager ? "PEX cards · grant spending" : "Your PEX card"}
+        title="PEX"
+        right={
+          viewer.isManager ? (
+            <div className="text-xs text-right" style={{ color: dim }}>
+              {lastRun ? (
+                <>
+                  Last sync {ago(lastRun.finished_at ?? lastRun.started_at)}{" "}
+                  <span style={{ color: lastRun.ok ? emerald : rose, fontWeight: 600 }}>{lastRun.ok ? "✓" : "failed"}</span>
+                </>
+              ) : (
+                "Not synced with PEX yet"
+              )}
+            </div>
+          ) : undefined
+        }
+      />
+
+      <div className={`grid grid-cols-2 ${viewer.isManager ? "lg:grid-cols-6" : "lg:grid-cols-5"} gap-3 mb-6`}>
+        <Stat label="Waiting to code" value={waitingRows.length} sub={money(left(waitingRows), true)} tone={waitingRows.length ? gold : undefined} href="/grant-management/pex?status=waiting" />
+        <Stat label="Partly coded" value={partialRows.length} sub={`${money(left(partialRows), true)} left`} href="/grant-management/pex?status=partial" />
+        <Stat label="Coded this month" value={money(codedMonth)} sub="to grants" />
+        <Stat label="Needs a look" value={flaggedQ.count ?? 0} sub="flagged transactions" tone={flaggedQ.count ? rose : undefined} href="/grant-management/pex?status=waiting&flagged=1" />
+        <Stat label="Pending at PEX" value={pendingQ.count ?? 0} sub="can code once settled" href="/grant-management/pex?status=pending" />
+        {viewer.isManager && <Stat label="PEX balance" value={balance != null ? money(balance) : "—"} sub={grantCards != null ? `${grantCards} active grant card links` : undefined} href="/grant-management/pex?tab=cards" />}
+      </div>
+
+      {viewer.isManager && (
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {TABS.map(([k, l]) => (
+            <Link key={k} href={`/grant-management/pex?tab=${k}`} className="text-sm rounded-full px-4 py-1.5 font-semibold" style={tab === k ? { background: ink, color: "#fff" } : { background: "#fff", border: "1px solid var(--portal-line)", color: dim }}>
+              {l}
             </Link>
-            .
-          </>
-        )}
-      </p>
-      <div className="flex gap-2 mb-4">
-        {[
-          ["unmatched", "Waiting"],
-          ["coded", "Coded"],
-          ["ignored", "Not grant expenses"],
-        ].map(([k, l]) => (
-          <Link key={k} href={`/grant-management/pex?status=${k}`} className="text-sm rounded-full px-4 py-1.5 font-semibold" style={status === k ? { background: ink, color: "#fff" } : { background: "#fff", border: "1px solid var(--portal-line)", color: dim }}>
+          ))}
+        </div>
+      )}
+
+      {tab === "transactions" && <Transactions sp={sp} viewer={viewer} />}
+      {tab === "cards" && <Cards />}
+      {tab === "connection" && <Connection isAdmin={viewer.isAdmin} />}
+    </div>
+  );
+}
+
+// ---------- transactions ----------
+async function Transactions({ sp, viewer }: { sp: SP; viewer: NonNullable<Awaited<ReturnType<typeof getGmViewer>>> }) {
+  const admin = createAdminClient();
+  const filter = FILTERS.some(([k]) => k === sp.status) ? sp.status! : "waiting";
+  let q = admin
+    .from("gm_pex_transactions")
+    .select("id, transaction_date, card_holder, card_last4, card_id, merchant, merchant_city, merchant_state, mcc, amount, memo, employee_id, status, is_pending, allocated_amount, non_grant_amount, suggested_grant_id, flags, source")
+    .order("transaction_date", { ascending: false })
+    .limit(300);
+  if (filter === "waiting") q = q.eq("status", "unmatched").eq("is_pending", false);
+  else if (filter === "pending") q = q.eq("is_pending", true);
+  else if (filter === "partial") q = q.eq("status", "partial");
+  else if (filter === "coded") q = q.eq("status", "coded");
+  else if (filter === "ignored") q = q.eq("status", "ignored");
+  if (!viewer.isManager) q = q.eq("employee_id", viewer.employeeId);
+  if (sp.card) q = q.eq("card_id", sp.card);
+  if (sp.flagged) q = q.neq("flags", "{}");
+  if (sp.q) q = q.ilike("merchant", `%${sp.q.replace(/[%_,()]/g, " ")}%`);
+  if (sp.grant) {
+    // Suggested to this grant, or already coded to it.
+    const { data: coded } = await admin.from("gm_expenses").select("pex_transaction_id").eq("grant_id", sp.grant).not("pex_transaction_id", "is", null);
+    const ids = [...new Set((coded ?? []).map((c) => c.pex_transaction_id as string))];
+    q = ids.length ? q.or(`suggested_grant_id.eq.${sp.grant},id.in.(${ids.join(",")})`) : q.eq("suggested_grant_id", sp.grant);
+  }
+  const { data } = await q;
+  const rows = data ?? [];
+
+  const txIds = rows.map((r) => r.id);
+  const { data: exps } = txIds.length
+    ? await admin.from("gm_expenses").select("pex_transaction_id, amount, status, grant_id").in("pex_transaction_id", txIds).neq("status", "rejected")
+    : { data: [] };
+  const grantIds = [...new Set([...(exps ?? []).map((e) => e.grant_id), ...rows.map((r) => r.suggested_grant_id).filter(Boolean)])] as string[];
+  const { data: grants } = grantIds.length ? await admin.from("gm_grants").select("id, code, name").in("id", grantIds) : { data: [] };
+  const gMap = new Map((grants ?? []).map((g) => [g.id, g]));
+  const byTx = new Map<string, { grant_id: string; amount: number }[]>();
+  (exps ?? []).forEach((e) => byTx.set(e.pex_transaction_id as string, [...(byTx.get(e.pex_transaction_id as string) ?? []), { grant_id: e.grant_id, amount: Number(e.amount) }]));
+
+  const names = await nameMap(admin, rows.map((r) => r.employee_id));
+  const { data: emps } = viewer.isManager ? await admin.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name") : { data: [] };
+  const employees = (emps ?? []).map((e: { id: string; first_name: string; last_name: string }) => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }));
+  const filterGrant = sp.grant ? gMap.get(sp.grant) ?? (await admin.from("gm_grants").select("id, code, name").eq("id", sp.grant).maybeSingle()).data : null;
+
+  const href = (patch: SP) => {
+    const p = new URLSearchParams();
+    const next = { status: filter, card: sp.card, grant: sp.grant, q: sp.q, flagged: sp.flagged, ...patch };
+    for (const [k, v] of Object.entries(next)) if (v) p.set(k, v);
+    return `/grant-management/pex?${p.toString()}`;
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {FILTERS.map(([k, l]) => (
+          <Link key={k} href={href({ status: k })} className="text-sm rounded-full px-4 py-1.5 font-semibold" style={filter === k ? { background: emerald, color: "#fff" } : { background: "#fff", border: "1px solid var(--portal-line)", color: dim }}>
             {l}
           </Link>
         ))}
+        <form action="/grant-management/pex" className="ml-auto flex gap-2">
+          <input type="hidden" name="status" value={filter} />
+          {sp.grant && <input type="hidden" name="grant" value={sp.grant} />}
+          {sp.card && <input type="hidden" name="card" value={sp.card} />}
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search merchant" className="text-sm rounded-full px-4 py-1.5" style={{ border: "1px solid var(--portal-line)", background: "#fff", minWidth: 180 }} />
+        </form>
       </div>
+      {(filterGrant || sp.card || sp.flagged) && (
+        <div className="flex flex-wrap gap-2 mb-3 text-xs" style={{ color: dim }}>
+          {filterGrant && <Chip label={`Grant: ${filterGrant.code}`} href={href({ grant: undefined })} />}
+          {sp.card && <Chip label="One card" href={href({ card: undefined })} />}
+          {sp.flagged && <Chip label="Flagged only" href={href({ flagged: undefined })} />}
+        </div>
+      )}
+
       {!rows.length ? (
-        <Empty>{status === "unmatched" ? "No PEX transactions waiting to be coded." : "Nothing here."}</Empty>
+        <Empty>{filter === "waiting" ? "Nothing waiting to be coded. 🎉" : "No transactions here."}</Empty>
       ) : (
         <Card className="!p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -57,45 +186,280 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
                   <th style={th}>Date</th>
                   <th style={th}>Merchant</th>
                   <th style={th}>Card holder</th>
+                  <th style={th}>Grant</th>
                   <th style={thNum}>Amount</th>
+                  <th style={thNum}>Left</th>
                   <th style={th} />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ ...td, whiteSpace: "nowrap" }}>{fmtDate(r.transaction_date)}</td>
-                    <td style={td}>
-                      <div className="font-semibold">{r.merchant ?? "—"}</div>
-                      {r.memo && (
-                        <div className="text-xs" style={{ color: dim }}>
-                          {r.memo}
+                {rows.map((r) => {
+                  const amount = Number(r.amount);
+                  const leftAmt = amount - Number(r.allocated_amount) - Number(r.non_grant_amount);
+                  const portions = byTx.get(r.id) ?? [];
+                  const sug = r.suggested_grant_id ? gMap.get(r.suggested_grant_id) : null;
+                  const cat = mccCategory(r.mcc);
+                  return (
+                    <tr key={r.id}>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>
+                        {fmtDate(r.transaction_date)}
+                        <div className="mt-1">
+                          <PexStatusPill status={r.status} pending={r.is_pending} />
                         </div>
-                      )}
-                    </td>
-                    <td style={td}>
-                      {names.get(r.employee_id) ?? <span style={{ color: "#A57420" }}>Unassigned</span>}
-                      <div className="text-xs" style={{ color: faint }}>
-                        {[r.card_holder, r.card_last4 ? `•••• ${r.card_last4}` : null].filter(Boolean).join(" · ")}
-                      </div>
-                    </td>
-                    <td style={tdNum}>{money(r.amount, true)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>
-                      {r.status === "coded" && r.expense_id ? (
-                        <Link href={`/grant-management/expenses/${r.expense_id}`} className="text-sm font-semibold" style={{ color: emerald }}>
-                          View expense →
+                      </td>
+                      <td style={td}>
+                        <Link href={`/grant-management/pex/${r.id}`} className="font-semibold hover:underline" style={{ color: ink }}>
+                          {r.merchant ?? "—"}
                         </Link>
-                      ) : (
-                        <PexRowActions id={r.id} status={r.status} canCode={r.status === "unmatched" && (r.employee_id === viewer.employeeId || viewer.isManager)} isManager={viewer.isManager} employees={employees} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                        <div className="text-xs" style={{ color: faint }}>
+                          {[[r.merchant_city, r.merchant_state].filter(Boolean).join(", "), cat ? [cat.category, cat.subcategory].filter(Boolean).join(" · ") : null, r.memo].filter(Boolean).join(" · ")}
+                        </div>
+                        <FlagPills flags={r.flags} />
+                      </td>
+                      <td style={td}>
+                        {names.get(r.employee_id) ?? <span style={{ color: "#A57420" }}>Unassigned</span>}
+                        <div className="text-xs" style={{ color: faint }}>
+                          {r.card_id ? (
+                            viewer.isManager ? (
+                              <Link href={`/grant-management/pex/cards/${r.card_id}`} className="hover:underline">
+                                {[r.card_holder, r.card_last4 ? `•••• ${r.card_last4}` : null].filter(Boolean).join(" · ")}
+                              </Link>
+                            ) : (
+                              [r.card_holder, r.card_last4 ? `•••• ${r.card_last4}` : null].filter(Boolean).join(" · ")
+                            )
+                          ) : (
+                            [r.card_holder, r.card_last4 ? `•••• ${r.card_last4}` : null].filter(Boolean).join(" · ")
+                          )}
+                        </div>
+                      </td>
+                      <td style={td}>
+                        {portions.length ? (
+                          <div className="flex flex-col gap-0.5">
+                            {portions.map((p, i) => (
+                              <span key={i} className="text-xs">
+                                <b>{gMap.get(p.grant_id)?.code ?? "Grant"}</b> {money(p.amount, true)}
+                              </span>
+                            ))}
+                            {Number(r.non_grant_amount) !== 0 && (
+                              <span className="text-xs" style={{ color: faint }}>
+                                Non-grant {money(Number(r.non_grant_amount), true)}
+                              </span>
+                            )}
+                          </div>
+                        ) : sug ? (
+                          <span className="text-xs" style={{ color: dim }} title={sug.name}>
+                            Suggested: <b>{sug.code}</b>
+                          </span>
+                        ) : r.status === "ignored" ? (
+                          <span className="text-xs" style={{ color: faint }}>
+                            Not a grant expense
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: faint }}>
+                            Not a grant card
+                          </span>
+                        )}
+                      </td>
+                      <td style={tdNum}>{money(amount, true)}</td>
+                      <td style={{ ...tdNum, color: Math.abs(leftAmt) > 0.005 ? ink : faint }}>{Math.abs(leftAmt) > 0.005 ? money(leftAmt, true) : "—"}</td>
+                      <td style={{ ...td, textAlign: "right" }}>
+                        <PexRowActions
+                          id={r.id}
+                          status={r.status}
+                          pending={r.is_pending}
+                          canCode={["unmatched", "partial"].includes(r.status) && !r.is_pending && (r.employee_id === viewer.employeeId || viewer.isManager)}
+                          isManager={viewer.isManager}
+                          employees={employees}
+                          allocated={Number(r.allocated_amount)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </Card>
       )}
+      {viewer.isManager && (
+        <p className="text-xs mt-3" style={{ color: faint }}>
+          Transactions arrive from PEX automatically once connected. You can still bring in a PEX export through{" "}
+          <Link href="/grant-management/import?kind=pex" className="underline">
+            Bulk upload → PEX
+          </Link>
+          .
+        </p>
+      )}
+    </>
+  );
+}
+
+function Chip({ label, href }: { label: string; href: string }) {
+  return (
+    <Link href={href} className="rounded-full px-3 py-1 font-semibold" style={{ background: "#fff", border: "1px solid var(--portal-line)", color: ink }}>
+      {label} ✕
+    </Link>
+  );
+}
+
+// ---------- cards ----------
+async function Cards() {
+  const admin = createAdminClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: cards }, { data: links }, { data: waiting }, { data: emps }] = await Promise.all([
+    admin.from("pex_cards").select("id, pex_account_id, first_name, last_name, last4, card_status, available_balance, employee_id, is_virtual, grant_eligible, synced_at").order("last_name"),
+    admin.from("gm_pex_card_grants").select("card_id, grant_id, start_date, end_date, is_default, grant:grant_id(code, name)"),
+    admin.from("gm_pex_transactions").select("card_id").in("status", ["unmatched", "partial"]).eq("is_pending", false).not("card_id", "is", null),
+    admin.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name"),
+  ]);
+  const names = await nameMap(admin, (cards ?? []).map((c) => c.employee_id));
+  const waitingBy = new Map<string, number>();
+  (waiting ?? []).forEach((w) => waitingBy.set(w.card_id as string, (waitingBy.get(w.card_id as string) ?? 0) + 1));
+  const activeLinks = (links ?? []).filter((l) => l.start_date <= today && (!l.end_date || l.end_date >= today));
+  const list = [...(cards ?? [])].sort((a, b) => Number(activeLinks.some((l) => l.card_id === b.id)) - Number(activeLinks.some((l) => l.card_id === a.id)));
+
+  return (
+    <>
+      <div className="mb-4">
+        <PexAddCard employees={(emps ?? []).map((e) => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }))} />
+      </div>
+      {!list.length ? (
+        <Empty>No PEX cards yet. Connect PEX on the Connection tab and run a sync, or add a card by its last 4 digits.</Empty>
+      ) : (
+        <Card className="!p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+              <thead>
+                <tr>
+                  <th style={th}>Card holder</th>
+                  <th style={th}>Card</th>
+                  <th style={th}>Portal employee</th>
+                  <th style={th}>Grants it spends on</th>
+                  <th style={thNum}>Balance</th>
+                  <th style={thNum}>To code</th>
+                  <th style={th} />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((c) => {
+                  const cur = activeLinks.filter((l) => l.card_id === c.id);
+                  return (
+                    <tr key={c.id}>
+                      <td style={td}>
+                        <div className="font-semibold">{holderName(c)}</div>
+                        {c.is_virtual && (
+                          <div className="text-xs" style={{ color: faint }}>
+                            Virtual card
+                          </div>
+                        )}
+                      </td>
+                      <td style={td}>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>•••• {c.last4 ?? "????"}</div>
+                        <div className="mt-1">
+                          <CardStatusPill status={c.card_status} />
+                        </div>
+                      </td>
+                      <td style={td}>{names.get(c.employee_id) ?? <span style={{ color: "#A57420" }}>Not linked</span>}</td>
+                      <td style={td}>
+                        {cur.length ? (
+                          cur.map((l, i) => {
+                            const g = l.grant as unknown as { code: string; name: string } | null;
+                            return (
+                              <div key={i} className="text-xs" title={g?.name}>
+                                <b>{g?.code}</b> {l.is_default ? "" : "(secondary)"} <span style={{ color: faint }}>{l.end_date ? `until ${fmtDate(l.end_date)}` : "ongoing"}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <span className="text-xs" style={{ color: faint }}>
+                            Not a grant card
+                          </span>
+                        )}
+                      </td>
+                      <td style={tdNum}>{c.available_balance != null ? money(Number(c.available_balance), true) : "—"}</td>
+                      <td style={tdNum}>{waitingBy.get(c.id) ?? "—"}</td>
+                      <td style={{ ...td, textAlign: "right" }}>
+                        <Link href={`/grant-management/pex/cards/${c.id}`} className="text-sm font-semibold" style={{ color: emerald }}>
+                          Manage →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </>
+  );
+}
+
+// ---------- connection ----------
+async function Connection({ isAdmin }: { isAdmin: boolean }) {
+  const admin = createAdminClient();
+  const [{ data: runs }, { data: hooks }] = await Promise.all([
+    admin.from("pex_sync_runs").select("id, kind, trigger, started_at, finished_at, ok, stats, error").order("started_at", { ascending: false }).limit(10),
+    admin.from("pex_webhook_events").select("id, received_at, event_kind, network_type, error").order("received_at", { ascending: false }).limit(8),
+  ]);
+  return (
+    <div className="grid lg:grid-cols-2 gap-5 items-start">
+      <PexSettingsPanel isAdmin={isAdmin} />
+      <div className="space-y-5">
+        <Card>
+          <div className="text-sm font-bold mb-2" style={{ color: ink }}>
+            Recent syncs
+          </div>
+          {!runs?.length ? (
+            <p className="text-sm" style={{ color: dim }}>
+              No syncs yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {runs.map((r) => {
+                const s = (r.stats ?? {}) as { cards?: { seen: number }; transactions?: { inserted: number; updated: number; settled: number } };
+                return (
+                  <div key={r.id} className="text-xs flex justify-between gap-3 pb-2" style={{ borderBottom: "1px dashed var(--portal-line)" }}>
+                    <div>
+                      <span className="font-semibold" style={{ color: r.ok ? emerald : r.ok === false ? rose : dim }}>
+                        {r.ok ? "OK" : r.ok === false ? "Failed" : "Running"}
+                      </span>{" "}
+                      · {r.trigger} · {ago(r.started_at)}
+                      {r.error && <div style={{ color: rose }}>{r.error}</div>}
+                    </div>
+                    <div className="text-right" style={{ color: dim }}>
+                      {s.cards && <div>{s.cards.seen} cards</div>}
+                      {s.transactions && (
+                        <div>
+                          +{s.transactions.inserted} new · {s.transactions.updated} updated · {s.transactions.settled} settled
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+        <Card>
+          <div className="text-sm font-bold mb-2" style={{ color: ink }}>
+            Recent webhooks
+          </div>
+          {!hooks?.length ? (
+            <p className="text-sm" style={{ color: dim }}>
+              None received yet.
+            </p>
+          ) : (
+            hooks.map((h) => (
+              <div key={h.id} className="text-xs py-1" style={{ color: h.error ? rose : dim }}>
+                {ago(h.received_at)} · {h.event_kind}
+                {h.network_type ? ` (${h.network_type})` : ""}
+                {h.error ? ` · ${h.error}` : ""}
+              </div>
+            ))
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

@@ -19,11 +19,13 @@ import { Card, Empty, Eyebrow, ExpenseStatusPill, ExportButtons, GrantStatusPill
 import { dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 import GrantActions from "./GrantActions";
 import TeamEditor from "./TeamEditor";
+import GrantPex from "./GrantPex";
 
 const TABS = [
   ["overview", "Budget vs. actual"],
   ["expenses", "Expenses"],
   ["budget", "Budget versions"],
+  ["pex", "PEX cards"],
   ["team", "Team & rules"],
   ["history", "History"],
 ] as const;
@@ -117,6 +119,7 @@ export default async function GrantPage({ params, searchParams }: { params: Prom
       {tab === "overview" && <Overview grant={grant} lines={lines} id={id} />}
       {tab === "expenses" && <Expenses id={id} status={sp.status} canEnter={access.canEnter && grant.status === "active"} />}
       {tab === "budget" && <Versions id={id} versions={versions} lines={lines} canManage={access.canManage && grant.status !== "closed"} />}
+      {tab === "pex" && <GrantPex id={id} grant={grant} isManager={viewer.isManager} />}
       {tab === "team" && <Team id={id} grant={grant} canManage={access.canManage} lines={lines} notes={extra?.notes ?? null} />}
       {tab === "history" && <History id={id} />}
     </div>

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/grantManagement/server";
 import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
 import { audit } from "@/lib/grantManagement/server";
 import { checkExpenseRows, checkPexRows } from "@/lib/grantManagement/importRows";
+import { linkUploadedToCards } from "@/lib/pex/sync";
 
 export const maxDuration = 60;
 
@@ -89,6 +90,9 @@ export async function POST(req: Request) {
     await admin.from("gm_import_batches").delete().eq("id", batch.id);
     return fail(`Import stopped, nothing was saved: ${insErr.message}`, 500);
   }
+  // Match uploaded rows to known cards (by last 4) so the card's grant
+  // designation suggests a grant for them.
+  await linkUploadedToCards(admin);
   await audit(admin, { entity: "import", entityId: batch.id, action: "pex_imported", actorId: viewer.employeeId, changes: { file: fileName, rows: good.length, total, skipped: errorRows.length } });
   return NextResponse.json({ ok: true, batchId: batch.id, rows: good.length, skipped: errorRows.length, total });
 }

@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/grantManagement/server";
 import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
 import { audit, checkExpenseAgainstGrant, cleanExpenseInput, diff, grantAccess } from "@/lib/grantManagement/server";
 import { attachDocuments, EXPENSE_EDIT_FIELDS, submitExpense } from "@/lib/grantManagement/expenses";
+import { refreshPexTransaction } from "@/lib/pex/allocation";
+import { checkPortion, remaining } from "@/lib/pex/rules";
 
 async function load(id: string) {
   const admin = createAdminClient();
@@ -30,7 +32,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const { input, errors } = cleanExpenseInput({ ...expense, ...body });
   if (!input) return fail("Please fix the highlighted fields.", 400, errors);
-  if (expense.pex_transaction_id && Math.abs(Number(expense.amount) - input.amount) > 0.005) return fail("The amount comes from the PEX transaction and can't change.", 400, { amount: "Fixed by PEX." });
+  // PEX portions: the date is fixed; the amount can move within what's
+  // left of the transaction (other portions + non-grant stay put).
+  if (expense.pex_transaction_id) {
+    const { data: tx } = await admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount, transaction_date").eq("id", expense.pex_transaction_id).maybeSingle();
+    if (tx) {
+      if (input.expense_date !== tx.transaction_date) return fail("The date comes from the PEX transaction.", 400, { expense_date: "Fixed by PEX." });
+      if (Math.abs(Number(expense.amount) - input.amount) > 0.005) {
+        const counted = expense.status === "rejected" ? 0 : Number(expense.amount);
+        const left = remaining(Number(tx.amount), Number(tx.allocated_amount) - counted, Number(tx.non_grant_amount));
+        const err = checkPortion(Number(tx.amount), left, input.amount);
+        if (err) return fail("Amount doesn't fit the PEX transaction.", 400, { amount: err });
+      }
+    }
+  }
   const access = input.grant_id === expense.grant_id ? currentAccess : await grantAccess(viewer, input.grant_id, admin);
   const check = await checkExpenseAgainstGrant(admin, input, access);
   // Grant Management may correct an approved expense on a closed grant.
@@ -55,6 +70,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       note: typeof body.change_reason === "string" ? body.change_reason : null,
     });
   }
+  if (expense.pex_transaction_id && "amount" in changes) await refreshPexTransaction(admin, expense.pex_transaction_id);
   const attached = await attachDocuments(admin, id, viewer.employeeId, body.document_ids);
   if (attached) await audit(admin, { entity: "document", entityId: id, grantId: String(update.grant_id), action: "attached", actorId: viewer.employeeId, changes: { count: attached } });
 
@@ -79,9 +95,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!["draft", "returned", "rejected"].includes(expense.status)) return fail("Submitted and approved expenses can't be deleted. Reject it instead.", 400);
 
   const { data: docs } = await admin.from("gm_expense_documents").select("storage_path").eq("expense_id", id);
-  if (expense.pex_transaction_id) await admin.from("gm_pex_transactions").update({ status: "unmatched", expense_id: null }).eq("id", expense.pex_transaction_id);
   const { error } = await admin.from("gm_expenses").delete().eq("id", id);
   if (error) return fail(error.message, 500);
+  // Its PEX portion goes back in the queue.
+  if (expense.pex_transaction_id) await refreshPexTransaction(admin, expense.pex_transaction_id);
   if (docs?.length) await admin.storage.from("grant-documents").remove(docs.map((d: { storage_path: string }) => d.storage_path));
   await audit(admin, { entity: "expense", entityId: id, grantId: expense.grant_id, action: "deleted", actorId: viewer.employeeId, changes: expense });
   return NextResponse.json({ ok: true });
