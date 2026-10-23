@@ -68,6 +68,8 @@ export const HUBS = {
     tabs: (a) =>
       tabs([
         a.canManageDevices && { href: "/admin/devices", labelKey: "devicesHub.tab.devices" },
+        a.canManageDevices && { href: "/admin/devices/join", labelKey: "devicesHub.tab.join" },
+        a.canManageDevices && { href: "/admin/devices/cleanup", labelKey: "devicesHub.tab.cleanup" },
         a.canManageDevices && { href: "/admin/devices/licenses", labelKey: "devicesHub.tab.licenses" },
         a.canManageDevices && { href: "/admin/devices/activity", labelKey: "devicesHub.tab.activity" },
       ]),

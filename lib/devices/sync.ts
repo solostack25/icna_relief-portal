@@ -33,6 +33,9 @@ type GUser = {
   userPrincipalName: string;
   displayName?: string;
   accountEnabled?: boolean;
+  officeLocation?: string | null;
+  department?: string | null;
+  jobTitle?: string | null;
   assignedLicenses?: { skuId: string; disabledPlans?: string[] }[];
   signInActivity?: { lastSignInDateTime?: string | null; lastNonInteractiveSignInDateTime?: string | null };
 };
@@ -135,7 +138,7 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
   const hasIntuneByUpn = new Map<string, boolean>();
   let usersOk = false;
   try {
-    const base = "/v1.0/users?$top=999&$select=id,userPrincipalName,displayName,accountEnabled,assignedLicenses";
+    const base = "/v1.0/users?$top=999&$select=id,userPrincipalName,displayName,accountEnabled,assignedLicenses,officeLocation,department,jobTitle";
     let users: GUser[];
     try {
       // signInActivity caps the page size well below the usual 999.
@@ -163,6 +166,9 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
         sku_ids: lic.map((l) => l.skuId),
         has_intune: hasIntune,
         last_sign_in: last,
+        office_location: u.officeLocation?.trim() || null,
+        department: u.department?.trim() || null,
+        job_title: u.jobTitle?.trim() || null,
         employee_id: empByObj.get(u.id) ?? empByUpn.get(lower(u.userPrincipalName)) ?? null,
         synced_at: now,
       };

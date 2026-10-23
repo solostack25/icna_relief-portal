@@ -84,3 +84,38 @@ export async function gGetAll<T = any>(path: string, extra?: Record<string, stri
   }
   return out;
 }
+
+// Graph JSON batching: up to 20 requests per call. Returns each
+// sub-request's status by id. Throttled sub-requests are retried once.
+export async function gBatch(
+  requests: { id: string; method: "GET" | "PATCH" | "POST" | "DELETE"; url: string; body?: unknown }[]
+): Promise<Map<string, { status: number; error?: string }>> {
+  const token = await getGraphToken();
+  const out = new Map<string, { status: number; error?: string }>();
+  let pending = requests;
+  for (let round = 0; round < 2 && pending.length; round++) {
+    const retry: typeof requests = [];
+    for (let i = 0; i < pending.length; i += 20) {
+      const slice = pending.slice(i, i + 20);
+      const data = await call("POST", "/v1.0/$batch", token, {
+        requests: slice.map((r) => ({
+          id: r.id,
+          method: r.method,
+          url: r.url,
+          ...(r.body !== undefined ? { body: r.body, headers: { "Content-Type": "application/json" } } : {}),
+        })),
+      });
+      for (const res of (data?.responses ?? []) as { id: string; status: number; body?: { error?: { message?: string } } }[]) {
+        if (res.status === 429 && round === 0) {
+          const orig = slice.find((r) => r.id === res.id);
+          if (orig) retry.push(orig);
+          continue;
+        }
+        out.set(res.id, { status: res.status, error: res.status >= 300 ? res.body?.error?.message ?? `HTTP ${res.status}` : undefined });
+      }
+    }
+    if (retry.length) await new Promise((r) => setTimeout(r, 5000));
+    pending = retry;
+  }
+  return out;
+}
