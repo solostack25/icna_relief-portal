@@ -171,3 +171,10 @@ create policy gm_pex_read on gm_pex_transactions for select using (
   or employee_id = gm_me()
   or (suggested_grant_id is not null and gm_can_view_grant(suggested_grant_id))
 );
+
+-- ---------- PEX app tile (portal home) ----------
+-- Admins see every tile; cardholders get "pex" program access
+-- automatically when a card is linked to them.
+insert into app_registry (slug, display_name, route, icon, is_active, sort_order)
+values ('pex', 'PEX Cards', '/pex', 'credit-card', true, 9)
+on conflict (slug) do update set display_name = excluded.display_name, route = excluded.route, is_active = true;
