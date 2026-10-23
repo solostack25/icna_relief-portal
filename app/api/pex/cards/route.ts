@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { audit, createAdminClient } from "@/lib/grantManagement/server";
-import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
+import { fail, readJson } from "@/lib/grantManagement/api";
+import { ensurePexAccess, requirePex } from "@/lib/pex/access";
 import { linkUploadedToCards } from "@/lib/pex/sync";
 
 // Add a card by hand (before PEX is connected, or for a card only seen
 // in CSV exports). API-synced cards appear on their own.
 export async function POST(req: Request) {
-  const auth = await requireViewer({ manager: true });
+  const auth = await requirePex({ admin: true });
   if ("res" in auth) return auth.res;
   const body = await readJson(req);
   const last4 = String(body.last4 ?? "").replace(/\D/g, "");
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     .single();
   if (error || !data) return fail(error?.message ?? "Couldn't add the card.", 500);
   await audit(db, { entity: "pex_card", entityId: data.id, action: "created", actorId: auth.viewer.employeeId, changes: { last4, employee_id: employeeId } });
+  await ensurePexAccess(db, [employeeId]);
   await linkUploadedToCards(db);
   return NextResponse.json({ id: data.id });
 }

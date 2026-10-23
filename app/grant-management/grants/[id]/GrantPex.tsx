@@ -19,7 +19,7 @@ export default async function GrantPex({ id, grant, isManager }: { id: string; g
       .order("start_date", { ascending: false }),
     admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").eq("suggested_grant_id", id).in("status", ["unmatched", "partial"]).eq("is_pending", false),
     admin.from("gm_expenses").select("amount, status").eq("grant_id", id).eq("source", "pex").neq("status", "rejected"),
-    isManager ? admin.from("pex_cards").select("id, first_name, last_name, last4").order("last_name") : Promise.resolve({ data: [] }),
+    isManager ? admin.from("pex_cards").select("id, first_name, last_name, last4").eq("grant_eligible", true).order("last_name") : Promise.resolve({ data: [] }),
   ]);
   type CardRow = { id: string; first_name: string | null; last_name: string | null; last4: string | null; card_status: string | null; employee_id: string | null };
   const rows = (links ?? []).map((l) => ({ ...l, card: l.card as unknown as CardRow }));

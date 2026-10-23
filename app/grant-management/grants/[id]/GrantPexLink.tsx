@@ -30,7 +30,7 @@ export default function GrantPexLink({ grantId, grantStart, grantEnd, cards }: {
   if (!cards.length)
     return (
       <p className="text-xs" style={{ color: dim }}>
-        Every known card is already linked. New cards appear after a PEX sync, or add one from <Link href="/grant-management/pex?tab=cards" className="underline">PEX → Cards</Link>.
+        No other cards are marked as used for grants. Finance switches cards on in <Link href="/pex/cards" className="underline">PEX → Cards</Link>.
       </p>
     );
   return (

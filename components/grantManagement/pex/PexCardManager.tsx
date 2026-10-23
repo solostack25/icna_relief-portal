@@ -62,7 +62,7 @@ export default function PexCardManager({
   async function saveHolder() {
     setBusy(true);
     setMsg(null);
-    const r = await api(`/api/grant-management/pex/cards/${cardId}`, { method: "PATCH", json: { employee_id: holder || null } });
+    const r = await api(`/api/pex/cards/${cardId}`, { method: "PATCH", json: { employee_id: holder || null } });
     setBusy(false);
     setMsg(r.error ? { tone: "error", text: r.error } : { tone: "ok", text: "Card holder saved. Uncoded transactions now go to them." });
     router.refresh();

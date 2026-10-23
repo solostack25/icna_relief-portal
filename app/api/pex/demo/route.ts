@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireViewer, fail } from "@/lib/grantManagement/api";
+import { fail } from "@/lib/grantManagement/api";
+import { ensurePexAccess, requirePex } from "@/lib/pex/access";
 import { audit, createAdminClient, GM_BUCKET } from "@/lib/grantManagement/server";
 import { getIntegrationSetting, setIntegrationSetting } from "@/lib/integrationSettings";
 import { DEMO_ACCOUNT_MAX, DEMO_ACCOUNT_MIN, isDemoUrl } from "@/lib/pex/demo";
@@ -8,7 +9,7 @@ import { PEX_DEFAULT_URL } from "@/lib/pex/client";
 
 export const maxDuration = 300;
 
-// Demo mode for the PEX module (Grant Management admins).
+// Demo mode for the PEX app (Finance / PEX admins).
 //   POST   turn on demo PEX, sync 90 days, link a few demo cards to
 //          active grants so suggestions show straight away
 //   DELETE remove every demo card / transaction / coded portion and
@@ -17,10 +18,9 @@ export const maxDuration = 300;
 // mixes with live card data.
 
 export async function POST() {
-  const auth = await requireViewer({ manager: true });
+  const auth = await requirePex({ admin: true });
   if ("res" in auth) return auth.res;
   const { viewer } = auth;
-  if (!viewer.isAdmin) return fail("Only a Grant Management admin can turn on demo mode.", 403);
 
   const [url, token] = await Promise.all([getIntegrationSetting("pex_api_url", process.env.PEX_API_URL), getIntegrationSetting("pex_api_token", process.env.PEX_API_TOKEN)]);
   if (token && !isDemoUrl(url)) return fail("A real PEX API token is saved. Demo mode is only for before PEX is connected.");
@@ -33,6 +33,7 @@ export async function POST() {
   // Only the person trying the demo sees its transactions.
   await db.from("pex_cards").update({ employee_id: viewer.employeeId }).gte("pex_account_id", DEMO_ACCOUNT_MIN).lte("pex_account_id", DEMO_ACCOUNT_MAX);
   await db.from("gm_pex_transactions").update({ employee_id: viewer.employeeId }).gte("pex_account_id", DEMO_ACCOUNT_MIN).lte("pex_account_id", DEMO_ACCOUNT_MAX);
+  await ensurePexAccess(db, [viewer.employeeId]);
   const linked = await linkDemoCards(db, viewer.employeeId);
   await audit(db, { entity: "pex", action: "demo_started", actorId: viewer.employeeId, changes: { stats: run.stats, linked } });
   return NextResponse.json({ ok: true, stats: run.stats, linked });
@@ -80,10 +81,9 @@ async function linkDemoCards(db: ReturnType<typeof createAdminClient>, actorId: 
 }
 
 export async function DELETE() {
-  const auth = await requireViewer({ manager: true });
+  const auth = await requirePex({ admin: true });
   if ("res" in auth) return auth.res;
   const { viewer } = auth;
-  if (!viewer.isAdmin) return fail("Only a Grant Management admin can remove demo data.", 403);
   const db = createAdminClient();
 
   const { data: txs } = await db.from("gm_pex_transactions").select("id").gte("pex_account_id", DEMO_ACCOUNT_MIN).lte("pex_account_id", DEMO_ACCOUNT_MAX);

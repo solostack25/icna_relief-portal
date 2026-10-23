@@ -8,15 +8,16 @@ import { Card, Empty, PageTitle, Stat } from "@/components/grantManagement/ui";
 import { dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 import { ago, CardStatusPill, FlagPills, holderName, PexStatusPill } from "@/components/grantManagement/pex/pexUi";
 import PexRowActions from "./PexRowActions";
-import PexSettingsPanel from "@/components/grantManagement/pex/PexSettingsPanel";
-import PexAddCard from "@/components/grantManagement/pex/PexAddCard";
+import { grantCardIds, grantScopeFilter } from "@/lib/pex/access";
 
 type SP = Record<string, string | undefined>;
 
+// Grant Management sees PEX spending from cards switched on for grants
+// (PEX → Cards → "Used for grants"), plus older CSV uploads and anything
+// already coded. Org-wide card spending lives in the PEX app (/pex).
 const TABS = [
-  ["transactions", "Transactions"],
-  ["cards", "Cards"],
-  ["connection", "Connection & sync"],
+  ["transactions", "To code"],
+  ["cards", "Grant cards"],
 ] as const;
 
 const FILTERS = [
@@ -38,12 +39,13 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
   const monthStart = new Date().toISOString().slice(0, 8) + "01";
   // Managers see every card; everyone else only their own transactions.
   const own: Record<string, string> = viewer.isManager ? {} : { employee_id: viewer.employeeId };
+  const scope = grantScopeFilter(await grantCardIds(admin));
   const [waitingQ, partialQ, codedQ, pendingQ, flaggedQ, lastRunQ] = await Promise.all([
-    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("status", "unmatched").eq("is_pending", false),
-    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("status", "partial"),
-    admin.from("gm_pex_transactions").select("allocated_amount").match(own).eq("status", "coded").gte("transaction_date", monthStart),
-    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).eq("is_pending", true),
-    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).in("status", ["unmatched", "partial"]).neq("flags", "{}"),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).or(scope).eq("status", "unmatched").eq("is_pending", false),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).or(scope).eq("status", "partial"),
+    admin.from("gm_pex_transactions").select("allocated_amount").match(own).or(scope).eq("status", "coded").gte("transaction_date", monthStart),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).or(scope).eq("is_pending", true),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).or(scope).in("status", ["unmatched", "partial"]).neq("flags", "{}"),
     admin.from("pex_sync_runs").select("started_at, finished_at, ok, error, stats, kind").order("started_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const left = (rows: { amount: number; allocated_amount: number; non_grant_amount: number }[] | null) =>
@@ -68,7 +70,7 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
             <b>Demo mode:</b> these PEX cards and transactions are fake, for trying things out.
           </span>
           {viewer.isManager && (
-            <Link href="/grant-management/pex?tab=connection" className="text-xs font-bold" style={{ color: emerald }}>
+            <Link href="/pex/connection" className="text-xs font-bold" style={{ color: emerald }}>
               Manage demo →
             </Link>
           )}
@@ -99,7 +101,7 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
         <Stat label="Coded this month" value={money(codedMonth)} sub="to grants" />
         <Stat label="Needs a look" value={flaggedQ.count ?? 0} sub="flagged transactions" tone={flaggedQ.count ? rose : undefined} href="/grant-management/pex?status=waiting&flagged=1" />
         <Stat label="Pending at PEX" value={pendingQ.count ?? 0} sub="can code once settled" href="/grant-management/pex?status=pending" />
-        {viewer.isManager && <Stat label="PEX balance" value={balance != null ? money(balance) : "—"} sub={grantCards != null ? `${grantCards} active grant card links` : undefined} href="/grant-management/pex?tab=cards" />}
+        {viewer.isManager && <Stat label="Grant cards" value={grantCards ?? 0} sub="linked to a grant now" href="/grant-management/pex?tab=cards" />}
       </div>
 
       {viewer.isManager && (
@@ -114,7 +116,6 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
 
       {tab === "transactions" && <Transactions sp={sp} viewer={viewer} />}
       {tab === "cards" && <Cards />}
-      {tab === "connection" && <Connection isAdmin={viewer.isAdmin} />}
     </div>
   );
 }
@@ -133,6 +134,7 @@ async function Transactions({ sp, viewer }: { sp: SP; viewer: NonNullable<Awaite
   else if (filter === "partial") q = q.eq("status", "partial");
   else if (filter === "coded") q = q.eq("status", "coded");
   else if (filter === "ignored") q = q.eq("status", "ignored");
+  q = q.or(grantScopeFilter(await grantCardIds(admin)));
   if (!viewer.isManager) q = q.eq("employee_id", viewer.employeeId);
   if (sp.card) q = q.eq("card_id", sp.card);
   if (sp.flagged) q = q.neq("flags", "{}");
@@ -322,11 +324,10 @@ function Chip({ label, href }: { label: string; href: string }) {
 async function Cards() {
   const admin = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: cards }, { data: links }, { data: waiting }, { data: emps }] = await Promise.all([
-    admin.from("pex_cards").select("id, pex_account_id, first_name, last_name, last4, card_status, available_balance, employee_id, is_virtual, grant_eligible, synced_at").order("last_name"),
+  const [{ data: cards }, { data: links }, { data: waiting }] = await Promise.all([
+    admin.from("pex_cards").select("id, pex_account_id, first_name, last_name, last4, card_status, available_balance, employee_id, is_virtual, grant_eligible, synced_at").eq("grant_eligible", true).order("last_name"),
     admin.from("gm_pex_card_grants").select("card_id, grant_id, start_date, end_date, is_default, grant:grant_id(code, name)"),
     admin.from("gm_pex_transactions").select("card_id").in("status", ["unmatched", "partial"]).eq("is_pending", false).not("card_id", "is", null),
-    admin.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name"),
   ]);
   const names = await nameMap(admin, (cards ?? []).map((c) => c.employee_id));
   const waitingBy = new Map<string, number>();
@@ -336,11 +337,15 @@ async function Cards() {
 
   return (
     <>
-      <div className="mb-4">
-        <PexAddCard employees={(emps ?? []).map((e) => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }))} />
-      </div>
+      <p className="text-sm mb-4 max-w-3xl" style={{ color: dim }}>
+        Cards Finance has switched on as <b>Used for grants</b>. Open a card to pick which grant(s) it spends on and for which dates. To add or remove cards here, use{" "}
+        <Link href="/pex/cards" className="font-semibold underline" style={{ color: emerald }}>
+          PEX → Cards
+        </Link>
+        .
+      </p>
       {!list.length ? (
-        <Empty>No PEX cards yet. Connect PEX on the Connection tab and run a sync, or add a card by its last 4 digits.</Empty>
+        <Empty>No cards are marked as used for grants yet. Finance switches them on in PEX → Cards.</Empty>
       ) : (
         <Card className="!p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -408,74 +413,5 @@ async function Cards() {
         </Card>
       )}
     </>
-  );
-}
-
-// ---------- connection ----------
-async function Connection({ isAdmin }: { isAdmin: boolean }) {
-  const admin = createAdminClient();
-  const [{ data: runs }, { data: hooks }] = await Promise.all([
-    admin.from("pex_sync_runs").select("id, kind, trigger, started_at, finished_at, ok, stats, error").order("started_at", { ascending: false }).limit(10),
-    admin.from("pex_webhook_events").select("id, received_at, event_kind, network_type, error").order("received_at", { ascending: false }).limit(8),
-  ]);
-  return (
-    <div className="grid lg:grid-cols-2 gap-5 items-start">
-      <PexSettingsPanel isAdmin={isAdmin} />
-      <div className="space-y-5">
-        <Card>
-          <div className="text-sm font-bold mb-2" style={{ color: ink }}>
-            Recent syncs
-          </div>
-          {!runs?.length ? (
-            <p className="text-sm" style={{ color: dim }}>
-              No syncs yet.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {runs.map((r) => {
-                const s = (r.stats ?? {}) as { cards?: { seen: number }; transactions?: { inserted: number; updated: number; settled: number } };
-                return (
-                  <div key={r.id} className="text-xs flex justify-between gap-3 pb-2" style={{ borderBottom: "1px dashed var(--portal-line)" }}>
-                    <div>
-                      <span className="font-semibold" style={{ color: r.ok ? emerald : r.ok === false ? rose : dim }}>
-                        {r.ok ? "OK" : r.ok === false ? "Failed" : "Running"}
-                      </span>{" "}
-                      · {r.trigger} · {ago(r.started_at)}
-                      {r.error && <div style={{ color: rose }}>{r.error}</div>}
-                    </div>
-                    <div className="text-right" style={{ color: dim }}>
-                      {s.cards && <div>{s.cards.seen} cards</div>}
-                      {s.transactions && (
-                        <div>
-                          +{s.transactions.inserted} new · {s.transactions.updated} updated · {s.transactions.settled} settled
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-        <Card>
-          <div className="text-sm font-bold mb-2" style={{ color: ink }}>
-            Recent webhooks
-          </div>
-          {!hooks?.length ? (
-            <p className="text-sm" style={{ color: dim }}>
-              None received yet.
-            </p>
-          ) : (
-            hooks.map((h) => (
-              <div key={h.id} className="text-xs py-1" style={{ color: h.error ? rose : dim }}>
-                {ago(h.received_at)} · {h.event_kind}
-                {h.network_type ? ` (${h.network_type})` : ""}
-                {h.error ? ` · ${h.error}` : ""}
-              </div>
-            ))
-          )}
-        </Card>
-      </div>
-    </div>
   );
 }
