@@ -77,8 +77,14 @@ const EXPLAIN: Record<string, { title: string; fix: string }> = {
   defenderversion: { title: "Defender version is too old", fix: "Run Windows Update to update the Defender platform." },
   activefirewallrequired: { title: "Windows Firewall is off", fix: "Turn the firewall on, or push an Intune firewall policy that keeps it on." },
   firewallenabled: { title: "Firewall is off", fix: "Turn the firewall on, or push an Intune firewall policy." },
-  devicethreatprotectionenabled: { title: "Defender for Endpoint risk too high", fix: "Open the device in Microsoft Defender and resolve the active alerts, then sync." },
-  devicethreatprotectionrequiredsecuritylevel: { title: "Defender for Endpoint risk too high", fix: "Open the device in Microsoft Defender and resolve the active alerts, then sync." },
+  devicethreatprotectionenabled: {
+    title: "Microsoft Defender for Endpoint risk check failed",
+    fix: "Either the device has active threats (resolve them in security.microsoft.com), or it isn't onboarded to Defender for Endpoint, so Intune has no risk score. If every device fails this, connect Defender for Endpoint to Intune and onboard devices, or remove this rule from the policy.",
+  },
+  devicethreatprotectionrequiredsecuritylevel: {
+    title: "Microsoft Defender for Endpoint risk check failed",
+    fix: "Either the device has active threats (resolve them in security.microsoft.com), or it isn't onboarded to Defender for Endpoint, so Intune has no risk score. If every device fails this, connect Defender for Endpoint to Intune and onboard devices, or remove this rule from the policy.",
+  },
   configurationmanagercompliancerequired: { title: "Configuration Manager reports it non-compliant", fix: "Check the device in Configuration Manager." },
   earlylaunchantimalwaredriverenabled: { title: "Early-launch antimalware is off", fix: "Usually follows Secure Boot/BitLocker. Enable Secure Boot and run Windows Update." },
   securityblockjailbrokendevices: { title: "Device is jailbroken/rooted", fix: "Not allowed. Restore the phone to stock firmware or remove it from work use." },
@@ -94,7 +100,9 @@ type PolicyState = { id: string; displayName?: string; state?: string; settingSt
 
 export type ComplianceReportWithRaw = ComplianceReport & { raw: Record<string, unknown> };
 
-const isBad = (v: unknown) => BAD.has(String(v ?? "").toLowerCase().replace(/[^a-z]/g, ""));
+// "nonCompliant", "Not compliant", "Error", "Conflict"... -> one form.
+const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z]/g, "").replace(/^notcompliant$/, "noncompliant");
+const isBad = (v: unknown) => BAD.has(norm(v));
 
 // The Intune reports API answers as a table: { Schema: [{Column}], Values: [[...]] }.
 function tableRows(data: unknown): Record<string, unknown>[] {
@@ -134,12 +142,18 @@ async function settingsFor(intuneId: string, p: PolicyState, policyIdByName: Map
             const k = Object.keys(r).find((c) => re.test(c));
             return k ? r[k] : undefined;
           };
+          // Columns: SettingName (e.g. Windows10CompliancePolicy.BitLockerEnabled),
+          // SettingNm_loc (friendly), SettingStatus (2 compliant, 4 not
+          // compliant, ...) + SettingStatus_loc, SettingValue, StateDetails_loc.
+          const code = Number(pick(/^SettingStatus$/i));
+          const text = String(pick(/^SettingStatus_loc$/i) ?? "");
+          const details = String(pick(/^StateDetails_loc$/i) ?? pick(/^StateDetails$/i) ?? "");
           return {
-            setting: String(pick(/^SettingId$|^Setting$|SettingName$/i) ?? pick(/Setting/i) ?? "Unknown setting"),
-            settingName: String(pick(/SettingName(_loc)?$/i) ?? pick(/Setting.*_loc$/i) ?? ""),
-            state: String(pick(/(SettingStatus|Status|State)_loc$/i) ?? pick(/SettingStatus|ComplianceStatus|^Status$|^State$/i) ?? ""),
-            currentValue: (pick(/CurrentValue|ActualValue|Value$/i) as string | null) ?? null,
-            errorDescription: (pick(/ErrorDescription|Error.*_loc$/i) as string | null) ?? null,
+            setting: String(pick(/^SettingName$/i) ?? pick(/^SettingNm$/i) ?? "Unknown setting"),
+            settingName: String(pick(/^SettingNm_loc$/i) ?? ""),
+            state: text || (code === 4 ? "noncompliant" : code === 2 ? "compliant" : String(code)),
+            currentValue: (pick(/^SettingValue$/i) as string | null) || null,
+            errorDescription: details && details !== "na" ? details : null,
           } as SettingState;
         });
       }
@@ -181,7 +195,7 @@ export async function fetchComplianceReasons(intuneId: string): Promise<Complian
     const settings = await settingsFor(intuneId, p, policyIdByName, raw);
     for (const s of settings) {
       if (!isBad(s.state)) continue;
-      const state = String(s.state ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const state = norm(s.state);
       const setting = s.setting || s.settingName || "Unknown setting";
       const { title, fix } = explainSetting(setting, s.settingName || null);
       reasons.push({
