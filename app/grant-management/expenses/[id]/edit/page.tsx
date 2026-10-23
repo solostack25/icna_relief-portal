@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, grantAccess, loadEntryGrants } from "@/lib/grantManagement/server";
 import { lineLabel } from "@/lib/grantManagement/shared";
 import ExpenseForm from "@/components/grantManagement/ExpenseForm";
-import { Notice, PageTitle, faint } from "@/components/grantManagement/ui";
+import { Notice, PageTitle } from "@/components/grantManagement/ui";
+import { faint } from "@/components/grantManagement/styles";
 
 export default async function EditExpensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

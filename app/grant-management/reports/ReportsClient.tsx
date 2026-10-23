@@ -178,9 +178,9 @@ function Sel({ value, onChange, all, list }: { value?: string; onChange: (v: str
   );
 }
 
-function fmt(v: unknown, type?: Col["type"]) {
+function fmt(v: unknown, type?: Col["type"], cents = false) {
   if (v == null || v === "") return "";
-  if (type === "money") return money(Number(v), true);
+  if (type === "money") return money(Number(v), cents);
   if (type === "pct") return pct(Number(v));
   if (type === "date") return fmtDate(String(v));
   if (type === "int") return Number(v).toLocaleString();
@@ -190,6 +190,9 @@ function fmt(v: unknown, type?: Col["type"]) {
 function ReportTable({ report, loading }: { report: Report; loading: boolean }) {
   if (!report.rows.length) return <Empty>Nothing to show for these filters.</Empty>;
   const num = (c: Col) => c.type === "money" || c.type === "pct" || c.type === "int";
+  const cents = report.key === "expenses" || report.key === "missing_docs";
+  const WIDE: Record<string, number> = { name: 240, description: 260, funder: 180, category: 160 };
+  const cell = (c: Col) => (num(c) ? tdNum : { ...td, whiteSpace: WIDE[c.key] ? ("normal" as const) : ("nowrap" as const), minWidth: WIDE[c.key] });
   return (
     <Card className="!p-0 overflow-hidden" style={{ opacity: loading ? 0.6 : 1 }}>
       <div className="overflow-auto" style={{ maxHeight: "72vh" }}>
@@ -207,13 +210,13 @@ function ReportTable({ report, loading }: { report: Report; loading: boolean }) 
             {report.rows.map((r, i) => (
               <tr key={String(r.id ?? i)} className="hover:bg-[#FDFBF6]">
                 {report.columns.map((c, ci) => {
-                  const val = fmt(r[c.key], c.type);
+                  const val = fmt(r[c.key], c.type, cents);
                   const isExpense = report.key === "expenses" || report.key === "missing_docs";
                   const target = isExpense ? (r.id ? `/grant-management/expenses/${r.id}` : null) : r.id ? `/grant-management/grants/${r.id}` : r.grant_id ? `/grant-management/grants/${r.grant_id}` : null;
                   const link = ci === 0 || c.key === "name" ? target : null;
                   const neg = c.type === "money" && Number(r[c.key]) < 0;
                   return (
-                    <td key={c.key} style={{ ...(num(c) ? tdNum : td), color: neg ? "#B5566B" : ink }}>
+                    <td key={c.key} style={{ ...cell(c), color: neg ? "#B5566B" : ink }}>
                       {link ? (
                         <Link href={link} className="hover:underline font-semibold">
                           {val}
@@ -231,8 +234,8 @@ function ReportTable({ report, loading }: { report: Report; loading: boolean }) 
             <tfoot>
               <tr style={{ background: "#F3EFE4" }}>
                 {report.columns.map((c, i) => (
-                  <td key={c.key} style={{ ...(num(c) ? tdNum : td), fontWeight: 800 }}>
-                    {i === 0 ? `Total · ${report.rows.length}` : c.key in report.totals! ? fmt(report.totals![c.key], c.type) : ""}
+                  <td key={c.key} style={{ ...(num(c) ? tdNum : { ...td, whiteSpace: "nowrap" as const }), fontWeight: 800 }}>
+                    {i === 0 ? `Total · ${report.rows.length}` : c.key in report.totals! ? fmt(report.totals![c.key], c.type, cents) : ""}
                   </td>
                 ))}
               </tr>

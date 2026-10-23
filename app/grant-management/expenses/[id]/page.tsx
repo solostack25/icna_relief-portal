@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, grantAccess, nameMap } from "@/lib/grantManagement/server";
 import { DOC_TYPE_LABELS, EXPENSE_KIND_LABELS, PAYMENT_METHOD_LABELS, fmtDate, lineLabel, money } from "@/lib/grantManagement/shared";
-import { Card, Eyebrow, ExpenseStatusPill, Notice, Row, dim, emerald, faint, gold, ink } from "@/components/grantManagement/ui";
+import { Card, Eyebrow, ExpenseStatusPill, Notice, Row } from "@/components/grantManagement/ui";
+import { dim, emerald, faint, gold, ink } from "@/components/grantManagement/styles";
 import ExpenseActions from "./ExpenseActions";
 import AddDocs from "./AddDocs";
 

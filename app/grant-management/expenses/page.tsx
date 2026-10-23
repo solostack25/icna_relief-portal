@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, nameMap, visibleGrantIds } from "@/lib/grantManagement/server";
 import { EXPENSE_STATUS_LABELS, fmtDate, lineLabel, money } from "@/lib/grantManagement/shared";
-import { Card, Empty, ExpenseStatusPill, ExportButtons, PageTitle, dim, faint, gold, ink, td, tdNum, th, thNum } from "@/components/grantManagement/ui";
+import { Card, Empty, ExpenseStatusPill, ExportButtons, PageTitle } from "@/components/grantManagement/ui";
+import { dim, faint, gold, ink, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 
 export default async function ExpensesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;

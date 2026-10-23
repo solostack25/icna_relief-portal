@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Card, Eyebrow, Field, PageTitle, PillButton, Row, inputStyle, ink, dim, faint, emerald, gold, rose } from "@/components/speaker/ui";
+import { Card, Eyebrow, Field, PageTitle, PillButton, Row } from "@/components/speaker/ui";
+import { inputStyle, ink, dim, faint, emerald, gold, rose, sky, selectStyle, th, td, tdNum, thNum } from "./styles";
 import { EXPENSE_STATUS_COLORS, EXPENSE_STATUS_LABELS, GRANT_STATUS_COLORS, GRANT_STATUS_LABELS, type ExpenseStatus, type GrantStatus } from "@/lib/grantManagement/shared";
 
 // Grant Management visual kit - builds on the portal's shared Speaker
 // Requests pieces (cream background, soft cards, pill buttons, Fraunces).
-export { Card, Eyebrow, Field, PageTitle, PillButton, Row, inputStyle, ink, dim, faint, emerald, gold, rose };
+export { Card, Eyebrow, Field, PageTitle, PillButton, Row, inputStyle, ink, dim, faint, emerald, gold, rose, sky, selectStyle, th, td, tdNum, thNum };
 
-export const sky = "#3E7C9A";
-
-export const selectStyle: React.CSSProperties = { ...inputStyle, appearance: "auto", paddingRight: 10 };
 
 export function Pill({ label, color }: { label: string; color: string }) {
   return (
@@ -83,23 +81,6 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "
   );
 }
 
-export const th: React.CSSProperties = {
-  textAlign: "left",
-  fontSize: 11,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: faint,
-  padding: "10px 12px",
-  borderBottom: "1px solid var(--portal-line)",
-  whiteSpace: "nowrap",
-  background: "#FDFBF6",
-  position: "sticky",
-  top: 0,
-};
-export const td: React.CSSProperties = { padding: "10px 12px", borderBottom: "1px solid rgba(22,48,43,0.06)", fontSize: 13, color: ink, verticalAlign: "top" };
-export const tdNum: React.CSSProperties = { ...td, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" };
-export const thNum: React.CSSProperties = { ...th, textAlign: "right" };
 
 export async function api<T = Record<string, unknown>>(url: string, init?: RequestInit & { json?: unknown }): Promise<T & { error?: string; fields?: Record<string, string> }> {
   const res = await fetch(url, {

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, loadGrantSummaries } from "@/lib/grantManagement/server";
 import { fmtDate, isNearBudget, isOverBudget, isUnderspent, money, pct, type GrantSummary } from "@/lib/grantManagement/shared";
-import { Card, Empty, Eyebrow, ExpenseStatusPill, GrantStatusPill, PageTitle, SpendBar, Stat, dim, emerald, faint, gold, ink, rose } from "@/components/grantManagement/ui";
+import { Card, Empty, Eyebrow, ExpenseStatusPill, GrantStatusPill, PageTitle, SpendBar, Stat } from "@/components/grantManagement/ui";
+import { dim, emerald, faint, gold, ink, rose } from "@/components/grantManagement/styles";
 
 export default async function GrantDashboard() {
   const viewer = (await getGmViewer())!;
@@ -87,8 +88,8 @@ export default async function GrantDashboard() {
           tone={rose}
           empty="Nothing over budget or above 90% spent."
           tabs={[
-            { label: `Over (${over.length})`, list: over },
-            { label: `90%+ (${near.length})`, list: near },
+            { label: "Over", list: over },
+            { label: "90%+ spent", list: near },
           ]}
           render={(g) => (g.actual > g.total_budget ? `${money(g.actual - g.total_budget)} over` : g.over_budget_lines ? `${g.over_budget_lines} line(s) over` : `${pct(g.pct_spent)} spent`)}
           href="/grant-management/reports?report=budget_risk"
@@ -97,7 +98,7 @@ export default async function GrantDashboard() {
           title="Underspent"
           tone={"#3E7C9A"}
           empty="Every active grant is spending on pace."
-          tabs={[{ label: `Behind pace (${under.length})`, list: under }]}
+          tabs={[{ label: "Behind pace", list: under }]}
           render={(g) => `${pct(g.pct_spent)} spent · ${pct(g.pct_time_elapsed)} of period gone`}
           href="/grant-management/reports?report=underspent"
         />
@@ -186,11 +187,11 @@ function GrantMiniList({ list, render }: { list: GrantSummary[]; render: (g: Gra
   return (
     <div className="grid gap-1.5">
       {list.slice(0, 8).map((g) => (
-        <Link key={g.id} href={`/grant-management/grants/${g.id}`} className="flex justify-between gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-[#FDFBF6]">
-          <span className="truncate" style={{ color: ink }}>
+        <Link key={g.id} href={`/grant-management/grants/${g.id}`} className="flex justify-between gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-[#FDFBF6] min-w-0">
+          <span className="truncate min-w-0" style={{ color: ink }}>
             <b>{g.code}</b> · {g.name}
           </span>
-          <span className="text-xs whitespace-nowrap" style={{ color: dim }}>
+          <span className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: dim }}>
             {render(g)}
           </span>
         </Link>
@@ -221,7 +222,7 @@ function ExceptionCard({
 }) {
   const total = tabs[tabs.length - 1].list.length;
   return (
-    <Card>
+    <Card className="min-w-0">
       <div className="flex items-center justify-between">
         <Eyebrow color={tone}>{title}</Eyebrow>
         <Link href={href} className="text-xs font-semibold" style={{ color: emerald }}>

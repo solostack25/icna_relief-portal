@@ -15,7 +15,8 @@ import {
   type GrantSummary,
   type LineSummary,
 } from "@/lib/grantManagement/shared";
-import { Card, Empty, Eyebrow, ExpenseStatusPill, ExportButtons, GrantStatusPill, Notice, Row, SpendBar, dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/ui";
+import { Card, Empty, Eyebrow, ExpenseStatusPill, ExportButtons, GrantStatusPill, Notice, Row, SpendBar } from "@/components/grantManagement/ui";
+import { dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 import GrantActions from "./GrantActions";
 import TeamEditor from "./TeamEditor";
 

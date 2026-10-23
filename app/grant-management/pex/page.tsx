@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/grantManagement/server";
 import { getGmViewer, nameMap } from "@/lib/grantManagement/server";
 import { fmtDate, money } from "@/lib/grantManagement/shared";
-import { Card, Empty, PageTitle, dim, emerald, faint, ink, td, tdNum, th, thNum } from "@/components/grantManagement/ui";
+import { Card, Empty, PageTitle } from "@/components/grantManagement/ui";
+import { dim, emerald, faint, ink, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 import PexRowActions from "./PexRowActions";
 
 export default async function PexPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
