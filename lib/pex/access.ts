@@ -71,12 +71,13 @@ export async function ensurePexAccess(db: SupabaseClient, employeeIds: (string |
 }
 
 // Cards switched on for grants. Grant Management only works with these
-// (plus legacy CSV rows with no card, and anything already coded).
+// (plus anything already coded to a grant, so coded history never
+// disappears if a card is later switched off).
 export async function grantCardIds(db: SupabaseClient): Promise<string[]> {
   const { data } = await db.from("pex_cards").select("id").eq("grant_eligible", true);
   return (data ?? []).map((c) => c.id as string);
 }
 
 export function grantScopeFilter(ids: string[]) {
-  return ["card_id.is.null", "allocated_amount.neq.0", ...(ids.length ? [`card_id.in.(${ids.join(",")})`] : [])].join(",");
+  return ["allocated_amount.neq.0", ...(ids.length ? [`card_id.in.(${ids.join(",")})`] : [])].join(",");
 }

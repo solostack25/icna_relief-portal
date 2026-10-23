@@ -3,10 +3,10 @@ import { Pill } from "@/components/grantManagement/ui";
 import { emerald, faint, gold, rose, sky } from "@/components/grantManagement/styles";
 
 export const PEX_STATUS: Record<string, { label: string; color: string }> = {
-  unmatched: { label: "Waiting", color: gold },
+  unmatched: { label: "To code", color: gold },
   partial: { label: "Partly coded", color: sky },
   coded: { label: "Coded", color: emerald },
-  ignored: { label: "Not grant", color: "#7A8784" },
+  ignored: { label: "Excluded", color: "#7A8784" },
   pending: { label: "Pending at PEX", color: "#7A8784" },
 };
 
