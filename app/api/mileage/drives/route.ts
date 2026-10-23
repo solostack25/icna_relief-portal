@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMileageRate } from "@/lib/mileage";
+import { loadMileageGrants } from "@/lib/mileageGrants";
 import { requireEmployee, DRIVE_COLUMNS, validCoord } from "../_auth";
 
 // GET: everything the Mileage Tracker screen needs in one call.
@@ -7,7 +8,7 @@ export async function GET() {
   const auth = await requireEmployee();
   if (!auth.ok) return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
 
-  const [active, ready, submitted, offices, rate] = await Promise.all([
+  const [active, ready, submitted, offices, rate, grants] = await Promise.all([
     auth.supabase.from("finance_mileage_drives").select(DRIVE_COLUMNS).eq("employee_id", auth.employeeId).eq("status", "in_progress").maybeSingle(),
     auth.supabase.from("finance_mileage_drives").select(DRIVE_COLUMNS).eq("employee_id", auth.employeeId).eq("status", "ready").order("started_at", { ascending: false }),
     auth.supabase
@@ -19,6 +20,7 @@ export async function GET() {
       .limit(20),
     auth.supabase.from("b2s_offices").select("id, field_office").eq("is_active", true).order("field_office"),
     getMileageRate(),
+    loadMileageGrants(auth.employeeId).catch(() => []),
   ]);
 
   if (active.error || ready.error) {
@@ -31,6 +33,7 @@ export async function GET() {
     submitted: submitted.data ?? [],
     offices: offices.data ?? [],
     rate,
+    grants,
     assignedOfficeId: auth.assignedOfficeId,
   });
 }

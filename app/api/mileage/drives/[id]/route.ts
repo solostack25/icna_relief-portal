@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { drivingMiles, reverseGeocode } from "@/lib/mileage";
+import { drivingMiles, reverseGeocode, localDate } from "@/lib/mileage";
+import { checkMileageGrant } from "@/lib/mileageGrants";
 import { requireEmployee, DRIVE_COLUMNS, validCoord } from "../../_auth";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -92,9 +93,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
+    // Optional: charge the trip to an active Grant Management grant.
+    let gmGrantId: string | null = null;
+    let gmLineId: string | null = null;
+    if (typeof body.gm_grant_id === "string" && body.gm_grant_id) {
+      let tz = typeof body.timezone === "string" ? body.timezone : "America/Chicago";
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+      } catch {
+        tz = "America/Chicago";
+      }
+      const check = await checkMileageGrant(auth.employeeId, body.gm_grant_id, localDate(drive.started_at as string, tz));
+      if (!check.grant) return NextResponse.json({ error: check.error }, { status: 400 });
+      gmGrantId = check.grant.id;
+      gmLineId = check.grant.line_id;
+    }
+
     const { data, error } = await auth.supabase
       .from("finance_mileage_drives")
       .update({
+        gm_grant_id: gmGrantId,
+        gm_line_id: gmLineId,
         purpose,
         billing_office_id: body.billing_office_id || drive.billing_office_id || auth.assignedOfficeId,
         billing_program: typeof body.billing_program === "string" && body.billing_program.trim() ? body.billing_program.trim() : null,

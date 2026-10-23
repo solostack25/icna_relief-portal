@@ -12,7 +12,7 @@ export async function requireEmployee() {
 }
 
 export const DRIVE_COLUMNS =
-  "id, employee_id, status, started_at, ended_at, start_lat, start_lng, start_address_line1, start_city, start_state, start_zip_code, end_lat, end_lng, end_address_line1, end_city, end_state, end_zip_code, route_miles, route_provider, gps_miles, gps_points, round_trip, miles, miles_adjusted, adjusted_reason, purpose, billing_office_id, billing_program, finance_ticket_id, submitted_at";
+  "id, employee_id, status, started_at, ended_at, start_lat, start_lng, start_address_line1, start_city, start_state, start_zip_code, end_lat, end_lng, end_address_line1, end_city, end_state, end_zip_code, route_miles, route_provider, gps_miles, gps_points, round_trip, miles, miles_adjusted, adjusted_reason, purpose, billing_office_id, billing_program, finance_ticket_id, submitted_at, gm_grant_id, gm_line_id, gm_expense_id";
 
 export function validCoord(lat: unknown, lng: unknown): lat is number {
   return typeof lat === "number" && typeof lng === "number" && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);

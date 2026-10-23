@@ -36,9 +36,19 @@ type Drive = {
   billing_program: string | null;
   finance_ticket_id: string | null;
   finance_tickets?: { ticket_number: string; status: string } | null;
+  gm_grant_id: string | null;
 };
 type Office = { id: string; field_office: string };
-type State = { active: Drive | null; ready: Drive[]; submitted: Drive[]; offices: Office[]; rate: number; assignedOfficeId: string | null };
+type MileageGrant = { id: string; code: string; name: string; funder: string; program: string; office_id: string | null; start_date: string; end_date: string; line_label: string };
+type State = { active: Drive | null; ready: Drive[]; submitted: Drive[]; offices: Office[]; rate: number; grants: MileageGrant[]; assignedOfficeId: string | null };
+
+// Trip's calendar day in the driver's own time zone (YYYY-MM-DD).
+function tripDay(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+function shortDate(d: string) {
+  return new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 const MAX_ACCURACY_M = 50;
 const MAX_SPEED_MPH = 110;
@@ -289,6 +299,12 @@ export default function MileagePage() {
   }
 
   const rate = data?.rate ?? 0.725;
+  const grantById = new Map((data?.grants ?? []).map((g) => [g.id, g]));
+  const grantCode = (d: Drive) => (d.gm_grant_id ? grantById.get(d.gm_grant_id)?.code ?? "selected" : null);
+  // Most recent grant this driver charged a trip to, offered as a one-tap pick.
+  const lastGrantId = [...(data?.ready ?? []), ...(data?.submitted ?? [])]
+    .filter((d) => d.gm_grant_id)
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))[0]?.gm_grant_id ?? null;
   const described = (data?.ready ?? []).filter((d) => d.purpose);
   const needsReason = (data?.ready ?? []).filter((d) => !d.purpose);
   const selectedDrives = described.filter((d) => selected.has(d.id));
@@ -397,7 +413,7 @@ export default function MileagePage() {
                 <Eyebrow color={gold}>Needs a reason · {needsReason.length}</Eyebrow>
                 <div className="grid gap-3">
                   {needsReason.map((d) => (
-                    <TripRow key={d.id} drive={d} rate={rate} onOpen={() => setSheet({ drive: d, fresh: false })} badge={<span className="text-xs font-bold" style={{ color: gold }}>Add reason →</span>} />
+                    <TripRow key={d.id} drive={d} rate={rate} grantCode={grantCode(d)} onOpen={() => setSheet({ drive: d, fresh: false })} badge={<span className="text-xs font-bold" style={{ color: gold }}>Add reason →</span>} />
                   ))}
                 </div>
               </section>
@@ -428,6 +444,7 @@ export default function MileagePage() {
                       key={d.id}
                       drive={d}
                       rate={rate}
+                      grantCode={grantCode(d)}
                       onOpen={() => setSheet({ drive: d, fresh: false })}
                       checked={selected.has(d.id)}
                       onCheck={(v) =>
@@ -495,6 +512,8 @@ export default function MileagePage() {
           drive={sheet.drive}
           fresh={sheet.fresh}
           offices={data.offices}
+          grants={data.grants ?? []}
+          lastGrantId={lastGrantId}
           defaultOfficeId={sheet.drive.billing_office_id ?? data.assignedOfficeId}
           rate={rate}
           busy={busy}
@@ -517,6 +536,7 @@ export default function MileagePage() {
 function TripRow({
   drive,
   rate,
+  grantCode,
   onOpen,
   badge,
   checked,
@@ -524,6 +544,7 @@ function TripRow({
 }: {
   drive: Drive;
   rate: number;
+  grantCode?: string | null;
   onOpen: () => void;
   badge?: React.ReactNode;
   checked?: boolean;
@@ -556,8 +577,13 @@ function TripRow({
             </div>
           </div>
         </div>
-        {(badge || drive.round_trip || drive.miles_adjusted || drive.route_provider === "straight_line") && (
+        {(badge || grantCode || drive.round_trip || drive.miles_adjusted || drive.route_provider === "straight_line") && (
           <div className="flex flex-wrap gap-2 mt-2 text-[11px]" style={{ color: faint }}>
+            {grantCode && (
+              <span className="font-semibold rounded-full px-2 py-0.5" style={{ color: emerald, background: `${emerald}12` }}>
+                Grant {grantCode}
+              </span>
+            )}
             {drive.round_trip && <span>Round trip</span>}
             {drive.miles_adjusted && <span style={{ color: gold }}>Miles adjusted</span>}
             {drive.route_provider === "straight_line" && <span style={{ color: gold }}>Estimated distance</span>}
@@ -573,6 +599,8 @@ function TripSheet({
   drive,
   fresh,
   offices,
+  grants,
+  lastGrantId,
   defaultOfficeId,
   rate,
   busy,
@@ -584,6 +612,8 @@ function TripSheet({
   drive: Drive;
   fresh: boolean;
   offices: Office[];
+  grants: MileageGrant[];
+  lastGrantId: string | null;
   defaultOfficeId: string | null;
   rate: number;
   busy: string | null;
@@ -599,6 +629,19 @@ function TripSheet({
   const [editMiles, setEditMiles] = useState(drive.miles_adjusted);
   const [milesInput, setMilesInput] = useState(drive.miles_adjusted ? String(drive.miles ?? "") : "");
   const [reason, setReason] = useState(drive.adjusted_reason ?? "");
+  const [grantId, setGrantId] = useState(drive.gm_grant_id ?? "");
+
+  // Active grants whose period covers this trip; the billing office's
+  // own grants first, then org-wide, then everything else.
+  const day = tripDay(drive.started_at);
+  const openGrants = grants
+    .filter((g) => g.start_date <= day && g.end_date >= day)
+    .sort((a, b) => {
+      const rank = (g: MileageGrant) => (g.office_id && g.office_id === officeId ? 0 : g.office_id ? 2 : 1);
+      return rank(a) - rank(b) || a.code.localeCompare(b.code);
+    });
+  const chosenGrant = openGrants.find((g) => g.id === grantId) ?? null;
+  const lastGrant = lastGrantId && lastGrantId !== grantId ? openGrants.find((g) => g.id === lastGrantId) ?? null : null;
   const [err, setErr] = useState<string | null>(null);
 
   const routeMiles = Number(drive.route_miles ?? 0);
@@ -629,6 +672,8 @@ function TripSheet({
           round_trip: roundTrip,
           miles: editMiles && milesInput !== "" ? Number(milesInput) : null,
           adjusted_reason: differs ? reason : null,
+          gm_grant_id: grantId || null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
       const d = await res.json();
@@ -732,6 +777,40 @@ function TripSheet({
             <input value={program} onChange={(e) => setProgram(e.target.value)} placeholder="e.g. Hunger Prevention" className={field} style={fieldStyle} />
           </label>
         </div>
+
+        {(openGrants.length > 0 || grantId) && (
+          <div className="mb-3">
+            <label className="block">
+              <div className="text-[13px] font-semibold mb-1.5" style={{ color: ink }}>
+                Grant-funded? <span className="font-normal" style={{ color: faint }}>(optional)</span>
+              </div>
+              <select value={grantId} onChange={(e) => setGrantId(e.target.value)} className={field} style={fieldStyle}>
+                <option value="">Not grant-funded</option>
+                {openGrants.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.code} · {g.name}
+                  </option>
+                ))}
+                {grantId && !chosenGrant && <option value={grantId}>Grant no longer open for this date</option>}
+              </select>
+            </label>
+            {lastGrant && (
+              <button type="button" onClick={() => setGrantId(lastGrant.id)} className="mt-2 text-xs font-semibold rounded-full px-3 py-1" style={{ color: emerald, border: `1px solid ${emerald}40`, background: "#fff" }}>
+                Use {lastGrant.code} again
+              </button>
+            )}
+            {chosenGrant && (
+              <div className="mt-2 text-[11px]" style={{ color: dim }}>
+                {chosenGrant.funder} · charged to {chosenGrant.line_label} · grant period {shortDate(chosenGrant.start_date)} – {shortDate(chosenGrant.end_date)}
+              </div>
+            )}
+            {grantId && !chosenGrant && (
+              <div className="mt-2 text-[11px]" style={{ color: rose }}>
+                That grant isn't open for this trip's date anymore. Pick another or choose Not grant-funded.
+              </div>
+            )}
+          </div>
+        )}
 
         <label className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 mb-3" style={{ border: "1px solid var(--portal-line)" }}>
           <div>

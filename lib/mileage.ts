@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { createMileageGrantExpense } from "@/lib/mileageGrants";
 
 // Server-only helpers for the Mileage Tracker (app/mileage).
 //
@@ -166,9 +167,11 @@ export type DriveRow = {
   purpose: string | null;
   billing_office_id: string | null;
   billing_program: string | null;
+  gm_grant_id: string | null;
+  gm_line_id: string | null;
 };
 
-function localDate(iso: string, tz: string) {
+export function localDate(iso: string, tz: string) {
   try {
     // en-CA formats as YYYY-MM-DD
     return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
@@ -192,6 +195,17 @@ export async function submitDrivesAsTicket(opts: {
   const { supabase, employeeId, drives, timezone } = opts;
   const rate = await getMileageRate();
   const sorted = [...drives].sort((a, b) => a.started_at.localeCompare(b.started_at));
+  const admin = createAdminClient();
+
+  // Grant Management grants on these trips: code for the trip note, and
+  // the linked revenue grant (finance_mileage_trips.grant_id points at
+  // the older `grants` table) when Grant Management has one set.
+  const gmIds = Array.from(new Set(sorted.map((d) => d.gm_grant_id).filter(Boolean) as string[]));
+  const gmGrants = new Map<string, { code: string; name: string; revenue_grant_id: string | null }>();
+  if (gmIds.length) {
+    const { data } = await admin.from("gm_grants").select("id, code, name, revenue_grant_id").in("id", gmIds);
+    for (const g of (data ?? []) as { id: string; code: string; name: string; revenue_grant_id: string | null }[]) gmGrants.set(g.id, g);
+  }
 
   const tripRows = sorted.map((d) => {
     const miles = round2(Number(d.miles ?? 0));
@@ -199,7 +213,9 @@ export async function submitDrivesAsTicket(opts: {
       d.round_trip ? "round trip" : null,
       d.miles_adjusted ? `miles adjusted by driver: ${d.adjusted_reason ?? "no reason given"}` : null,
       d.route_provider === "straight_line" ? "estimated - route lookup failed" : null,
+      d.gm_grant_id && gmGrants.get(d.gm_grant_id) ? `grant ${gmGrants.get(d.gm_grant_id)!.code}` : null,
     ].filter(Boolean);
+    const gm = d.gm_grant_id ? gmGrants.get(d.gm_grant_id) : undefined;
     return {
       drive: d,
       row: {
@@ -217,6 +233,8 @@ export async function submitDrivesAsTicket(opts: {
         destination_zip_code: d.end_zip_code,
         mileage_traveled: miles,
         mileage_reimbursement: round2(miles * rate),
+        grant_eligible: !!d.gm_grant_id,
+        grant_id: gm?.revenue_grant_id ?? null,
       },
     };
   });
@@ -255,7 +273,7 @@ export async function submitDrivesAsTicket(opts: {
       category: "mileage_reimbursement",
       requestor_id: employeeId,
       billing_office_id: tripRows[0].row.billing_office_id ?? null,
-      grant_eligible: false,
+      grant_eligible: tripRows.some((t) => t.row.grant_eligible),
       priority: "normal",
       submitted_at: new Date().toISOString(),
       mileage_batch_id: batch.id,
@@ -267,7 +285,6 @@ export async function submitDrivesAsTicket(opts: {
 
   // Freeze the drives (service role: the driver's own RLS update policy
   // deliberately can't set status = submitted).
-  const admin = createAdminClient();
   const now = new Date().toISOString();
   for (const { driveId, tripId } of tripIds) {
     await admin
@@ -277,11 +294,39 @@ export async function submitDrivesAsTicket(opts: {
       .eq("employee_id", employeeId);
   }
 
-  let warning: string | undefined;
+  // Grant-funded trips also land in Grant Management as expenses on the
+  // grant's mileage budget line (budget vs. actual + its approvals queue).
+  // A failure here never blocks the reimbursement itself.
+  const grantProblems: string[] = [];
+  for (const t of tripRows) {
+    const d = t.drive;
+    if (!d.gm_grant_id || !d.gm_line_id) continue;
+    const r = await createMileageGrantExpense({
+      employeeId,
+      driveId: d.id,
+      grantId: d.gm_grant_id,
+      lineId: d.gm_line_id,
+      tripDate: t.row.travel_date,
+      amount: t.row.mileage_reimbursement,
+      miles: t.row.mileage_traveled,
+      rate,
+      purpose: d.purpose ?? "",
+      route: `${formatAddress({ line1: d.start_address_line1, city: d.start_city, state: d.start_state })} to ${formatAddress({ line1: d.end_address_line1, city: d.end_city, state: d.end_state })}`,
+      officeId: t.row.billing_office_id,
+      program: d.billing_program,
+      ticketNumber: ticket.ticket_number,
+    });
+    if (r.expenseId) await admin.from("finance_mileage_drives").update({ gm_expense_id: r.expenseId }).eq("id", d.id);
+    else if (r.error && t.row.mileage_reimbursement > 0) grantProblems.push(`${t.row.travel_date}: ${r.error}`);
+  }
+
+  let warning: string | undefined = grantProblems.length
+    ? `Submitted, but ${grantProblems.length} trip${grantProblems.length === 1 ? "" : "s"} couldn't be added to Grant Management (${grantProblems.join("; ")}). Let the grant team know.`
+    : undefined;
   try {
     await opts.startApproval(ticket.id);
   } catch (err) {
-    warning = `Ticket created but routing failed: ${err instanceof Error ? err.message : "unknown error"}`;
+    warning = `Ticket created but routing failed: ${err instanceof Error ? err.message : "unknown error"}${warning ? ` ${warning}` : ""}`;
   }
 
   return { ticket: { id: ticket.id as string, ticket_number: ticket.ticket_number as string }, totalMiles, totalAmount, rate, warning };
