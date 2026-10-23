@@ -172,6 +172,14 @@ export type ItLegDetails = {
   office_id: string | null;
   grant_name: string | null;
   solution: string | null;
+  ship_to_name?: string | null;
+  ship_address_line1?: string | null;
+  ship_address_line2?: string | null;
+  ship_city?: string | null;
+  ship_state?: string | null;
+  ship_zip?: string | null;
+  is_grant_purchase?: boolean;
+  gm_grant_id?: string | null;
 };
 
 // A leg is "active" (counts toward open-ticket dashboards, shows in
@@ -198,6 +206,9 @@ export async function createRequestWithFirstLeg(
     department: Department;
     category: string | null;
     priority: Priority;
+    /** IT-only extra fields (e.g. a Hardware Request's shipping address
+     *  and grant) - saved to helpdesk_leg_details_it with the first leg. */
+    itDetails?: Record<string, unknown> | null;
   }
 ): Promise<{ requestId: string; legId: string; ticketNumber: string }> {
   const { data: request, error: requestError } = await supabase
@@ -229,6 +240,15 @@ export async function createRequestWithFirstLeg(
   if (legError || !leg) {
     await supabase.from("helpdesk_requests").delete().eq("id", request.id);
     throw new Error(legError?.message ?? "Failed to create leg");
+  }
+
+  if (params.itDetails && params.department === "it") {
+    const { error: detailsError } = await supabase.from("helpdesk_leg_details_it").insert({ ...params.itDetails, leg_id: leg.id });
+    if (detailsError) {
+      // Legs cascade off the request; don't leave a ticket missing what was asked.
+      await supabase.from("helpdesk_requests").delete().eq("id", request.id);
+      throw new Error(detailsError.message);
+    }
   }
 
   return { requestId: request.id, legId: leg.id, ticketNumber: request.ticket_number };

@@ -72,7 +72,7 @@ export const WIZARD_GROUPS: WizardGroup[] = [
         department: "it",
         category: "Hardware Request",
         titleTemplate: "Hardware request",
-        descriptionPrompt: "What equipment do you need, and what's it for? Include your office location.",
+        descriptionPrompt: "What equipment do you need, and what's it for?",
       },
       {
         id: "it-software",

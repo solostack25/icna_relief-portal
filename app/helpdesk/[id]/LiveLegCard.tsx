@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import HardwareDetailsView, { type HardwareDetail } from "@/components/helpdesk/HardwareDetailsView";
 import { createClient } from "@/lib/supabase/client";
 import { DEPARTMENT_LABELS, LEG_STATUS_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
 import LegActions from "./LegActions";
 import EmailAction from "./EmailAction";
 import MoveToWorkboardAction from "./MoveToWorkboardAction";
 
-type ItDetail = { solution: string | null; additional_notes: string | null } | undefined;
+type ItDetail = ({ solution: string | null; additional_notes: string | null } & HardwareDetail) | undefined;
 
 // The one leg card on the ticket page that actually needs to be
 // "live" -- this is what makes dragging a card on the workboard in
@@ -120,6 +121,7 @@ export default function LiveLegCard({
       {itDetail?.additional_notes && (
         <div style={{ marginTop: 8, fontSize: 12.5, whiteSpace: "pre-wrap" }}>{itDetail.additional_notes}</div>
       )}
+      <HardwareDetailsView detail={itDetail} tone="quest" />
 
       {department === "it" && isActive && (
         <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>

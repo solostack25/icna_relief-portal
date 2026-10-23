@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createRequestWithFirstLeg, DEPARTMENT_LABELS, type Priority } from "@/lib/helpdesk";
 import { WIZARD_GROUPS, URGENCY_OPTIONS, type WizardIntent } from "@/lib/helpdeskWizard";
+import HardwareRequestFields, {
+  HARDWARE_CATEGORY,
+  emptyHardware,
+  hardwareDetails,
+  useActiveGrants,
+  validateHardware,
+  type HardwareValue,
+} from "@/components/helpdesk/HardwareRequestFields";
 
 type Step = "group" | "intent" | "urgency" | "review";
 
@@ -25,6 +33,9 @@ export default function HelpdeskWizardPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hardware, setHardware] = useState<HardwareValue>(emptyHardware());
+  const grants = useActiveGrants();
+  const isHardware = intent?.department === "it" && intent.category === HARDWARE_CATEGORY;
 
   useEffect(() => {
     (async () => {
@@ -40,6 +51,7 @@ export default function HelpdeskWizardPage() {
       if (me) {
         setSubmittedBy(`${me.first_name} ${me.last_name}`);
         setSubmittedByEmail(me.email);
+        setHardware((h) => (h.ship_to_name ? h : { ...h, ship_to_name: `${me.first_name} ${me.last_name}` }));
       }
     })();
   }, [supabase]);
@@ -68,6 +80,13 @@ export default function HelpdeskWizardPage() {
       setError("Title is required.");
       return;
     }
+    if (isHardware) {
+      const problem = validateHardware(hardware, grants);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -79,6 +98,7 @@ export default function HelpdeskWizardPage() {
         department: intent.department,
         category: intent.category,
         priority,
+        itDetails: isHardware ? hardwareDetails(hardware, grants) : null,
       });
 
       router.push(`/helpdesk/confirmation/${requestId}`);
@@ -252,6 +272,10 @@ export default function HelpdeskWizardPage() {
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
               />
             </div>
+
+            {isHardware && (
+              <HardwareRequestFields value={hardware} onChange={setHardware} grants={grants} submitterEmail={submittedByEmail} />
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

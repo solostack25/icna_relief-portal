@@ -10,6 +10,14 @@ import {
   type Department,
   type Priority,
 } from "@/lib/helpdesk";
+import HardwareRequestFields, {
+  HARDWARE_CATEGORY,
+  emptyHardware,
+  hardwareDetails,
+  useActiveGrants,
+  validateHardware,
+  type HardwareValue,
+} from "@/components/helpdesk/HardwareRequestFields";
 
 // Inferred from the original SharePoint lists' Request Category /
 // Category columns for each department. Free text isn't used here on
@@ -38,6 +46,8 @@ export default function NewRequestPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hardware, setHardware] = useState<HardwareValue>(emptyHardware());
+  const grants = useActiveGrants();
 
   const [form, setForm] = useState({
     title: "",
@@ -66,6 +76,7 @@ export default function NewRequestPage() {
           submitted_by: `${me.first_name} ${me.last_name}`,
           submitted_by_email: me.email,
         }));
+        setHardware((h) => (h.ship_to_name ? h : { ...h, ship_to_name: `${me.first_name} ${me.last_name}` }));
       }
     })();
   }, [supabase]);
@@ -80,6 +91,14 @@ export default function NewRequestPage() {
       setError("Title is required.");
       return;
     }
+    const isHardware = form.department === "it" && form.category === HARDWARE_CATEGORY;
+    if (isHardware) {
+      const problem = validateHardware(hardware, grants);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -91,6 +110,7 @@ export default function NewRequestPage() {
         department: form.department,
         category: form.category,
         priority: form.priority,
+        itDetails: isHardware ? hardwareDetails(hardware, grants) : null,
       });
 
       router.push(`/helpdesk/confirmation/${requestId}`);
@@ -203,6 +223,10 @@ export default function NewRequestPage() {
               </select>
             </div>
           </div>
+
+          {form.department === "it" && form.category === HARDWARE_CATEGORY && (
+            <HardwareRequestFields value={hardware} onChange={setHardware} grants={grants} submitterEmail={form.submitted_by_email} />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

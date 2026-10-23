@@ -1,4 +1,5 @@
 import Link from "next/link";
+import HardwareDetailsView from "@/components/helpdesk/HardwareDetailsView";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -339,6 +340,7 @@ export default async function HelpdeskRequestPage({
                   {itDetail?.additional_notes && (
                     <div style={{ marginTop: 8, fontSize: 12.5, whiteSpace: "pre-wrap" }}>{itDetail.additional_notes}</div>
                   )}
+                  <HardwareDetailsView detail={itDetail} tone="quest" />
                 </div>
               );
             })}
@@ -505,6 +507,7 @@ export default async function HelpdeskRequestPage({
                 {itDetail?.additional_notes && (
                   <div className="mt-2 text-sm whitespace-pre-wrap">{itDetail.additional_notes}</div>
                 )}
+                <HardwareDetailsView detail={itDetail} tone="plain" />
 
                 {isCurrent && managedDepartments.includes(leg.department as Department) && (
                   <LegActions
