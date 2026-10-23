@@ -75,6 +75,17 @@ export const HUBS = {
       ]),
     prefixes: ["/admin/devices"],
   },
+  security: {
+    tabs: (a) =>
+      tabs([
+        a.canManageDevices && { href: "/admin/security", labelKey: "securityHub.tab.overview", exact: true },
+        a.canManageDevices && { href: "/admin/security/incidents", labelKey: "securityHub.tab.incidents" },
+        a.canManageDevices && { href: "/admin/security/score", labelKey: "securityHub.tab.score" },
+        a.canManageDevices && { href: "/admin/security/mfa", labelKey: "securityHub.tab.mfa" },
+        a.canManageDevices && { href: "/admin/security/risky", labelKey: "securityHub.tab.risky" },
+      ]),
+    prefixes: ["/admin/security"],
+  },
   // Set-once setup screens, out of the day-to-day sidebar.
   settings: {
     tabs: (a) =>

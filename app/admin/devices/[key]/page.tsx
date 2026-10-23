@@ -166,6 +166,51 @@ export default async function DevicePage({ params }: { params: Promise<{ key: st
           )}
         </section>
 
+        {(d.mde_onboarding || (d.operating_system ?? "").toLowerCase().includes("windows")) && (
+          <section className="p-5" style={card}>
+            <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: emerald }}>
+              Microsoft Defender
+            </div>
+            {d.mde_onboarding ? (
+              <>
+                <Row label="Defender for Endpoint">
+                  <span style={{ color: d.mde_onboarding === "Onboarded" ? emerald : rose, fontWeight: 700 }}>{d.mde_onboarding}</span>
+                </Row>
+                <Row label="Exposure level">
+                  <span style={{ color: d.mde_exposure === "High" ? rose : d.mde_exposure === "Medium" ? gold : d.mde_exposure === "Low" ? emerald : dim, fontWeight: 700 }}>{d.mde_exposure ?? "—"}</span>
+                </Row>
+                <Row label="Sensor health">{d.mde_sensor_health}</Row>
+                <Row label="Vulnerabilities">
+                  {d.vuln_critical == null && d.vuln_high == null ? (
+                    "—"
+                  ) : (
+                    <span>
+                      <b style={{ color: (d.vuln_critical ?? 0) > 0 ? rose : emerald }}>{d.vuln_critical ?? 0} critical</b> · <b style={{ color: (d.vuln_high ?? 0) > 0 ? gold : emerald }}>{d.vuln_high ?? 0} high</b>
+                    </span>
+                  )}
+                </Row>
+                <Row label="Last seen by Defender">{fmtDate(d.mde_last_seen)}</Row>
+                {d.mde_device_id && (
+                  <a
+                    href={`https://security.microsoft.com/machines/v2/${d.mde_device_id}/overview`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-3 text-xs font-bold rounded-full px-3 py-1.5"
+                    style={{ border: `1.5px solid ${line}`, color: ink }}
+                  >
+                    Open in Defender ↗
+                  </a>
+                )}
+              </>
+            ) : (
+              <p className="text-sm" style={{ color: dim }}>
+                Defender for Endpoint has no record of this PC, so it isn&apos;t onboarded (or the security sync hasn&apos;t run). Onboard it with an Intune EDR policy so threats are detected and the
+                compliance risk rule can pass.
+              </p>
+            )}
+          </section>
+        )}
+
         <section className="p-5" style={card}>
           <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: emerald }}>
             Owner

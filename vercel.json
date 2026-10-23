@@ -57,6 +57,10 @@
       "schedule": "0 10 * * *"
     },
     {
+      "path": "/api/cron/security-sync",
+      "schedule": "20 10 * * *"
+    },
+    {
       "path": "/api/cron/quickbooks-keepalive",
       "schedule": "0 9 * * 1"
     }
