@@ -143,6 +143,7 @@ export function SyncStatus({ run }: { run: { started_at: string; finished_at: st
     licenses: "License catalog",
     signins: "Sign-in activity",
     owners: "Device owners",
+    compliance: "Compliance details",
     save: "Saving",
   };
   return (

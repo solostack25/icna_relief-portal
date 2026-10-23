@@ -17,6 +17,7 @@ export type DeviceListRow = {
   manufacturer: string | null;
   model: string | null;
   compliance_state: string | null;
+  compliance_reasons: { title: string }[] | null;
   is_encrypted: boolean | null;
   intune_id: string | null;
   intune_last_sync: string | null;
@@ -67,7 +68,7 @@ export async function loadDeviceList(): Promise<DeviceListRow[]> {
     const { data, error } = await admin
       .from("it_devices")
       .select(
-        "device_key, display_name, operating_system, os_version, trust_type, account_enabled, approx_last_sign_in, owner_upn, owner_name, employee_id, serial_number, manufacturer, model, compliance_state, is_encrypted, intune_id, intune_last_sync, coverage"
+        "device_key, display_name, operating_system, os_version, trust_type, account_enabled, approx_last_sign_in, owner_upn, owner_name, employee_id, serial_number, manufacturer, model, compliance_state, compliance_reasons, is_encrypted, intune_id, intune_last_sync, coverage"
       )
       .is("removed_at", null)
       .order("display_name")

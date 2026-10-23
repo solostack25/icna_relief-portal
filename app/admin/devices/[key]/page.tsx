@@ -7,6 +7,7 @@ import { employeeNames, loadPendingRequests } from "../data";
 import { RequestDecision } from "../ui";
 import { CoveragePill, card, dim, emerald, faint, fmtDate, gold, ink, line, relTime, rose } from "../style";
 import DeviceActions from "./DeviceActions";
+import ComplianceCard from "./ComplianceCard";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,8 @@ export default async function DevicePage({ params }: { params: Promise<{ key: st
           ))}
         </section>
       )}
+
+      {d.intune_id && <ComplianceCard deviceKey={d.device_key} state={d.compliance_state} reasons={d.compliance_reasons} checkedAt={d.compliance_checked_at} />}
 
       <div className="grid lg:grid-cols-2 gap-5 mb-6">
         <section className="p-5" style={card}>

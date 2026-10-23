@@ -216,6 +216,12 @@ export default function DevicesClient({ devices, initialQuery = "" }: { devices:
                             <div style={{ color: d.compliance_state === "compliant" ? emerald : d.compliance_state === "inGracePeriod" ? gold : rose }}>
                               {d.compliance_state === "compliant" ? "Compliant" : d.compliance_state === "inGracePeriod" ? "Grace period" : d.compliance_state ? "Not compliant" : "Unknown"}
                             </div>
+                            {d.compliance_state !== "compliant" && d.compliance_reasons?.length ? (
+                              <div className="max-w-[220px] whitespace-normal" style={{ color: dim }} title={d.compliance_reasons.map((r) => r.title).join("\n")}>
+                                {d.compliance_reasons[0].title}
+                                {d.compliance_reasons.length > 1 ? ` +${d.compliance_reasons.length - 1} more` : ""}
+                              </div>
+                            ) : null}
                             <div style={{ color: d.is_encrypted ? emerald : d.is_encrypted === false ? rose : faint }}>
                               {d.is_encrypted ? "Encrypted" : d.is_encrypted === false ? "Not encrypted" : "Encryption unknown"}
                             </div>

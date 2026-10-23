@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { SKU_FRIENDLY_NAMES } from "@/lib/msgraph";
 import { gGetAll, explainGraphError } from "./graph";
+import { fetchComplianceReasons } from "./compliance";
 import type { Coverage } from "./shared";
 
 // Pulls devices, licenses and users from Microsoft Graph into the it_*
@@ -312,6 +313,31 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
       if (error) errors.save = error.message;
     }
     counts.devices = rows.length;
+
+    // Why each non-compliant Intune device fails (a handful of calls per
+    // device, 4 at a time). Compliant devices get their old reasons cleared.
+    const failing = rows.filter((r) => r.intune_id && ["noncompliant", "ingraceperiod", "error", "conflict"].includes(String(r.compliance_state ?? "").toLowerCase()));
+    let reasonErr: string | undefined;
+    for (let i = 0; i < failing.length; i += 4) {
+      await Promise.all(
+        failing.slice(i, i + 4).map(async (r) => {
+          const rep = await fetchComplianceReasons(r.intune_id as string);
+          if (rep.error) reasonErr = rep.error;
+          else
+            await admin
+              .from("it_devices")
+              .update({ compliance_reasons: rep.reasons, compliance_checked_at: rep.checkedAt })
+              .eq("device_key", r.device_key as string);
+        })
+      );
+    }
+    if (reasonErr) errors.compliance = `Couldn't read compliance details: ${reasonErr}`;
+    await admin
+      .from("it_devices")
+      .update({ compliance_reasons: null })
+      .eq("compliance_state", "compliant")
+      .not("compliance_reasons", "is", null);
+    counts.noncompliant = failing.length;
   }
 
   // Devices Graph no longer returns: mark removed, but only when the
