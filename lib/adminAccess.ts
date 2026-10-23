@@ -10,6 +10,7 @@ export type AdminAccess = {
   canManageMarketing: boolean;
   canReview: boolean;
   canZakatFinance: boolean;
+  canManageDevices: boolean;
   hasOfficeInfo: boolean;
   hasAnyAccess: boolean;
 };
@@ -35,6 +36,8 @@ export async function getAdminAccess(
   const canManageTickets = isAdmin || managedDepartments.length > 0;
   const canManageFinance = isAdmin || managedDepartments.includes("finance") || managedDepartments.includes("it");
   const canReview = isAdmin || role === "regional_director" || role === "program_director";
+  // Device Management (Entra/Intune): IT only - the helpdesk-it grant.
+  const canManageDevices = isAdmin || managedDepartments.includes("it");
 
   const { data: inkindAccess } = isAdmin
     ? { data: null }
@@ -78,6 +81,7 @@ export async function getAdminAccess(
     canManageMarketing,
     canReview,
     canZakatFinance,
+    canManageDevices,
     hasOfficeInfo,
     hasAnyAccess:
       isAdmin ||
@@ -88,6 +92,7 @@ export async function getAdminAccess(
       canManageMarketing ||
       canReview ||
       canZakatFinance ||
+      canManageDevices ||
       hasOfficeInfo,
   };
 }

@@ -64,6 +64,15 @@ export const HUBS = {
       ]),
     prefixes: ["/admin/employees", "/admin/entra-directory", "/admin/ad-mappings", "/admin/ad-preview"],
   },
+  devices: {
+    tabs: (a) =>
+      tabs([
+        a.canManageDevices && { href: "/admin/devices", labelKey: "devicesHub.tab.devices" },
+        a.canManageDevices && { href: "/admin/devices/licenses", labelKey: "devicesHub.tab.licenses" },
+        a.canManageDevices && { href: "/admin/devices/activity", labelKey: "devicesHub.tab.activity" },
+      ]),
+    prefixes: ["/admin/devices"],
+  },
   // Set-once setup screens, out of the day-to-day sidebar.
   settings: {
     tabs: (a) =>

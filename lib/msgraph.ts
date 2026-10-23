@@ -220,7 +220,7 @@ export async function createAdUser(params: CreateAdUserParams): Promise<CreateAd
 // Graph's /subscribedSkus only returns the raw part number (e.g.
 // "SPE_E3"), not a friendly label. Not exhaustive; falls back to the raw
 // part number for anything not in this map rather than guessing.
-const SKU_FRIENDLY_NAMES: Record<string, string> = {
+export const SKU_FRIENDLY_NAMES: Record<string, string> = {
   SPE_E3: "Microsoft 365 E3",
   SPE_E5: "Microsoft 365 E5",
   SPB: "Microsoft 365 Business Premium",
@@ -236,6 +236,22 @@ const SKU_FRIENDLY_NAMES: Record<string, string> = {
   TEAMS_COMMERCIAL_TRIAL: "Microsoft Teams (trial)",
   POWER_BI_STANDARD: "Power BI (free)",
   POWER_BI_PRO: "Power BI Pro",
+  Microsoft_365_Copilot: "Microsoft 365 Copilot",
+  INTUNE_A: "Microsoft Intune Plan 1",
+  INTUNE_A_D: "Microsoft Intune Device",
+  EMS: "Enterprise Mobility + Security E3",
+  EMSPREMIUM: "Enterprise Mobility + Security E5",
+  AAD_PREMIUM: "Microsoft Entra ID P1",
+  AAD_PREMIUM_P2: "Microsoft Entra ID P2",
+  FLOW_FREE: "Power Automate (free)",
+  POWERAPPS_DEV: "Power Apps Developer",
+  WINDOWS_STORE: "Windows Store for Business",
+  STREAM: "Microsoft Stream",
+  VISIOCLIENT: "Visio Plan 2",
+  PROJECTPROFESSIONAL: "Project Plan 3",
+  O365_BUSINESS: "Microsoft 365 Apps for business",
+  OFFICESUBSCRIPTION: "Microsoft 365 Apps for enterprise",
+  Microsoft_Teams_Premium: "Teams Premium",
 };
 
 export type AvailableLicense = {
