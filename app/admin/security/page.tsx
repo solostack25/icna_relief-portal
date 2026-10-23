@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
 import { fetchAllRows, lastSecuritySync, loadMfaPeople } from "./data";
+import { activePlatforms, isIrrelevant } from "@/lib/security/platforms";
 import { SecSyncButton, SecSyncStatus } from "./ui";
 import { PageHead, SeverityPill, card, dim, emerald, faint, gold, ink, line, relTime, rose } from "./style";
 
@@ -45,7 +46,7 @@ function Tile({ n, label, hint, color, href }: { n: string | number; label: stri
 
 export default async function SecurityOverview() {
   const admin = createAdminClient();
-  const [run, { data: scoreRows }, controls, { data: incRows }, mfa, { count: riskyCount }, devices] = await Promise.all([
+  const [run, { data: scoreRows }, controls, { data: incRows }, mfa, { count: riskyCount }, devices, platforms] = await Promise.all([
     lastSecuritySync(),
     admin.from("sec_secure_scores").select("created_at, current_score, max_score, comparative").order("created_at", { ascending: true }).limit(90),
     fetchAllRows<Control>("sec_score_controls", "id, title, category, max_score, current_score, user_impact, implementation_cost, deprecated"),
@@ -53,6 +54,7 @@ export default async function SecurityOverview() {
     loadMfaPeople(),
     admin.from("sec_risky_users").select("user_id", { count: "exact", head: true }),
     fetchAllRows<Dev>("it_devices", "device_key, display_name, operating_system, trust_type, mde_onboarding, vuln_critical, approx_last_sign_in, intune_last_sync", (q) => q.is("removed_at", null).neq("account_enabled", false)),
+    activePlatforms(),
   ]);
 
   const scores = (scoreRows ?? []) as Score[];
@@ -63,7 +65,7 @@ export default async function SecurityOverview() {
   const similar = latest?.comparative?.find((c) => c.basis === "TotalSeats") ?? latest?.comparative?.find((c) => c.basis === "AllTenants");
 
   const todo = controls
-    .filter((c) => !c.deprecated && (c.max_score ?? 0) > (c.current_score ?? 0))
+    .filter((c) => !c.deprecated && (c.max_score ?? 0) > (c.current_score ?? 0) && !isIrrelevant(c.title, platforms))
     .map((c) => ({ ...c, gain: Math.round(((c.max_score ?? 0) - (c.current_score ?? 0)) * 10) / 10 }))
     .sort((a, b) => b.gain - a.gain)
     .slice(0, 6);

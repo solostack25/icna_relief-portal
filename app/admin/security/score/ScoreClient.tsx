@@ -21,7 +21,10 @@ export type ScoreControl = {
   deprecated: boolean;
   remediationText: string;
   gain: number;
+  otherPlatform: string | null; // a platform ICNA has no devices on
 };
+
+const PLATFORM_NAME: Record<string, string> = { macos: "Mac", linux: "Linux", ios: "iPhone/iPad", android: "Android", windows: "Windows" };
 
 const LEVEL_COLOR: Record<string, string> = { low: emerald, moderate: gold, high: rose };
 
@@ -30,19 +33,23 @@ export default function ScoreClient({ controls, current, max, initialOpen }: { c
   const [category, setCategory] = useState("");
   const [impact, setImpact] = useState("");
   const [open, setOpen] = useState<string | null>(initialOpen);
+  const [showOther, setShowOther] = useState(false);
+  const hidden = controls.filter((c) => c.otherPlatform && c.gain > 0);
 
   const categories = useMemo(() => Array.from(new Set(controls.map((c) => c.category).filter(Boolean) as string[])).sort(), [controls]);
   const list = useMemo(
     () =>
       controls
+        .filter((c) => showOther || !c.otherPlatform)
         .filter((c) => (view === "todo" ? c.gain > 0 : view === "done" ? c.gain <= 0 : true))
         .filter((c) => !category || c.category === category)
         .filter((c) => !impact || (c.user_impact ?? "").toLowerCase() === impact)
         .sort((a, b) => b.gain - a.gain || (a.rank ?? 999) - (b.rank ?? 999)),
-    [controls, view, category, impact]
+    [controls, view, category, impact, showOther]
   );
-  const available = controls.reduce((s, c) => s + Math.max(0, c.gain), 0);
-  const quickWins = controls.filter((c) => c.gain > 0 && (c.user_impact ?? "").toLowerCase() === "low");
+  const relevant = controls.filter((c) => !c.otherPlatform);
+  const available = relevant.reduce((s, c) => s + Math.max(0, c.gain), 0);
+  const quickWins = relevant.filter((c) => c.gain > 0 && (c.user_impact ?? "").toLowerCase() === "low");
 
   const field = "rounded-xl px-3 py-2 text-sm bg-white outline-none";
   const fieldStyle = { border: `1.5px solid ${line}`, color: ink };
@@ -53,7 +60,7 @@ export default function ScoreClient({ controls, current, max, initialOpen }: { c
         {[
           { n: current != null && max ? `${Math.round((current / max) * 100)}%` : "—", label: "Current score", color: ink },
           { n: Math.round(available), label: "Points still available", color: gold },
-          { n: controls.filter((c) => c.gain > 0).length, label: "Recommendations to do", color: rose },
+          { n: relevant.filter((c) => c.gain > 0).length, label: "Recommendations to do", color: rose },
           { n: quickWins.length, label: "Low user impact", hint: "Quick wins staff won't notice", color: emerald },
         ].map((t) => (
           <div key={t.label} className="p-4" style={card}>
@@ -100,6 +107,12 @@ export default function ScoreClient({ controls, current, max, initialOpen }: { c
           <option value="moderate">Moderate</option>
           <option value="high">High</option>
         </select>
+        {hidden.length > 0 && (
+          <label className="flex items-center gap-2 text-xs px-1" style={{ color: dim }}>
+            <input type="checkbox" checked={showOther} onChange={(e) => setShowOther(e.target.checked)} />
+            Show {hidden.length} for platforms you don&apos;t use ({Array.from(new Set(hidden.map((c) => PLATFORM_NAME[c.otherPlatform!] ?? c.otherPlatform))).join(", ")})
+          </label>
+        )}
       </div>
 
       <div style={{ ...card, overflow: "hidden" }}>

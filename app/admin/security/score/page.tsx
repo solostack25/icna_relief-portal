@@ -3,6 +3,7 @@ import { fetchAllRows, lastSecuritySync } from "../data";
 import { SecSyncButton, SecSyncStatus } from "../ui";
 import { PageHead, htmlToText } from "../style";
 import ScoreClient, { type ScoreControl } from "./ScoreClient";
+import { activePlatforms, controlPlatform } from "@/lib/security/platforms";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,14 @@ type Raw = Omit<ScoreControl, "remediationText" | "gain"> & { remediation: strin
 
 export default async function SecureScorePage({ searchParams }: { searchParams: Promise<{ open?: string }> }) {
   const { open } = await searchParams;
-  const [rows, run, { data: latest }] = await Promise.all([
+  const [rows, run, { data: latest }, platforms] = await Promise.all([
     fetchAllRows<Raw>(
       "sec_score_controls",
       "id, title, category, service, max_score, current_score, implementation_status, implementation_cost, user_impact, tier, threats, remediation, remediation_impact, action_url, rank, deprecated"
     ),
     lastSecuritySync(),
     createAdminClient().from("sec_secure_scores").select("current_score, max_score").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    activePlatforms(),
   ]);
   const controls: ScoreControl[] = rows
     .filter((r) => !r.deprecated && (r.max_score ?? 0) > 0)
@@ -24,6 +26,10 @@ export default async function SecureScorePage({ searchParams }: { searchParams: 
       ...r,
       remediationText: htmlToText(r.remediation),
       gain: Math.round(((r.max_score ?? 0) - (r.current_score ?? 0)) * 10) / 10,
+      otherPlatform: (() => {
+        const p = controlPlatform(r.title);
+        return p && !platforms.has(p) ? p : null;
+      })(),
     }));
 
   return (
