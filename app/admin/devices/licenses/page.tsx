@@ -28,7 +28,7 @@ export default async function LicensesPage() {
 
   const devices: { owner_entra_user_id: string | null; owner_upn: string | null; coverage: string }[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data } = await admin.from("it_devices").select("owner_entra_user_id, owner_upn, coverage").is("removed_at", null).neq("trust_type", "Workplace").range(from, from + 999);
+    const { data } = await admin.from("it_devices").select("owner_entra_user_id, owner_upn, coverage").is("removed_at", null).in("coverage", ["unlicensed", "registered", "licensed_not_enrolled"]).range(from, from + 999);
     devices.push(...((data ?? []) as typeof devices));
     if (!data || data.length < 1000) break;
   }
@@ -45,8 +45,12 @@ export default async function LicensesPage() {
 
   // People on a non-Intune license who have a company (joined) device.
   const devCountByUser = new Map<string, number>();
+  // Computers (joined, or registered-only Windows/Mac) whose owner has no Intune license.
+  const intuneUser = new Set(users.filter((u) => u.has_intune).flatMap((u) => [u.entra_user_id, u.upn.toLowerCase()]));
   for (const d of devices) {
-    if (d.coverage !== "unlicensed") continue;
+    if (d.coverage === "licensed_not_enrolled") continue;
+    if ((d.owner_entra_user_id && intuneUser.has(d.owner_entra_user_id)) || intuneUser.has((d.owner_upn ?? "").toLowerCase())) continue;
+    if (!d.owner_entra_user_id && !d.owner_upn) continue;
     const k = d.owner_entra_user_id ?? (d.owner_upn ?? "").toLowerCase();
     devCountByUser.set(k, (devCountByUser.get(k) ?? 0) + 1);
   }
@@ -157,7 +161,7 @@ export default async function LicensesPage() {
             Company device, no Intune license · {needIntune.length}
           </div>
           <p className="text-xs mt-1 mb-3" style={{ color: dim }}>
-            These people have an Entra-joined device but a license without Intune (Business Basic/Standard). Give them Intune Plan 1, Business Premium, or a freed-up E3.
+            These people use an ICNA computer (joined or registered-only) but have a license without Intune (Business Basic/Standard). Give them Intune Plan 1, Business Premium, or a freed-up E3.
           </p>
           <PeopleList
             rows={needIntune.map((u) => ({

@@ -100,7 +100,8 @@ export default function DevicesClient({ devices, initialQuery = "" }: { devices:
     { key: "intune", label: "Managed by Intune", color: emerald, hint: "Policies apply" },
     { key: "licensed_not_enrolled", label: "Licensed, not enrolled", color: gold, hint: "Enroll these next" },
     { key: "unlicensed", label: "No Intune license", color: rose, hint: "Owner on Basic/Standard" },
-    { key: "personal", label: "Personal", color: "#2B6CB0", hint: "Work account on own device" },
+    { key: "registered", label: "Registered, not joined", color: "#C2410C", hint: "Can't take ICNA Windows sign-in" },
+    { key: "personal", label: "Phones / tablets", color: "#2B6CB0", hint: "BYOD with work account" },
     { key: "stale", label: `Not seen ${90}+ days`, color: "#7A7A7A", hint: "Lost, retired or unused?" },
     { key: "attention", label: "Needs attention", color: rose, hint: "Non-compliant or unencrypted" },
   ];
@@ -110,7 +111,7 @@ export default function DevicesClient({ devices, initialQuery = "" }: { devices:
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2.5 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 mb-6">
         {tiles.map((t) => {
           const active = quick === t.key;
           return (

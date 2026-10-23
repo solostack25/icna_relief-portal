@@ -15,7 +15,9 @@ import type { Coverage } from "./shared";
 //   DeviceManagementManagedDevices.Read.All Intune devices (serial, compliance, encryption)
 //   AuditLog.Read.All                       last sign-in per user (optional)
 
-const INTUNE_PLAN = /^INTUNE_(A|SMBIZ|EDU|O365)/i;
+// Real Intune plans only. INTUNE_O365 ("Mobile Device Management for
+// Office 365", in Business Basic/Standard) is basic mobility, not Intune.
+const INTUNE_PLAN = /^INTUNE_(A|SMBIZ|EDU)(_|$)/i;
 const ENTRA_P1_PLAN = /^AAD_PREMIUM/i;
 const NIL_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -269,7 +271,14 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
       const ownerHasIntune = (ownerId && hasIntuneByUser.get(ownerId)) || (ownerUpn && hasIntuneByUpn.get(lower(ownerUpn))) || false;
       let coverage: Coverage;
       if (r.intune_id) coverage = "intune";
-      else if (r.trust_type === "Workplace") coverage = "personal";
+      else if (r.trust_type === "Workplace") {
+        // Registered, not joined. On Windows/macOS that's almost always a
+        // computer where someone signed in with a local account and added
+        // their ICNA account - it can't take ICNA Windows sign-ins. Phones
+        // and tablets registered this way are normal (personal/BYOD).
+        const os = String(r.operating_system ?? "").toLowerCase();
+        coverage = os.includes("windows") || os.includes("mac") ? "registered" : "personal";
+      }
       else if (!ownerId && !ownerUpn) coverage = "no_owner";
       else if (!usersOk) coverage = "no_owner";
       else coverage = ownerHasIntune ? "licensed_not_enrolled" : "unlicensed";
