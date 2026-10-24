@@ -37,6 +37,7 @@ export default function HardwareApprovalPanel({
   lineItems = [],
   proposedAmount = null,
   budget = null,
+  closeoutEmailedAt = null,
 }: {
   tone: "quest" | "plain";
   legId: string;
@@ -52,6 +53,8 @@ export default function HardwareApprovalPanel({
   proposedAmount?: number | null;
   /** Final approved budget. */
   budget?: number | null;
+  /** When the requester was emailed the invoice after close. */
+  closeoutEmailedAt?: string | null;
 }) {
   const quest = tone === "quest";
   const c = quest
@@ -175,6 +178,10 @@ export default function HardwareApprovalPanel({
             canUpload={canUploadInvoice && approvalStatus !== "pending"}
             canRemove={canUploadInvoice && !legClosed}
             waitingOnApproval={approvalStatus === "pending"}
+            budget={budget}
+            legClosed={legClosed}
+            closeoutEmailedAt={closeoutEmailedAt}
+            canRetryCloseout={canUploadInvoice}
           />
         </div>
       )}
