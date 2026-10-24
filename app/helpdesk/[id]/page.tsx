@@ -1,5 +1,8 @@
 import Link from "next/link";
 import HardwareDetailsView from "@/components/helpdesk/HardwareDetailsView";
+import HardwareApprovalPanel, { type HardwarePanelStep } from "@/components/helpdesk/HardwareApprovalPanel";
+import { getHardwareState } from "@/lib/helpdeskHardware";
+import { HARDWARE_CATEGORY } from "@/components/helpdesk/HardwareRequestFields";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -106,6 +109,50 @@ export default async function HelpdeskRequestPage({
   const sortedFinanceSteps = financeApproval
     ? [...financeApproval.finance_approval_steps].sort((a: any, b: any) => a.step_order - b.step_order)
     : [];
+
+  // Hardware Request purchase approval + invoice gate (see
+  // helpdesk_hardware_approvals_migration.sql). hardware_gate is only set
+  // on hardware tickets created since the gate went in; older ones just
+  // get the optional invoice box.
+  const hwLeg =
+    (legs ?? []).find((l: any) => l.hardware_gate) ??
+    (legs ?? []).find((l) => l.department === "it" && l.category === HARDWARE_CATEGORY) ??
+    null;
+  const hwGated = !!(hwLeg as any)?.hardware_gate;
+  const hwStatus = ((hwLeg as any)?.hardware_approval_status ?? null) as "pending" | "approved" | "denied" | null;
+  const hwState = hwLeg && hwGated ? await getHardwareState(hwLeg.id).catch(() => ({ steps: [], events: [] })) : { steps: [], events: [] };
+  let hwHasInvoice = false;
+  if (hwLeg) {
+    const { count } = await supabase
+      .from("helpdesk_attachments")
+      .select("id", { count: "exact", head: true })
+      .eq("leg_id", hwLeg.id)
+      .eq("kind", "invoice");
+    hwHasInvoice = (count ?? 0) > 0;
+  }
+  const managesIt = managedDepartments.includes("it");
+  const hardwareLockFor = (leg: any): "pending" | "needs_invoice" | null =>
+    leg?.hardware_gate && leg.id === hwLeg?.id
+      ? hwStatus === "pending"
+        ? "pending"
+        : hwStatus === "approved" && !hwHasInvoice
+          ? "needs_invoice"
+          : null
+      : null;
+  const hardwarePanel = (tone: "quest" | "plain") =>
+    hwLeg ? (
+      <HardwareApprovalPanel
+        tone={tone}
+        legId={hwLeg.id}
+        gated={hwGated}
+        approvalStatus={hwStatus}
+        steps={hwState.steps as HardwarePanelStep[]}
+        events={hwState.events}
+        canResend={managesIt || isSubmitter}
+        canUploadInvoice={managesIt}
+        legClosed={hwLeg.status === "closed" || hwLeg.status === "handed_off"}
+      />
+    ) : null;
 
   // Email-bonus eligibility for the current leg, if it's IT and still
   // active: has an email already been sent (bonus can only be earned
@@ -216,6 +263,8 @@ export default async function HelpdeskRequestPage({
             </div>
           )}
 
+          {hardwarePanel("quest")}
+
           {currentLeg && (
             <p style={{ fontSize: 11, color: isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) ? "#FF6B6B" : "#9C8FD9", fontWeight: isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) ? 700 : 400, marginBottom: 16 }}>
               {isOverdue(currentLeg.created_at, currentLeg.status as LegStatus) && "⚠ OVERDUE · "}
@@ -296,6 +345,9 @@ export default async function HelpdeskRequestPage({
                     currentUserId={me.id}
                     requestTitle={request.title}
                     submittedBy={request.submitted_by}
+                    hardwareGate={leg.id === hwLeg?.id && hwGated}
+                    initialHardwareStatus={leg.id === hwLeg?.id ? hwStatus : null}
+                    hasInvoice={leg.id === hwLeg?.id && hwHasInvoice}
                   />
                 );
               }
@@ -462,6 +514,8 @@ export default async function HelpdeskRequestPage({
           </div>
         )}
 
+        {hardwarePanel("plain")}
+
         <h2 className="text-sm font-semibold mb-3 text-[var(--color-text-dim)] uppercase tracking-wide">
           Department Chain
         </h2>
@@ -519,6 +573,7 @@ export default async function HelpdeskRequestPage({
                     departmentStaff={departmentStaff}
                     assignedToEmployeeId={leg.assigned_to_employee_id}
                     legCreatedAt={leg.created_at}
+                    hardwareLock={hardwareLockFor(leg)}
                   />
                 )}
               </div>

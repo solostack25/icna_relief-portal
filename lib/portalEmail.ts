@@ -107,7 +107,7 @@ export function escapeHtml(s: string | null | undefined): string {
 }
 
 // Simple branded shell matching the portal's emerald/cream palette.
-export function emailLayout(opts: { heading: string; intro?: string; rows?: [string, string][]; button?: { label: string; href: string }; footer?: string; extraHtml?: string }) {
+export function emailLayout(opts: { heading: string; intro?: string; rows?: [string, string][]; button?: { label: string; href: string }; footer?: string; extraHtml?: string; eyebrow?: string }) {
   const rows = (opts.rows ?? [])
     .map(
       ([k, v]) =>
@@ -120,7 +120,7 @@ export function emailLayout(opts: { heading: string; intro?: string; rows?: [str
   return `<!doctype html><html><body style="margin:0;background:#FBF7EF;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <div style="max-width:560px;margin:0 auto;padding:28px 18px">
 <div style="background:#fff;border-radius:18px;padding:28px;box-shadow:0 6px 24px rgba(22,48,43,0.08)">
-<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1F6F54;font-weight:700;margin-bottom:10px">ICNA Relief · Speaker Requests</div>
+<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1F6F54;font-weight:700;margin-bottom:10px">${escapeHtml(opts.eyebrow ?? "ICNA Relief · Speaker Requests")}</div>
 <h1 style="font-family:Georgia,serif;font-style:italic;font-weight:500;font-size:24px;color:#16302B;margin:0 0 12px">${escapeHtml(opts.heading)}</h1>
 ${opts.intro ? `<p style="font-size:14px;line-height:1.55;color:#33504a;margin:0 0 16px">${opts.intro}</p>` : ""}
 ${rows ? `<table style="border-collapse:collapse;margin:8px 0">${rows}</table>` : ""}

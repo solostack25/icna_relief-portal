@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
     fund_pending, fund_approved, th_pending,
     res_submitted, res_review, res_carrier, res_bound,
     vol_upcoming, ik_active, ik_signature, ik_completed_30d,
+    hw_pending_steps, hw_approved_legs,
   ] = await Promise.all([
     count(legs("open")),
     count(legs("in_progress")),
@@ -97,7 +98,17 @@ export async function GET(req: NextRequest) {
     count(admin.from("sessions").select("id", { count: "exact", head: true }).eq("status", "active")),
     count(admin.from("sessions").select("id", { count: "exact", head: true }).eq("status", "awaiting_signature")),
     count(admin.from("sessions").select("id", { count: "exact", head: true }).eq("status", "completed").gte("completed_at", since30)),
+    // Hardware purchases (tables may not exist until the migration runs - treat as empty).
+    Promise.resolve(admin.from("helpdesk_hardware_approvals").select("stage, leg_id").eq("decision", "pending")).then((r) => r.data ?? []),
+    Promise.resolve(
+      admin.from("helpdesk_request_legs").select("id").eq("hardware_gate", true).eq("hardware_approval_status", "approved").not("status", "in", "(closed,handed_off)")
+    ).then((r) => r.data ?? []),
   ]);
+  const hwLegIds = (hw_approved_legs as { id: string }[]).map((l) => l.id);
+  const { data: hwInvoiced } = hwLegIds.length
+    ? await admin.from("helpdesk_attachments").select("leg_id").eq("kind", "invoice").in("leg_id", hwLegIds)
+    : { data: [] as { leg_id: string }[] };
+  const hwInvoicedSet = new Set(((hwInvoiced ?? []) as { leg_id: string }[]).map((r) => r.leg_id));
 
   const counts = {
     hd_open, hd_in_progress, hd_on_hold, hd_closed_30d,
@@ -109,6 +120,9 @@ export async function GET(req: NextRequest) {
     fund_pending, fund_approved, th_pending,
     res_submitted, res_review, res_carrier, res_bound,
     vol_upcoming, ik_active, ik_signature, ik_completed_30d,
+    hw_pending_supervisor: new Set((hw_pending_steps as { stage: string; leg_id: string }[]).filter((s) => s.stage === "supervisor").map((s) => s.leg_id)).size,
+    hw_pending_executive: new Set((hw_pending_steps as { stage: string; leg_id: string }[]).filter((s) => s.stage === "executive").map((s) => s.leg_id)).size,
+    hw_needs_invoice: hwLegIds.filter((id) => !hwInvoicedSet.has(id)).length,
   };
 
   // Settings (allow-listed keys only — never the credential rows)

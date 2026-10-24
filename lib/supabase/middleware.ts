@@ -55,6 +55,8 @@ export async function updateSession(request: NextRequest) {
     // Speaker Requests: token-credentialed pages for AMs/leadership
     // approving from email, and for external speakers (agreement + W-9).
     request.nextUrl.pathname.startsWith("/speaker-requests/approve/") ||
+    // Hardware purchase approvals (supervisor, CIO, CSO): same pattern.
+    request.nextUrl.pathname.startsWith("/helpdesk/hardware-approval/") ||
     request.nextUrl.pathname.startsWith("/speaker-portal/");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 

@@ -62,6 +62,8 @@ export const EDITABLE_SETTINGS = [
   "wf_speaker_approval_reminder_hours",
   "wf_speaker_packet_reminder_hours",
   "wf_helpdesk_it_mailbox",
+  "wf_hardware_cio_email",
+  "wf_hardware_cso_email",
   "finance_ceo_email",
   "zakat_finance_emails",
   "speaker_requests_admin_email",
@@ -105,6 +107,44 @@ export const FLOWS: Flow[] = [
       "Departments (IT, HR, Marketing) and their categories are built into the submit form",
       "A leg open more than 48 hours is flagged overdue",
       "IT points: +5 own ticket, +10 someone else's, +10 after hours, +5 closed within 24h, +2 emailed within 5h",
+    ],
+  },
+  {
+    key: "hardware",
+    name: "Hardware purchases",
+    group: "Approvals",
+    summary: "IT Hardware Requests must be approved before anything is bought, and can't be closed until the invoice is uploaded.",
+    pages: [
+      { label: "Submit a request", href: "/helpdesk/new" },
+      { label: "Manage tickets", href: "/admin/helpdesk/manage" },
+    ],
+    steps: [
+      { key: "submitted", title: "Submitted", actor: "Staff member picks IT → Hardware Request" },
+      {
+        key: "supervisor",
+        title: "Direct supervisor",
+        actor: "The requester's manager in Microsoft 365, so a Regional or Program Director's request goes to whoever they report to",
+        notify: "Email with Approve / Deny (no login); IT or the requester can send a reminder from the ticket",
+        count: "hw_pending_supervisor",
+      },
+      {
+        key: "executive",
+        title: "CIO + CSO",
+        actor: "Both at the same time; both must approve. If the supervisor was already the CIO or CSO, their one approval counts for both",
+        count: "hw_pending_executive",
+        editors: [
+          { kind: "setting", key: "wf_hardware_cio_email", label: "CIO approver email", type: "email" },
+          { kind: "setting", key: "wf_hardware_cso_email", label: "CSO approver email", type: "email" },
+        ],
+      },
+      { key: "denied", title: "Denied", actor: "Any denial closes the ticket and emails the requester with the reason", branch: true },
+      { key: "purchase", title: "Approved — IT purchases", actor: "IT team buys and uploads the invoice to the ticket", count: "hw_needs_invoice" },
+      { key: "closed", title: "Closed", actor: "Only once an invoice is attached" },
+    ],
+    fixed: [
+      "Until approved the ticket can only be Open or On Hold; the workboard and buttons can't move it further",
+      "A role the requester holds themselves (e.g. the CIO asking for hardware) is counted as approved",
+      "Applies to hardware tickets created after this went live; older and imported tickets are unaffected",
     ],
   },
   {

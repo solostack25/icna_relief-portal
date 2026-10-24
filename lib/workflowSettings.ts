@@ -13,6 +13,11 @@ export const WF_DEFAULTS = {
   wf_speaker_approval_reminder_hours: "48",
   wf_speaker_packet_reminder_hours: "72",
   wf_helpdesk_it_mailbox: "it@icnarelief.org",
+  // Hardware Request purchase approval (stage 2, CIO + CSO in parallel).
+  // No default on purpose: until these are set, hardware approvals stop
+  // after the supervisor and the IT mailbox is told who's missing.
+  wf_hardware_cio_email: "",
+  wf_hardware_cso_email: "",
 } as const;
 export type WfKey = keyof typeof WF_DEFAULTS;
 

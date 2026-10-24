@@ -90,7 +90,7 @@ export default function HelpdeskWizardPage() {
     setSaving(true);
     setError(null);
     try {
-      const { requestId } = await createRequestWithFirstLeg(supabase, {
+      const { requestId, legId } = await createRequestWithFirstLeg(supabase, {
         title: title.trim(),
         description: description.trim() || null,
         submitted_by: submittedBy.trim(),
@@ -100,6 +100,18 @@ export default function HelpdeskWizardPage() {
         priority,
         itDetails: isHardware ? hardwareDetails(hardware, grants) : null,
       });
+
+      // Hardware purchases need supervisor + CIO/CSO approval before IT
+      // can buy anything. The ticket is already locked by the database
+      // either way; this just sends the first approval email. If it
+      // fails, IT can Re-send from the ticket.
+      if (isHardware) {
+        await fetch("/api/helpdesk/hardware-approval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ legId, action: "start" }),
+        }).catch(() => {});
+      }
 
       router.push(`/helpdesk/confirmation/${requestId}`);
     } catch (err: any) {
