@@ -9,6 +9,7 @@ import ZakatFinanceAccessManager from "./ZakatFinanceAccessManager";
 import SquareLocationMapClient from "./SquareLocationMapClient";
 import PowerBiSignIn from "./PowerBiSignIn";
 import { QuickBooksDesktopConnect, QuickBooksOnlineConnect } from "./QuickBooksConnect";
+import AmazonBusinessConnect from "./AmazonBusinessConnect";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -118,6 +119,22 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="qbo_client_secret" label="Client secret" envFallbackKey="QBO_CLIENT_SECRET" />
         <ConnectorKeyField settingKey="qbo_environment" label="Environment (production or sandbox)" placeholder="production" />
         <QuickBooksOnlineConnect />
+      </ConnectorSection>
+
+      <ConnectorSection
+        id="amazon-business"
+        title="Amazon Business"
+        description="Pulls ICNA Relief's Amazon Business purchases and their invoice PDFs every night. Purchases whose PO number is a Help Desk ticket number (like HD-002703) attach their invoice to that ticket automatically; Pay by Invoice purchases become Finance vendor-payment tickets with the PDF attached. Register an app in the Amazon Business Solution Provider Portal with the Business Purchase Reconciliation role, paste its details here, then click Connect."
+      >
+        <ConnectorKeyField settingKey="amazon_business_application_id" label="Application ID" placeholder="amzn1.sp.solution.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        <ConnectorKeyField settingKey="amazon_business_client_id" label="LWA Client ID" envFallbackKey="AMAZON_BUSINESS_CLIENT_ID" placeholder="amzn1.application-oa2-client...." />
+        <ConnectorKeyField settingKey="amazon_business_client_secret" label="LWA Client secret" envFallbackKey="AMAZON_BUSINESS_CLIENT_SECRET" />
+        <ConnectorKeyField
+          settingKey="amazon_business_auto_finance_unmatched"
+          label="Send Pay by Invoice purchases that don't match a ticket straight to Finance? (true / false)"
+          placeholder="false — they wait on Admin → Amazon Business for someone to send them"
+        />
+        <AmazonBusinessConnect />
       </ConnectorSection>
 
       <ConnectorSection

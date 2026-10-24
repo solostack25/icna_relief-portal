@@ -156,6 +156,8 @@ export default async function HelpdeskRequestPage({
         proposedAmount={hwState.proposedAmount}
         budget={hwState.budget}
         closeoutEmailedAt={(hwLeg as any).hardware_closeout_emailed_at ?? null}
+        amazonOrderIds={(itDetailsMap.get(hwLeg.id) as any)?.amazon_order_ids ?? []}
+        ticketNumber={request.ticket_number ?? null}
       />
     ) : null;
 

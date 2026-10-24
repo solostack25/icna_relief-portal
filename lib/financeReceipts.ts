@@ -79,11 +79,16 @@ export async function signedReceipts(ticketId: string) {
   const admin = createAdminClient();
   const { data } = await admin
     .from("finance_ticket_receipts")
-    .select("id, storage_path, extracted, created_at")
+    .select("id, storage_path, extracted, content_type, created_at")
     .eq("finance_ticket_id", ticketId)
     .order("created_at");
-  const rows = (data ?? []) as { id: string; storage_path: string; extracted: unknown }[];
+  const rows = (data ?? []) as { id: string; storage_path: string; extracted: unknown; content_type: string | null }[];
   if (!rows.length) return [];
   const { data: signed } = await admin.storage.from(RECEIPT_BUCKET).createSignedUrls(rows.map((r) => r.storage_path), 60 * 30);
-  return rows.map((r, i) => ({ id: r.id as string, url: signed?.[i]?.signedUrl ?? null, extracted: r.extracted as ReceiptExtract | null }));
+  return rows.map((r, i) => ({
+    id: r.id as string,
+    url: signed?.[i]?.signedUrl ?? null,
+    extracted: r.extracted as ReceiptExtract | null,
+    is_pdf: (r.content_type ?? "").includes("pdf") || r.storage_path.endsWith(".pdf"),
+  }));
 }

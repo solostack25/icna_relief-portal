@@ -15,11 +15,13 @@ type Invoice = {
   vendor: string | null;
   payment_method: string | null;
   gm_expense_id: string | null;
+  source?: string;
 };
 type GrantCtx = { grantId: string; grantName: string; lines: { id: string; label: string }[]; suggested: string | null } | null;
 
 const PAID_BY: [string, string][] = [
   ["corporate_card", "Corporate card"],
+  ["pay_by_invoice", "Amazon Business – Pay by Invoice"],
   ["pex", "PEX card"],
   ["check", "Check"],
   ["ach", "ACH / wire"],
@@ -193,6 +195,7 @@ export default function HardwareInvoices({
                 )}
                 {inv.amount != null && <strong> · {usd(inv.amount)}</strong>}
                 {inv.vendor && <span style={{ color: dim }}> · {inv.vendor}</span>}
+                {inv.source === "amazon_business" && <span style={{ color: ok }}> · pulled from Amazon</span>}
                 <span style={{ color: dim }}>
                   {" "}
                   · {inv.uploaded_by ? `${inv.uploaded_by}, ` : ""}

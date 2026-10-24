@@ -67,6 +67,10 @@
     {
       "path": "/api/cron/quickbooks-keepalive",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/amazon-business-sync",
+      "schedule": "50 11 * * *"
     }
   ]
 }

@@ -10,7 +10,7 @@ export const maxDuration = 60;
 
 const BUCKET = "helpdesk-invoices";
 const ALLOWED = ["image/", "application/pdf"];
-const PAYMENT_METHODS = ["pex", "corporate_card", "check", "ach", "reimbursement", "other"];
+const PAYMENT_METHODS = ["pex", "corporate_card", "pay_by_invoice", "check", "ach", "reimbursement", "other"];
 
 async function listInvoices(legId: string) {
   const admin = createAdminClient();
@@ -51,6 +51,7 @@ async function listInvoices(legId: string) {
     vendor: r.vendor ?? null,
     payment_method: r.payment_method ?? null,
     gm_expense_id: r.gm_expense_id ?? null,
+    source: (r as { source?: string }).source ?? "upload",
   }));
 }
 
