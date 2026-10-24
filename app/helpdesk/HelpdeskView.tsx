@@ -108,6 +108,20 @@ export async function HelpdeskView({
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
+    // Hardware purchase approvals waiting on me (RLS only returns my own
+    // steps - see helpdesk_hardware_approvals_migration.sql).
+    const { data: hwSteps } = await supabase
+      .from("helpdesk_hardware_approvals")
+      .select("id, approval_token, request_id")
+      .eq("decision", "pending")
+      .ilike("approver_email", me.email);
+    const hwRequestIds = [...new Set((hwSteps ?? []).map((s) => s.request_id))];
+    const { data: hwRequests } = hwRequestIds.length
+      ? await supabase.from("helpdesk_requests").select("id, title").in("id", hwRequestIds)
+      : { data: [] as { id: string; title: string }[] };
+    const hwTitle = new Map((hwRequests ?? []).map((r) => [r.id, r.title]));
+    const pendingHardware = (hwSteps ?? []).map((s) => ({ id: s.id, token: s.approval_token, title: hwTitle.get(s.request_id) ?? "Hardware request" }));
+
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
@@ -143,7 +157,7 @@ export async function HelpdeskView({
             + Submit a Request
           </Link>
 
-          {pendingApprovals.length > 0 && (
+          {(pendingApprovals.length > 0 || pendingHardware.length > 0) && (
             <>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-[var(--color-text-dim)] uppercase tracking-wide">
@@ -154,6 +168,16 @@ export async function HelpdeskView({
                 </Link>
               </div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden mb-8">
+                {pendingHardware.map((h) => (
+                  <Link
+                    key={h.id}
+                    href={`/helpdesk/hardware-approval/${h.token}`}
+                    className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-black/5 transition-colors"
+                  >
+                    <span className="text-sm font-medium truncate">{h.title}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-700">Hardware</span>
+                  </Link>
+                ))}
                 {pendingApprovals.map((a) => (
                   <Link
                     key={a.id}

@@ -24,7 +24,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
 import { addManualCard, addColumn, renameColumn, setColumnStatusMapping, moveCard } from "@/lib/workboard";
-import { formatTicketAge, syncLegStatusFromWorkboardColumn, LEG_STATUS_LABELS, type LegStatus } from "@/lib/helpdesk";
+import { formatTicketAge, syncLegStatusFromWorkboardColumn, friendlyLegError, LEG_STATUS_LABELS, type LegStatus } from "@/lib/helpdesk";
 import { pauseTimer } from "@/lib/workTimer";
 import CardDetailModal from "./CardDetailModal";
 import CardTimerControl from "./CardTimerControl";
@@ -99,6 +99,9 @@ export default function BoardView({
   const [newColumnStatus, setNewColumnStatus] = useState("");
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editingColumnName, setEditingColumnName] = useState("");
+  // Shown when the database refuses a status move (e.g. a hardware
+  // ticket still waiting on purchase approval, or closing one with no invoice).
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -195,8 +198,17 @@ export default function BoardView({
           actingEmployeeId: currentUserId,
         });
         router.refresh(); // pick up the new status if it's shown anywhere else on this page, and invalidate the client route cache for this path
-      } catch {
-        console.error("Failed to sync ticket status from workboard column move");
+      } catch (e) {
+        // The ticket didn't move, so the card shouldn't either - put it
+        // back where it came from and say why.
+        const fromColumnId = originalColumnIdRef.current;
+        setMoveError(friendlyLegError(e instanceof Error ? e.message : "This ticket can't move to that column."));
+        if (fromColumnId) {
+          setCards((prev) => prev.map((c) => (c.id === activeId ? { ...c, column_id: fromColumnId } : c)));
+          await moveCard(supabase, { cardId: activeId, newColumnId: fromColumnId, newSortOrder: 0 }).catch(() => {});
+        }
+        router.refresh();
+        return;
       }
     }
 
@@ -281,6 +293,30 @@ export default function BoardView({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
+      {moveError && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "flex-start",
+            background: "rgba(255,107,107,0.12)",
+            border: "1px solid #FF6B6B",
+            color: "#FFB4B4",
+            borderRadius: 12,
+            padding: "10px 14px",
+            fontSize: 12.5,
+            fontWeight: 600,
+            marginBottom: 12,
+          }}
+        >
+          <span>{moveError}</span>
+          <button onClick={() => setMoveError(null)} style={{ color: "#FFB4B4", fontWeight: 800, cursor: "pointer" }} aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 20 }}>
         {columns.map((col) => (
           <div

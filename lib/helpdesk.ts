@@ -13,6 +13,12 @@ export type Priority = "low" | "normal" | "high" | "urgent";
 
 export const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
 
+// The hardware purchase gate (helpdesk_hardware_approvals_migration.sql)
+// refuses status changes with "CODE: human message" - show just the message.
+export function friendlyLegError(message: string): string {
+  return message.replace(/^HARDWARE_[A-Z_]+:\s*/, "");
+}
+
 // Shared IT mailbox emails send "from" (visible as "IT Support" in
 // the SharePoint history this app imported from). Requires the
 // Mail.Send Application permission on the Portal app registration --
@@ -209,6 +215,8 @@ export async function createRequestWithFirstLeg(
     /** IT-only extra fields (e.g. a Hardware Request's shipping address
      *  and grant) - saved to helpdesk_leg_details_it with the first leg. */
     itDetails?: Record<string, unknown> | null;
+    /** Hardware Request grant orders: device / quantity / price each. */
+    lineItems?: { description: string; quantity: number; unit_price: number; sort_order: number }[];
   }
 ): Promise<{ requestId: string; legId: string; ticketNumber: string }> {
   const { data: request, error: requestError } = await supabase
@@ -248,6 +256,16 @@ export async function createRequestWithFirstLeg(
       // Legs cascade off the request; don't leave a ticket missing what was asked.
       await supabase.from("helpdesk_requests").delete().eq("id", request.id);
       throw new Error(detailsError.message);
+    }
+  }
+
+  if (params.lineItems?.length && params.department === "it") {
+    const { error: itemsError } = await supabase
+      .from("helpdesk_hardware_line_items")
+      .insert(params.lineItems.map((l) => ({ ...l, leg_id: leg.id })));
+    if (itemsError) {
+      await supabase.from("helpdesk_requests").delete().eq("id", request.id);
+      throw new Error(itemsError.message);
     }
   }
 
@@ -532,10 +550,13 @@ export async function syncLegStatusFromWorkboardColumn(
   // parent request too, the reverse of closeLeg's own bookkeeping.
   const wasClosed = leg.status === "closed";
 
-  await supabase
+  // Surfaces database refusals (e.g. a hardware ticket still waiting on
+  // purchase approval) so the board can put the card back.
+  const { error: moveError } = await supabase
     .from("helpdesk_request_legs")
     .update({ status: params.targetStatus, closed_at: null, closed_by_employee_id: null })
     .eq("id", leg.id);
+  if (moveError) throw new Error(moveError.message);
 
   if (wasClosed) {
     const { error: reopenError } = await supabase

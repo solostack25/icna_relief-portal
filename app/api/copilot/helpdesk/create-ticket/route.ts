@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireCopilotAuth, lookupEmployeeByEmail } from "@/lib/copilotAuth";
+import { startHardwareApproval } from "@/lib/helpdeskHardware";
 
 const VALID_DEPARTMENTS = ["it", "hr", "marketing", "finance"];
 const VALID_PRIORITIES = ["low", "normal", "high", "urgent"];
@@ -50,20 +51,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: requestError?.message ?? "Could not create ticket" }, { status: 500 });
   }
 
-  const { error: legError } = await admin.from("helpdesk_request_legs").insert({
-    request_id: request.id,
-    department,
-    status: "open",
-    priority: resolvedPriority,
-    category: category?.trim() || null,
-  });
+  const { data: leg, error: legError } = await admin
+    .from("helpdesk_request_legs")
+    .insert({
+      request_id: request.id,
+      department,
+      status: "open",
+      priority: resolvedPriority,
+      category: category?.trim() || null,
+    })
+    .select("*")
+    .single();
 
-  if (legError) {
-    return NextResponse.json({ error: legError.message }, { status: 500 });
+  if (legError || !leg) {
+    return NextResponse.json({ error: legError?.message ?? "Could not create ticket" }, { status: 500 });
+  }
+
+  // Hardware purchases need supervisor + CIO/CSO approval first (the
+  // database gates the leg; this sends the first approval email).
+  let approvalNote = "";
+  if (leg.hardware_gate) {
+    await startHardwareApproval(leg.id).catch(() => null);
+    approvalNote = " It needs approval from their supervisor, then the CIO and CSO, before IT can purchase anything.";
   }
 
   return NextResponse.json({
     ticketId: request.id,
-    message: `Ticket created: "${title}" routed to ${department.toUpperCase()}, priority ${resolvedPriority}.`,
+    message: `Ticket created: "${title}" routed to ${department.toUpperCase()}, priority ${resolvedPriority}.${approvalNote}`,
   });
 }

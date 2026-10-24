@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import HardwareDetailsView, { type HardwareDetail } from "@/components/helpdesk/HardwareDetailsView";
 import { createClient } from "@/lib/supabase/client";
 import { DEPARTMENT_LABELS, LEG_STATUS_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
@@ -35,6 +36,9 @@ export default function LiveLegCard({
   currentUserId,
   requestTitle,
   submittedBy,
+  hardwareGate = false,
+  initialHardwareStatus = null,
+  hasInvoice = false,
 }: {
   legId: string;
   requestId: string;
@@ -53,9 +57,17 @@ export default function LiveLegCard({
   currentUserId: string;
   requestTitle: string;
   submittedBy: string;
+  /** Hardware Request purchase gate - see LegActions' hardwareLock. */
+  hardwareGate?: boolean;
+  initialHardwareStatus?: "pending" | "approved" | "denied" | null;
+  hasInvoice?: boolean;
 }) {
   const supabase = createClient();
   const [status, setStatus] = useState<LegStatus>(initialStatus);
+  const router = useRouter();
+  const [hwStatus, setHwStatus] = useState(initialHardwareStatus);
+  const hwStatusRef = useRef(initialHardwareStatus);
+  useEffect(() => setHwStatus(initialHardwareStatus), [initialHardwareStatus]);
 
   useEffect(() => {
     const channel = supabase
@@ -64,8 +76,18 @@ export default function LiveLegCard({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "helpdesk_request_legs", filter: `id=eq.${legId}` },
         (payload) => {
-          const next = payload.new as { status: LegStatus };
+          const next = payload.new as { status: LegStatus; hardware_approval_status?: "pending" | "approved" | "denied" | null };
           if (next?.status) setStatus(next.status);
+          if (next && "hardware_approval_status" in next) {
+            const hs = next.hardware_approval_status ?? null;
+            setHwStatus(hs);
+            // An approval decision landed while this page was open -
+            // refresh so the approval panel above shows it too.
+            if (hs !== hwStatusRef.current) {
+              hwStatusRef.current = hs;
+              router.refresh();
+            }
+          }
         }
       )
       .subscribe();
@@ -77,6 +99,7 @@ export default function LiveLegCard({
   }, [legId]);
 
   const isActive = status !== "closed" && status !== "handed_off";
+  const hardwareLock = hardwareGate ? (hwStatus === "pending" ? "pending" : hwStatus === "approved" && !hasInvoice ? "needs_invoice" : null) : null;
 
   return (
     <div
@@ -146,6 +169,7 @@ export default function LiveLegCard({
           assignedToEmployeeId={assignedToEmployeeId}
           theme="quest"
           legCreatedAt={legCreatedAt}
+          hardwareLock={hardwareLock}
         />
       )}
     </div>

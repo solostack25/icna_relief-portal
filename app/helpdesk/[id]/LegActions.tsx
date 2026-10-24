@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { handoffLeg, closeLeg, DEPARTMENT_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
+import { handoffLeg, closeLeg, friendlyLegError, DEPARTMENT_LABELS, type Department, type LegStatus } from "@/lib/helpdesk";
 
 const ALL_DEPARTMENTS: Department[] = ["it", "hr", "marketing", "finance"];
 
@@ -18,6 +18,7 @@ export default function LegActions({
   assignedToEmployeeId = null,
   theme = "plain",
   legCreatedAt,
+  hardwareLock = null,
 }: {
   legId: string;
   requestId: string;
@@ -29,6 +30,11 @@ export default function LegActions({
   assignedToEmployeeId?: string | null;
   theme?: "plain" | "quest";
   legCreatedAt?: string;
+  /** Hardware Request purchase gate: "pending" = waiting on approval (only
+   *  Open / On Hold allowed), "needs_invoice" = approved but no invoice yet
+   *  (can't close or hand off). The database enforces both; this just
+   *  explains it up front instead of on click. */
+  hardwareLock?: "pending" | "needs_invoice" | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -85,7 +91,7 @@ export default function LegActions({
       }
       router.refresh();
     } catch (e: any) {
-      setError(e.message ?? "Failed to update status");
+      setError(friendlyLegError(e.message ?? "Failed to update status"));
     } finally {
       setBusy(false);
     }
@@ -99,7 +105,7 @@ export default function LegActions({
       await handoffLeg(supabase, { legId, requestId, toDepartment: handoffTarget });
       router.refresh();
     } catch (e: any) {
-      setError(e.message ?? "Failed to hand off");
+      setError(friendlyLegError(e.message ?? "Failed to hand off"));
     } finally {
       setBusy(false);
     }
@@ -189,7 +195,7 @@ export default function LegActions({
       <div className="flex flex-wrap gap-2">
         {!isQuest && (
           <>
-            {status !== "in_progress" && (
+            {status !== "in_progress" && hardwareLock !== "pending" && (
               <button onClick={() => updateStatus("in_progress")} disabled={busy} className={btnCls}>
                 Mark In Progress
               </button>
@@ -199,17 +205,31 @@ export default function LegActions({
                 Put On Hold
               </button>
             )}
-            {department === "it" && status !== "quality_assurance" && (
+            {department === "it" && status !== "quality_assurance" && hardwareLock !== "pending" && (
               <button onClick={() => updateStatus("quality_assurance")} disabled={busy} className={btnCls}>
                 Move to Quality Assurance
               </button>
             )}
           </>
         )}
-        <button onClick={() => updateStatus("closed")} disabled={busy} className={primaryBtnCls} style={primaryBtnStyle}>
+        <button
+          onClick={() => updateStatus("closed")}
+          disabled={busy || !!hardwareLock}
+          title={hardwareLock === "pending" ? "Waiting on purchase approval" : hardwareLock === "needs_invoice" ? "Upload the invoice first" : undefined}
+          className={primaryBtnCls}
+          style={primaryBtnStyle}
+        >
           {isQuest ? "✓ Complete Quest" : "Close"}
         </button>
       </div>
+
+      {hardwareLock && (
+        <p className={isQuest ? "text-xs text-[#FFD36B]" : "text-xs text-amber-700"}>
+          {hardwareLock === "pending"
+            ? "🔒 Waiting on purchase approval (supervisor, then CIO and CSO). Don't buy anything yet. Until it's approved this ticket can only be Open or On Hold."
+            : "🧾 Approved. Upload the invoice above before closing or transferring this ticket."}
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         <select
@@ -224,7 +244,7 @@ export default function LegActions({
             </option>
           ))}
         </select>
-        <button onClick={submitHandoff} disabled={busy || !handoffTarget} className={primaryBtnCls} style={primaryBtnStyle}>
+        <button onClick={submitHandoff} disabled={busy || !handoffTarget || !!hardwareLock} className={primaryBtnCls} style={primaryBtnStyle}>
           Transfer
         </button>
       </div>
