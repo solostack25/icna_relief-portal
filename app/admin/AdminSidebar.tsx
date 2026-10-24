@@ -204,6 +204,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
         access.canManageFinance
           ? { href: "/admin/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" }
           : { href: "/finance-tickets", label: t("sidebar.nav.financeTickets"), icon: "finance" },
+        access.canManageFinance && { href: "/admin/amazon-business", label: t("sidebar.nav.amazonBusiness"), icon: "finance" },
         access.canZakatFinance && { href: "/admin/zakat-finance", label: t("sidebar.nav.zakatFinance"), icon: "finance" },
         access.canManageFinance && { href: "/admin/speaker-requests", label: t("sidebar.nav.speakerRequests"), icon: "finance" },
         { href: "/admin/workboards", label: t("sidebar.nav.workboards"), icon: "workboards" },

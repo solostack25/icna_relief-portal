@@ -122,7 +122,8 @@ export async function runHardwareCloseout(legId: string, actorEmployeeId: string
             office_id: detail?.office_id ?? grant.office_id,
             program: grant.program,
             kind: "purchase",
-            payment_method: inv.payment_method ?? "other",
+            // Grant Management has no "pay by invoice" method; Finance pays it as a vendor bill.
+            payment_method: !inv.payment_method || inv.payment_method === "pay_by_invoice" ? "other" : inv.payment_method,
             doc_required: true,
             status: autoApprove ? "approved" : "submitted",
             source: "manual",

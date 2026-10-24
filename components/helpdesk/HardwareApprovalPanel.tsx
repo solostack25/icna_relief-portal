@@ -5,6 +5,7 @@
 
 import HardwareResendButton from "./HardwareResendButton";
 import HardwareInvoices from "./HardwareInvoices";
+import AmazonOrderField from "./AmazonOrderField";
 
 export type HardwarePanelStep = {
   stage: "supervisor" | "executive";
@@ -38,6 +39,8 @@ export default function HardwareApprovalPanel({
   proposedAmount = null,
   budget = null,
   closeoutEmailedAt = null,
+  amazonOrderIds = [],
+  ticketNumber = null,
 }: {
   tone: "quest" | "plain";
   legId: string;
@@ -55,6 +58,9 @@ export default function HardwareApprovalPanel({
   budget?: number | null;
   /** When the requester was emailed the invoice after close. */
   closeoutEmailedAt?: string | null;
+  /** Amazon Business order numbers IT recorded on the ticket. */
+  amazonOrderIds?: string[];
+  ticketNumber?: string | null;
 }) {
   const quest = tone === "quest";
   const c = quest
@@ -172,6 +178,9 @@ export default function HardwareApprovalPanel({
       {approvalStatus !== "denied" && (
         <div style={{ marginTop: headline ? 12 : 0 }}>
           <div style={{ ...label, marginBottom: 6 }}>🧾 Invoice{gated ? " (required to close)" : ""}</div>
+          {(canUploadInvoice || amazonOrderIds.length > 0) && (
+            <AmazonOrderField legId={legId} ticketNumber={ticketNumber} initial={amazonOrderIds} tone={tone} canEdit={canUploadInvoice && !legClosed} />
+          )}
           <HardwareInvoices
             legId={legId}
             tone={tone}
