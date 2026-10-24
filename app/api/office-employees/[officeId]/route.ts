@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ offi
   if (key) {
     const person = await getOfficePerson(viewer.office, key);
     if (!person) return NextResponse.json({ error: "That person isn't in this office." }, { status: 404 });
-    const [assets, offboarding, keys] = await Promise.all([assetsFor(viewer.office, person), latestOffboarding(person.email), listOfficeKeys(officeId)]);
+    const [assets, offboarding, keys] = await Promise.all([assetsFor(viewer.office, person), latestOffboarding(person.email, person.entraId), listOfficeKeys(officeId)]);
     return NextResponse.json({
       office: { id: viewer.office.id, name: viewer.office.field_office },
       person,
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ offi
       assets: { ...assets, devicesFull: undefined },
       offboarding,
       availableKeys: keys.filter((k) => k.status === "active" && !k.holder).map((k) => ({ id: k.id, label: k.label, key_code: k.key_code })),
-      isSelf: person.email === viewer.email.toLowerCase(),
+      isSelf: person.email === viewer.email.toLowerCase() || (!!person.employeeId && person.employeeId === viewer.employeeId),
     });
   }
 
@@ -88,8 +88,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ officeI
         return NextResponse.json({ ok: true });
       }
       case "offboard": {
-        const person = await getOfficePerson(viewer.office, String(body.person ?? ""));
-        if (!person) return NextResponse.json({ error: "That person isn't in this office." }, { status: 404 });
+        // Strict: their Microsoft 365 Office must be this office.
+        const person = await getOfficePerson(viewer.office, String(body.person ?? ""), { strict: true });
+        if (!person) return NextResponse.json({ error: "That person isn't in this office in Microsoft 365, so they can't be offboarded from here." }, { status: 404 });
         if (String(body.confirmName ?? "").trim().toLowerCase() !== person.name.trim().toLowerCase()) {
           return NextResponse.json({ error: `Type ${person.name} exactly to confirm.` }, { status: 400 });
         }

@@ -27,6 +27,7 @@ type Data = {
     keys: { assignmentId: string; label: string; code: string | null; assignedAt: string }[];
   };
   offboarding: {
+    status: string;
     created_at: string;
     last_day: string | null;
     notes: string | null;
@@ -297,7 +298,9 @@ export default function EmployeeProfilePage() {
           <div className="mt-6">
             {data.offboarding ? (
               <Card style={{ borderColor: `${rose}44` }}>
-                <Eyebrow color={rose}>Offboarding</Eyebrow>
+                <Eyebrow color={data.offboarding.status === "completed" ? emerald : rose}>
+                  {data.offboarding.status === "completed" ? "Offboarded" : data.offboarding.status === "started" ? "Offboarding — starting" : "Offboarding in progress"}
+                </Eyebrow>
                 <p className="text-sm mt-0 mb-2" style={{ color: ink }}>
                   Started {day(data.offboarding.created_at)}
                   {data.offboarding.requested_by_name ? ` by ${data.offboarding.requested_by_name}` : ""} · last day {day(data.offboarding.last_day)}
@@ -312,8 +315,9 @@ export default function EmployeeProfilePage() {
                     <span style={{ color: data.offboarding.it_ticket?.overall_status === "closed" ? emerald : gold }}>· {data.offboarding.it_ticket?.overall_status === "closed" ? "done" : "open"}</span>
                   </div>
                   <div style={{ color: data.offboarding.signin_disabled_at ? emerald : rose }}>
-                    {data.offboarding.signin_disabled_at ? `Microsoft 365 sign-in disabled ${new Date(data.offboarding.signin_disabled_at).toLocaleString()}` : data.offboarding.signin_error ?? "Sign-in not disabled"}
+                    {data.offboarding.signin_disabled_at ? `Microsoft 365 sign-in disabled ${new Date(data.offboarding.signin_disabled_at).toLocaleString()}` : "Microsoft 365 sign-in not disabled — IT will handle it on their ticket"}
                   </div>
+                  {data.offboarding.signin_error ? <div style={{ color: gold }}>⚠ {data.offboarding.signin_error}</div> : null}
                 </div>
                 {assetCount > 0 && (
                   <p className="text-sm mt-3 mb-0" style={{ color: gold, fontWeight: 600 }}>

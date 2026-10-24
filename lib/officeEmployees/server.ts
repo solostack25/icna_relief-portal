@@ -9,7 +9,6 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getGraphToken } from "@/lib/msgraph";
-import { getManagedDepartments } from "@/lib/helpdesk";
 
 export type Office = { id: string; field_office: string; region: string | null; state: string | null; entra_office_names: string[] };
 export type OfficeViewer = {
@@ -35,7 +34,20 @@ export type Person = {
   phone: string | null;
   managerName: string | null;
   managerEmail: string | null;
+  /** The person's portal role, when they have a portal record. */
+  portalRole?: string | null;
+  /** More than one portal record matched - don't act on either. */
+  ambiguousPortal?: boolean;
 };
+
+// HR is the helpdesk-hr grant itself (an IT grant manages every queue,
+// but doesn't make someone HR for offboarding purposes).
+async function isHrEmployee(employeeId: string) {
+  const admin = createAdminClient();
+  const { data } = await admin.from("employee_program_access").select("program_slug").eq("employee_id", employeeId).eq("program_slug", "helpdesk-hr").limit(1);
+  return !!data?.length;
+}
+const esc = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 
@@ -59,8 +71,7 @@ export async function getOfficeViewer(officeId: string): Promise<OfficeViewer | 
   if (!office) return null;
 
   const isAdmin = me.role === "admin";
-  const depts = await getManagedDepartments(supabase, me.id, me.role);
-  const isHr = depts.includes("hr");
+  const isHr = isAdmin || (await isHrEmployee(me.id));
   const ok =
     isAdmin ||
     isHr ||
@@ -88,13 +99,12 @@ export async function officesForViewer(): Promise<{ offices: Pick<Office, "id" |
   const { data: me } = await supabase.from("employees").select("id, role, assigned_office_id, assigned_region").eq("auth_user_id", user.id).maybeSingle();
   if (!me) return { offices: [], scope: "none", ownOfficeId: null };
   const admin = createAdminClient();
-  const depts = await getManagedDepartments(supabase, me.id, me.role);
   let q = admin.from("b2s_offices").select("id, field_office, state, region, is_active").order("field_office");
   let scope: "all" | "region" | "own" | "none" = "none";
-  if (me.role === "admin" || depts.includes("hr")) scope = "all";
-  else if (me.role === "regional_director" && me.assigned_region) {
+  if (me.role === "admin" || (await isHrEmployee(me.id))) scope = "all";
+  else if (me.role === "regional_director" && me.assigned_region?.trim()) {
     scope = "region";
-    q = q.ilike("region", me.assigned_region.replace(/[\\%_]/g, (c: string) => `\\${c}`));
+    q = q.ilike("region", esc(me.assigned_region.trim()));
   } else if (me.role === "area_manager" && me.assigned_office_id) {
     scope = "own";
     q = q.eq("id", me.assigned_office_id);
@@ -157,23 +167,32 @@ export async function listOfficePeople(office: Office): Promise<{ people: Person
     warning = `Couldn't read Microsoft 365 right now, so only people assigned to this office in the portal are shown. (${e instanceof Error ? e.message : e})`;
   }
 
+  // Link portal records case-insensitively, by Microsoft 365 id first.
   const admin = createAdminClient();
-  const { data: portal } = await admin
-    .from("employees")
-    .select("id, first_name, last_name, email, job_title, ad_object_id, is_active, manager_email")
-    .eq("assigned_office_id", office.id);
-  for (const e of (portal ?? []) as any[]) {
-    const email = norm(e.email);
-    const existing = byEmail.get(email);
-    if (existing) {
-      existing.employeeId = e.id;
-      continue;
+  const { data: allPortal } = await admin.from("employees").select("id, first_name, last_name, email, job_title, ad_object_id, is_active, manager_email, assigned_office_id, role");
+  const portalRows = (allPortal ?? []) as any[];
+  const byAd = new Map(portalRows.filter((e) => e.ad_object_id).map((e) => [e.ad_object_id, e]));
+  const byMail = new Map<string, any[]>();
+  for (const e of portalRows) {
+    const k = norm(e.email);
+    if (k) byMail.set(k, [...(byMail.get(k) ?? []), e]);
+  }
+  for (const p of byEmail.values()) {
+    const hit = (p.entraId && byAd.get(p.entraId)) || (byMail.get(p.email)?.length === 1 ? byMail.get(p.email)![0] : null);
+    if (hit) {
+      p.employeeId = hit.id;
+      p.portalRole = hit.role ?? null;
     }
-    byEmail.set(email, {
+  }
+  const linked = new Set([...byEmail.values()].map((p) => p.employeeId).filter(Boolean));
+  for (const e of portalRows.filter((r) => r.assigned_office_id === office.id && !linked.has(r.id))) {
+    const email = norm(e.email);
+    // No email: key by the portal id so people don't collapse into one row.
+    byEmail.set(email || `p:${e.id}`, {
       key: e.ad_object_id || `p:${e.id}`,
       entraId: e.ad_object_id ?? null,
       employeeId: e.id,
-      name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim() || e.email,
+      name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim() || e.email || "Unnamed",
       email,
       jobTitle: e.job_title ?? null,
       department: null,
@@ -182,56 +201,81 @@ export async function listOfficePeople(office: Office): Promise<{ people: Person
       phone: null,
       managerName: null,
       managerEmail: e.manager_email ?? null,
+      portalRole: e.role ?? null,
     });
-  }
-  // Link portal records by email for people who came from Microsoft 365.
-  const missing = [...byEmail.values()].filter((p) => !p.employeeId).map((p) => p.email);
-  if (missing.length) {
-    for (let i = 0; i < missing.length; i += 200) {
-      const { data } = await admin.from("employees").select("id, email").in("email", missing.slice(i, i + 200));
-      for (const e of (data ?? []) as { id: string; email: string }[]) {
-        const p = byEmail.get(norm(e.email));
-        if (p) p.employeeId = e.id;
-      }
-    }
   }
   return { people: [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name)), warning };
 }
 
 // One person, verified to belong to this office.
-export async function getOfficePerson(office: Office, key: string): Promise<Person | null> {
+//   strict = true (used before offboarding): someone with a Microsoft 365
+//   account must have this office in their Microsoft 365 Office field - an
+//   out-of-date portal office assignment isn't enough to disable anyone.
+export async function getOfficePerson(office: Office, key: string, opts: { strict?: boolean } = {}): Promise<Person | null> {
   const admin = createAdminClient();
+  const names = officeNames(office).map((n) => n.toLowerCase());
+
+  const portalFor = async (entraId: string | null, email: string) => {
+    const filters = [entraId ? `ad_object_id.eq.${entraId}` : null, email ? `email.ilike.${esc(email)}` : null].filter(Boolean).join(",");
+    if (!filters) return { row: null as any, ambiguous: false };
+    const { data } = await admin.from("employees").select("*").or(filters).limit(3);
+    const rows = (data ?? []) as any[];
+    const exact = rows.find((r) => entraId && r.ad_object_id === entraId);
+    if (exact) return { row: exact, ambiguous: false };
+    return rows.length > 1 ? { row: null, ambiguous: true } : { row: rows[0] ?? null, ambiguous: false };
+  };
+  const fromPortal = (e: any): Person => ({
+    key: e.ad_object_id || `p:${e.id}`,
+    entraId: e.ad_object_id ?? null,
+    employeeId: e.id,
+    name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim() || e.email || "Unnamed",
+    email: norm(e.email),
+    jobTitle: e.job_title ?? null,
+    department: null,
+    officeLocation: null,
+    accountEnabled: e.is_active === false ? false : null,
+    phone: null,
+    managerName: null,
+    managerEmail: e.manager_email ?? null,
+    portalRole: e.role ?? null,
+  });
+
   if (key.startsWith("p:")) {
-    const { data: e } = await admin.from("employees").select("*").eq("id", key.slice(2)).maybeSingle();
-    if (!e || e.assigned_office_id !== office.id) return null;
-    return {
-      key,
-      entraId: e.ad_object_id ?? null,
-      employeeId: e.id,
-      name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim() || e.email,
-      email: norm(e.email),
-      jobTitle: e.job_title ?? null,
-      department: null,
-      officeLocation: null,
-      accountEnabled: e.is_active === false ? false : null,
-      phone: null,
-      managerName: null,
-      managerEmail: e.manager_email ?? null,
-    };
+    const id = key.slice(2);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    const { data: e } = await admin.from("employees").select("*").eq("id", id).maybeSingle();
+    if (!e) return null;
+    // Linked to Microsoft 365: always check it the Microsoft 365 way.
+    if (e.ad_object_id) return getOfficePerson(office, e.ad_object_id, opts);
+    if (e.assigned_office_id !== office.id) return null;
+    return fromPortal(e);
   }
   if (!/^[0-9a-f-]{36}$/i.test(key)) return null;
-  let u: any;
+
+  let u: any = null;
+  let graphDown = false;
   try {
-    u = await graph(`/users/${key}?$select=${SELECT}`);
-  } catch {
-    return null;
+    u = await graph(`/users/${key}?$select=${SELECT},onPremisesSyncEnabled`);
+  } catch (e) {
+    // A real "no such user" vs Microsoft 365 being unavailable.
+    graphDown = !/\((404|400)\)/.test(e instanceof Error ? e.message : "");
   }
+  if (!u) {
+    if (!graphDown || opts.strict) return null;
+    // Microsoft 365 is unavailable: fall back to the portal record (view only).
+    const { data: e } = await admin.from("employees").select("*").eq("ad_object_id", key).maybeSingle();
+    return e && e.assigned_office_id === office.id ? fromPortal(e) : null;
+  }
+
   const p = toPerson(u);
-  const names = officeNames(office).map(norm);
-  const { data: portalRow } = await admin.from("employees").select("id, assigned_office_id").ilike("email", p.email.replace(/[\\%_]/g, (c) => `\\${c}`)).maybeSingle();
-  const inOffice = names.includes(norm(p.officeLocation)) || portalRow?.assigned_office_id === office.id;
+  const { row, ambiguous } = await portalFor(p.entraId, p.email);
+  const m365Match = names.includes((p.officeLocation ?? "").toLowerCase());
+  const inOffice = opts.strict ? m365Match : m365Match || row?.assigned_office_id === office.id;
   if (!inOffice) return null;
-  p.employeeId = portalRow?.id ?? null;
+  p.employeeId = row?.id ?? null;
+  p.portalRole = row?.role ?? null;
+  p.ambiguousPortal = ambiguous;
+  (p as any).onPremisesSyncEnabled = !!u.onPremisesSyncEnabled;
   try {
     const m = await graph(`/users/${key}/manager?$select=displayName,mail,userPrincipalName`);
     p.managerName = m?.displayName ?? null;
@@ -249,7 +293,7 @@ export type Assets = {
   // IT gets the full device details on the offboarding ticket; the profile only shows the model.
   devicesFull: { model: string; serial: string | null; name: string | null; os: string | null }[];
   vehicles: { label: string; primary: boolean }[];
-  driver: { status: string } | null;
+  driver: { status: string | null } | null;
   pex: { count: number };
   keys: { assignmentId: string; keyId: string; label: string; code: string | null; assignedAt: string }[];
 };
@@ -301,14 +345,14 @@ export async function assetsFor(office: Office, person: Pick<Person, "email" | "
   const devRows = ((devices.data ?? []) as any[]).filter((d) => d.ownership !== "personal");
   const model = (d: any) => [d.manufacturer && !String(d.model ?? "").toLowerCase().startsWith(String(d.manufacturer).toLowerCase()) ? d.manufacturer : null, d.model].filter(Boolean).join(" ") || "Device (model unknown)";
 
-  const driverRows = ((drivers.data ?? []) as { id: string; status: string }[]).filter((d) => d.status !== "removed");
+  const driverRows = ((drivers.data ?? []) as { id: string; status: string | null }[]).filter((d) => d.status !== "removed");
   let vehicles: Assets["vehicles"] = [];
   if (driverRows.length) {
     const { data: veh } = await admin
       .from("res_vehicles")
       .select("year, make, model, primary_driver_id, status")
       .in("primary_driver_id", driverRows.map((d) => d.id))
-      .neq("status", "removed");
+      .or("status.is.null,status.neq.removed");
     vehicles = ((veh ?? []) as any[]).map((v) => ({ label: [v.year, v.make, v.model].filter(Boolean).join(" ") || "Vehicle", primary: true }));
   }
 
@@ -323,29 +367,17 @@ export async function assetsFor(office: Office, person: Pick<Person, "email" | "
   };
 }
 
-// Counts for the list page, in a handful of queries for the whole office.
+// Counts for the list page in one case-insensitive query (see the
+// office_asset_counts function in office_employees_migration.sql).
 export async function assetCounts(people: Person[]) {
   const admin = createAdminClient();
-  const emails = people.map((p) => p.email).filter(Boolean);
+  const emails = [...new Set(people.map((p) => p.email).filter(Boolean))];
   const counts = new Map<string, { tickets: number; devices: number; keys: number }>();
   for (const e of emails) counts.set(e, { tickets: 0, devices: 0, keys: 0 });
-  for (let i = 0; i < emails.length; i += 150) {
-    const chunk = emails.slice(i, i + 150);
-    const [t, d1, d2, k] = await Promise.all([
-      admin.from("helpdesk_requests").select("submitted_by_email").in("submitted_by_email", chunk).eq("overall_status", "open"),
-      admin.from("it_devices").select("owner_upn, ownership").in("owner_upn", chunk).is("removed_at", null),
-      admin.from("it_devices").select("primary_user_upn, owner_upn, ownership").in("primary_user_upn", chunk).is("removed_at", null),
-      admin.from("office_key_assignments").select("holder_email").in("holder_email", chunk).is("returned_at", null),
-    ]);
-    const bump = (email: string, field: "tickets" | "devices" | "keys") => {
-      const c = counts.get(norm(email));
-      if (c) c[field]++;
-    };
-    for (const r of (t.data ?? []) as any[]) bump(r.submitted_by_email, "tickets");
-    for (const r of (d1.data ?? []) as any[]) if (r.ownership !== "personal") bump(r.owner_upn, "devices");
-    // Don't double count a device whose owner and primary user are the same person.
-    for (const r of (d2.data ?? []) as any[]) if (r.ownership !== "personal" && norm(r.owner_upn) !== norm(r.primary_user_upn)) bump(r.primary_user_upn, "devices");
-    for (const r of (k.data ?? []) as any[]) bump(r.holder_email, "keys");
+  if (!emails.length) return counts;
+  const { data } = await admin.rpc("office_asset_counts", { p_emails: emails });
+  for (const r of (data ?? []) as { email: string; tickets: number; devices: number; keys: number }[]) {
+    counts.set(r.email, { tickets: r.tickets, devices: r.devices, keys: r.keys });
   }
   return counts;
 }

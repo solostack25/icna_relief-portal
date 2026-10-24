@@ -112,62 +112,48 @@ function assetChecklist(a: Assets, opts: { fullDevices: boolean }) {
   return lines.length ? lines.join("\n") : "Nothing on record in the portal.";
 }
 
+// Roles an area manager / regional director may offboard from an office
+// page. Anyone else (directors, HR, IT, admins) is offboarded by HR or an admin.
+const MANAGER_OFFBOARDABLE = new Set(["staff", "area_manager"]);
+
 export async function offboardEmployee(viewer: OfficeViewer, person: Person, input: { lastDay: string | null; notes: string | null }) {
   const admin = createAdminClient();
-  if (person.email === viewer.email.toLowerCase()) throw new Error("You can't offboard yourself.");
+  const email = (person.email ?? "").trim().toLowerCase();
+  if (!email) throw new Error("This person has no email address on record, so they can't be offboarded from here. Ask HR.");
+  if (email === viewer.email.toLowerCase() || (person.employeeId && person.employeeId === viewer.employeeId)) throw new Error("You can't offboard yourself.");
   if (input.lastDay && !/^\d{4}-\d{2}-\d{2}$/.test(input.lastDay)) throw new Error("Pick their last day.");
-
-  // Portal admins are offboarded by IT, not from an office page.
-  if (person.employeeId) {
-    const { data: e } = await admin.from("employees").select("role").eq("id", person.employeeId).maybeSingle();
-    if (e?.role === "admin" && !viewer.isAdmin) throw new Error("This person is a portal admin. Ask IT to offboard them.");
+  if (person.ambiguousPortal) throw new Error("More than one portal record matches this person, so IT needs to offboard them.");
+  if (person.portalRole === "admin" && !viewer.isAdmin) throw new Error("This person is a portal admin. Ask IT to offboard them.");
+  if (person.portalRole && !MANAGER_OFFBOARDABLE.has(person.portalRole) && !viewer.isAdmin && !viewer.isHr) {
+    throw new Error(`This person is a ${person.portalRole.replace(/_/g, " ")}, so HR offboards them.`);
   }
-  const { data: open } = await admin
-    .from("employee_offboardings")
-    .select("id, created_at")
-    .ilike("email", person.email.replace(/[\\%_]/g, (c) => `\\${c}`))
-    .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
-    .limit(1)
-    .maybeSingle();
-  if (open) throw new Error(`Offboarding was already started on ${new Date(open.created_at).toLocaleDateString()}.`);
 
   const assets = await assetsFor(viewer.office, person);
-  const now = new Date().toISOString();
 
-  // 1. Sign-in off first, so nothing else depends on it.
-  let signinDisabledAt: string | null = null;
-  let signinError: string | null = null;
-  if (person.entraId) {
-    try {
-      await graphPatch(`/users/${person.entraId}`, { accountEnabled: false });
-      signinDisabledAt = now;
-      // Sign them out of every device/app too. Not fatal if this one fails.
-      await graphPost(`/users/${person.entraId}/revokeSignInSessions`, {}).catch((e) => {
-        signinError = `Sign-in disabled, but signing them out everywhere failed: ${e instanceof Error ? e.message : e}`;
-      });
-    } catch (e) {
-      signinError = `Couldn't disable their Microsoft 365 sign-in: ${e instanceof Error ? e.message : e}`;
-    }
-  } else {
-    signinError = "No Microsoft 365 account is linked, so sign-in couldn't be disabled automatically.";
+  // 1. Claim it. The unique index allows one in-progress offboarding per
+  //    person, so a double-click or two managers at once can't both go.
+  const { data: claim, error: claimErr } = await admin
+    .from("employee_offboardings")
+    .insert({
+      office_id: viewer.office.id,
+      entra_user_id: person.entraId,
+      email,
+      full_name: person.name,
+      last_day: input.lastDay,
+      notes: input.notes,
+      assets,
+      requested_by: viewer.employeeId,
+      status: "started",
+    })
+    .select("id")
+    .single();
+  if (claimErr || !claim) {
+    if (claimErr?.code === "23505") throw new Error("Offboarding is already in progress for this person.");
+    throw new Error(`Couldn't start offboarding: ${claimErr?.message ?? "unknown error"}`);
   }
 
-  // Portal login too, if they have one.
-  let portalDisabledAt: string | null = null;
-  if (person.employeeId) {
-    const { data: e } = await admin.from("employees").select("auth_user_id").eq("id", person.employeeId).maybeSingle();
-    await admin.from("employees").update({ is_active: false }).eq("id", person.employeeId);
-    if (e?.auth_user_id) {
-      const { error } = await admin.auth.admin.updateUserById(e.auth_user_id, { ban_duration: "876000h" });
-      if (!error) portalDisabledAt = now;
-    } else portalDisabledAt = now;
-  }
-
-  const signinLine = signinDisabledAt
-    ? `Microsoft 365 sign-in was disabled and all sessions revoked at ${new Date(now).toLocaleString("en-US", { timeZone: "America/Chicago" })} CT.${signinError ? ` (${signinError})` : ""}`
-    : `⚠ ${signinError}`;
   const header = [
-    `Employee: ${person.name} (${person.email})`,
+    `Employee: ${person.name} (${email})`,
     person.jobTitle ? `Title: ${person.jobTitle}` : null,
     `Office: ${viewer.office.field_office}`,
     `Last day: ${fmtDate(input.lastDay)}`,
@@ -177,60 +163,109 @@ export async function offboardEmployee(viewer: OfficeViewer, person: Person, inp
     .filter(Boolean)
     .join("\n");
   const openTickets = assets.tickets.length ? assets.tickets.map((t) => `• ${t.ticket_number ?? ""} ${t.title}`).join("\n") : "None";
-
-  // 2. HR ticket: the official offboarding.
-  const hr = await createTicket(admin, {
-    by: viewer,
-    department: "hr",
-    category: "Offboarding",
-    priority: "high",
-    title: `Offboarding: ${person.name} — ${viewer.office.field_office}`,
-    description: `${header}\n\n${signinLine}\n\nCompany assets to collect:\n${assetChecklist(assets, { fullDevices: false })}\n\nTheir open Help Desk tickets:\n${openTickets}`,
-  });
-
-  // 3. IT ticket: accounts and devices.
-  const it = await createTicket(admin, {
-    by: viewer,
-    department: "it",
-    category: "Offboarding",
-    priority: "high",
-    title: `Offboarding (IT): ${person.name} — ${viewer.office.field_office}`,
-    description: `${header}\nHR ticket: ${hr.ticket_number ?? hr.id}\n\n${signinLine}\n\nIT to do:\n[ ] Confirm sign-in is disabled\n[ ] Remove licenses\n[ ] Hand mailbox / OneDrive to ${person.managerName ?? "their manager"}${
+  const hrBody = (signin: string) =>
+    `${header}\n\n${signin}\n\nCompany assets to collect:\n${assetChecklist(assets, { fullDevices: false })}\n\nTheir open Help Desk tickets:\n${openTickets}`;
+  const itBody = (signin: string, hrNumber: string) =>
+    `${header}\nHR ticket: ${hrNumber}\n\n${signin}\n\nIT to do:\n[ ] Confirm sign-in is disabled\n[ ] Remove licenses\n[ ] Hand mailbox / OneDrive to ${person.managerName ?? "their manager"}${
       person.managerEmail ? ` (${person.managerEmail})` : ""
     }\n[ ] Wipe/retire devices once returned\n\nDevices:\n${
       assets.devicesFull.length ? assets.devicesFull.map((d) => `[ ] ${d.model}${d.serial ? ` — serial ${d.serial}` : ""}${d.name ? ` (${d.name})` : ""}${d.os ? `, ${d.os}` : ""}`).join("\n") : "None on record."
-    }`,
-  });
+    }`;
 
-  const { data: row } = await admin
-    .from("employee_offboardings")
-    .insert({
-      office_id: viewer.office.id,
-      entra_user_id: person.entraId,
-      email: person.email,
-      full_name: person.name,
-      last_day: input.lastDay,
-      notes: input.notes,
-      assets,
-      requested_by: viewer.employeeId,
-      hr_request_id: hr.id,
-      it_request_id: it.id,
-      signin_disabled_at: signinDisabledAt,
-      signin_error: signinError,
-      portal_disabled_at: portalDisabledAt,
-    })
-    .select("id")
-    .single();
+  // 2. Tickets before anything is disabled, so nobody is ever locked out
+  //    without HR and IT knowing.
+  let hr: { id: string; ticket_number: string | null };
+  let it: { id: string; ticket_number: string | null };
+  try {
+    hr = await createTicket(admin, { by: viewer, department: "hr", category: "Offboarding", priority: "high", title: `Offboarding: ${person.name} — ${viewer.office.field_office}`, description: hrBody("Sign-in: being disabled…") });
+    try {
+      it = await createTicket(admin, {
+        by: viewer,
+        department: "it",
+        category: "Offboarding",
+        priority: "high",
+        title: `Offboarding (IT): ${person.name} — ${viewer.office.field_office}`,
+        description: itBody("Sign-in: being disabled…", hr.ticket_number ?? hr.id),
+      });
+    } catch (e) {
+      await admin.from("helpdesk_requests").delete().eq("id", hr.id);
+      throw e;
+    }
+  } catch (e) {
+    await admin.from("employee_offboardings").update({ status: "failed", signin_error: e instanceof Error ? e.message : String(e) }).eq("id", claim.id);
+    throw new Error(`Couldn't open the HR/IT tickets, so nothing was disabled. ${e instanceof Error ? e.message : ""}`.trim());
+  }
+  await admin.from("employee_offboardings").update({ hr_request_id: hr.id, it_request_id: it.id, status: "submitted" }).eq("id", claim.id);
 
-  return { id: row?.id ?? null, hrTicket: hr, itTicket: it, signinDisabled: !!signinDisabledAt, signinError };
+  // 3. Sign-in off.
+  const now = new Date().toISOString();
+  let signinDisabledAt: string | null = null;
+  const problems: string[] = [];
+  if (!person.entraId) {
+    problems.push("No Microsoft 365 account is linked, so sign-in couldn't be disabled automatically.");
+  } else if ((person as any).onPremisesSyncEnabled) {
+    problems.push("Their account syncs from on-premises Active Directory, so it has to be disabled there (Microsoft 365 won't allow it directly).");
+  } else {
+    try {
+      await graphPatch(`/users/${person.entraId}`, { accountEnabled: false });
+      signinDisabledAt = now;
+      try {
+        await graphPost(`/users/${person.entraId}/revokeSignInSessions`, {});
+      } catch (e) {
+        problems.push(`Sign-in disabled, but signing them out everywhere failed: ${e instanceof Error ? e.message : e}`);
+      }
+    } catch (e) {
+      problems.push(`Couldn't disable their Microsoft 365 sign-in: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  // 4. Portal login.
+  let portalDisabledAt: string | null = null;
+  if (person.employeeId) {
+    const { data: e } = await admin.from("employees").select("auth_user_id").eq("id", person.employeeId).maybeSingle();
+    const { error: actErr } = await admin.from("employees").update({ is_active: false }).eq("id", person.employeeId);
+    if (actErr) problems.push(`Couldn't deactivate their portal record: ${actErr.message}`);
+    if (e?.auth_user_id) {
+      const { error } = await admin.auth.admin.updateUserById(e.auth_user_id, { ban_duration: "876000h" });
+      if (error) problems.push(`Couldn't block their portal login: ${error.message}`);
+      else portalDisabledAt = now;
+    } else if (!actErr) portalDisabledAt = now;
+  }
+
+  // 5. Put the outcome on both tickets and the record.
+  const when = new Date(now).toLocaleString("en-US", { timeZone: "America/Chicago" });
+  const signinLine = [
+    signinDisabledAt ? `Microsoft 365 sign-in was disabled and sessions revoked at ${when} CT.` : null,
+    portalDisabledAt ? "Portal login blocked." : null,
+    ...problems.map((p) => `⚠ ${p}`),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  await Promise.all([
+    admin.from("helpdesk_requests").update({ description: hrBody(signinLine) }).eq("id", hr.id),
+    admin.from("helpdesk_requests").update({ description: itBody(signinLine, hr.ticket_number ?? hr.id) }).eq("id", it.id),
+    admin
+      .from("employee_offboardings")
+      .update({ signin_disabled_at: signinDisabledAt, signin_error: problems.length ? problems.join(" ") : null, portal_disabled_at: portalDisabledAt })
+      .eq("id", claim.id),
+  ]);
+
+  return { id: claim.id, hrTicket: hr, itTicket: it, signinDisabled: !!signinDisabledAt, signinError: problems.length ? problems.join(" ") : null };
 }
 
-export async function latestOffboarding(email: string) {
+// The person's offboarding to show on their profile: one in progress, or
+// one completed in the last 30 days. Older ones (e.g. before a rehire)
+// don't block offboarding them again.
+export async function latestOffboarding(email: string, entraId: string | null) {
   const admin = createAdminClient();
+  const e = (email ?? "").trim().toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`);
+  const or = [e ? `email.ilike.${e}` : null, entraId ? `entra_user_id.eq.${entraId}` : null].filter(Boolean).join(",");
+  if (!or) return null;
   const { data } = await admin
     .from("employee_offboardings")
-    .select("id, last_day, notes, created_at, signin_disabled_at, signin_error, hr_request_id, it_request_id, requested_by")
-    .ilike("email", email.replace(/[\\%_]/g, (c) => `\\${c}`))
+    .select("id, status, last_day, notes, created_at, completed_at, signin_disabled_at, signin_error, hr_request_id, it_request_id, requested_by")
+    .or(or)
+    .neq("status", "failed")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -241,8 +276,18 @@ export async function latestOffboarding(email: string) {
     data.requested_by ? admin.from("employees").select("first_name, last_name").eq("id", data.requested_by).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const t = new Map(((reqs ?? []) as any[]).map((r) => [r.id, r]));
+  let status = data.status as string;
+  let completedAt = data.completed_at as string | null;
+  if (status === "submitted" && ids.length === 2 && ids.every((id) => t.get(id)?.overall_status === "closed")) {
+    completedAt = new Date().toISOString();
+    status = "completed";
+    await admin.from("employee_offboardings").update({ status, completed_at: completedAt }).eq("id", data.id).eq("status", "submitted");
+  }
+  if (status === "completed" && completedAt && Date.now() - new Date(completedAt).getTime() > 30 * 86400000) return null;
   return {
     ...data,
+    status,
+    completed_at: completedAt,
     requested_by_name: by ? `${(by as any).first_name ?? ""} ${(by as any).last_name ?? ""}`.trim() : null,
     hr_ticket: data.hr_request_id ? t.get(data.hr_request_id) ?? null : null,
     it_ticket: data.it_request_id ? t.get(data.it_request_id) ?? null : null,

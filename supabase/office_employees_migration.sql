@@ -69,6 +69,34 @@ create table if not exists employee_offboardings (
 create index if not exists idx_offboardings_email on employee_offboardings (lower(email));
 alter table employee_offboardings enable row level security;
 
+-- started   - claimed, tickets being created / sign-in being disabled
+-- submitted - HR + IT tickets open
+-- completed - both tickets closed (set when someone next views it)
+-- failed    - the tickets couldn't be created (nobody was disabled)
+alter table employee_offboardings add column if not exists status text not null default 'started'
+  check (status in ('started', 'submitted', 'completed', 'failed'));
+alter table employee_offboardings add column if not exists completed_at timestamptz;
+-- One offboarding in progress per person, however they were reached
+-- (double-click, two tabs, two managers at once).
+create unique index if not exists offboardings_one_active_email on employee_offboardings (lower(email)) where status in ('started', 'submitted');
+create unique index if not exists offboardings_one_active_entra on employee_offboardings (entra_user_id) where status in ('started', 'submitted') and entra_user_id is not null;
+
+-- Case-insensitive asset counts for an office's list in one call
+-- (Intune and older portal emails are often mixed case).
+create or replace function office_asset_counts(p_emails text[])
+returns table (email text, tickets int, devices int, keys int)
+language sql stable set search_path = public as $$
+  with e as (select distinct lower(x) as email from unnest(p_emails) as x)
+  select e.email,
+    (select count(*)::int from helpdesk_requests r where lower(r.submitted_by_email) = e.email and r.overall_status = 'open'),
+    (select count(*)::int from it_devices d
+       where d.removed_at is null and coalesce(d.ownership, '') <> 'personal'
+         and (lower(d.owner_upn) = e.email or lower(d.primary_user_upn) = e.email)),
+    (select count(*)::int from office_key_assignments k where lower(k.holder_email) = e.email and k.returned_at is null)
+  from e;
+$$;
+revoke execute on function office_asset_counts(text[]) from public, anon, authenticated;
+
 create table if not exists employee_onboarding_requests (
   id uuid primary key default gen_random_uuid(),
   office_id uuid not null references b2s_offices(id) on delete cascade,
