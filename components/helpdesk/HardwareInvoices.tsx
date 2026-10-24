@@ -19,8 +19,8 @@ type Invoice = {
 type GrantCtx = { grantId: string; grantName: string; lines: { id: string; label: string }[]; suggested: string | null } | null;
 
 const PAID_BY: [string, string][] = [
-  ["pex", "PEX card"],
   ["corporate_card", "Corporate card"],
+  ["pex", "PEX card"],
   ["check", "Check"],
   ["ach", "ACH / wire"],
   ["reimbursement", "Employee reimbursement"],
@@ -66,7 +66,7 @@ export default function HardwareInvoices({
   const [file, setFile] = useState<File | null>(null);
   const [amount, setAmount] = useState("");
   const [vendor, setVendor] = useState("");
-  const [paidBy, setPaidBy] = useState("pex");
+  const [paidBy, setPaidBy] = useState("corporate_card");
   const [lineId, setLineId] = useState("");
 
   useEffect(() => {
