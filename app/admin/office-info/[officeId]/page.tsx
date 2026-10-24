@@ -56,6 +56,22 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
         Shortcode for this office&apos;s site: <code>[icna_office_info office_id=&quot;{office.id}&quot;]</code>
       </p>
 
+      <Link
+        href={`/admin/office-info/${office.id}/employees`}
+        className="flex items-center justify-between mb-4 transition hover:shadow-md"
+        style={{ background: "#fff", border: "1px solid rgba(22,48,43,0.1)", borderRadius: 14, padding: "18px 20px" }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, color: "#16302B" }}>Employees</div>
+          <div className="text-sm" style={{ color: "rgba(22,48,43,0.55)" }}>
+            Everyone in this office, what they&apos;ve been given (devices, keys, vehicles), new employee requests and offboarding
+          </div>
+        </div>
+        <span className="text-sm font-medium" style={{ color: "var(--portal-emerald)" }}>
+          Open →
+        </span>
+      </Link>
+
       {office.id === ORLANDO_OFFICE_ID && (
         // Orlando-only: the Houston_Automation duplicate lives inside the
         // portal and is launched from here (see lib/orlandoAutomation).

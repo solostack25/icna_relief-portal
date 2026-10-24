@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { officesForViewer } from "@/lib/officeEmployees/server";
 
 // Admins see every office and pick one to edit. Staff have exactly one
 // office they can touch (RLS enforces this anyway on save), so we skip
@@ -17,8 +18,34 @@ export default async function OfficeInfoIndexPage() {
   if (!me) redirect("/select-app");
 
   if (me.role !== "admin") {
-    if (me.role !== "area_manager" || !me.assigned_office_id) redirect("/select-app");
-    redirect(`/admin/office-info/${me.assigned_office_id}`);
+    if (me.role === "area_manager" && me.assigned_office_id) redirect(`/admin/office-info/${me.assigned_office_id}`);
+    // Regional directors (their region) and HR (every office) get the
+    // offices' Employees pages, not the full office editor.
+    const { offices, scope } = await officesForViewer();
+    if (scope === "none" || !offices.length) redirect("/select-app");
+    return (
+      <div>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, margin: "0 0 8px" }}>Office employees</h1>
+        <p className="text-sm mb-8" style={{ color: "rgba(22,48,43,0.55)" }}>
+          Pick an office to see its employees, what they&apos;ve been given, new employee requests and offboarding.
+        </p>
+        <div className="grid gap-2" style={{ maxWidth: 520 }}>
+          {offices.map((office) => (
+            <Link
+              key={office.id}
+              href={`/admin/office-info/${office.id}/employees`}
+              className="flex items-center justify-between px-4 py-3 rounded-lg border transition"
+              style={{ borderColor: "rgba(22,48,43,0.1)", background: "#fff" }}
+            >
+              <span style={{ fontWeight: 600 }}>{office.field_office}</span>
+              <span className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
+                {office.state}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const { data: offices } = await supabase

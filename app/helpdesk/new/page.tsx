@@ -36,7 +36,7 @@ const CATEGORIES: Record<Department, string[]> = {
     "New Employee",
     "App Issues",
   ],
-  hr: ["Hiring Request", "Position Change", "Offboarding", "Title Change", "Other"],
+  hr: ["Hiring Request", "New Employee Onboarding", "Position Change", "Offboarding", "Title Change", "Other"],
   marketing: ["Event Materials", "Email Campaign", "Graphic Design", "Website Content", "Other"],
   finance: ["Reimbursement", "Check Request", "PEX Card", "Vendor Payment", "Other"],
 };
