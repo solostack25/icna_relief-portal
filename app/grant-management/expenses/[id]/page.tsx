@@ -95,6 +95,16 @@ export default async function ExpensePage({ params, searchParams }: { params: Pr
             <Row k="Paid by" v={e.payment_method ? PAYMENT_METHOD_LABELS[e.payment_method] ?? e.payment_method : "—"} />
             <Row k="Office / program" v={[office?.field_office, e.program].filter(Boolean).join(" · ") || "—"} />
             {e.external_ref && <Row k="Reference" v={e.external_ref} />}
+            {e.helpdesk_request_id && (
+              <Row
+                k="IT ticket"
+                v={
+                  <Link href={`/helpdesk/${e.helpdesk_request_id}`} className="hover:underline" style={{ color: emerald, fontWeight: 600 }}>
+                    Open the hardware ticket →
+                  </Link>
+                }
+              />
+            )}
             <div className="text-sm mt-3" style={{ color: ink }}>
               <div className="text-xs mb-1" style={{ color: dim }}>
                 Business purpose

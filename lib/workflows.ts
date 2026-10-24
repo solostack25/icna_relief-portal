@@ -139,7 +139,12 @@ export const FLOWS: Flow[] = [
       },
       { key: "denied", title: "Denied", actor: "Any denial closes the ticket and emails the requester with the reason", branch: true },
       { key: "purchase", title: "Approved — IT purchases", actor: "The approved amount becomes the ticket's budget; IT buys and uploads the invoice", count: "hw_needs_invoice" },
-      { key: "closed", title: "Closed", actor: "Only once an invoice is attached" },
+      {
+        key: "closed",
+        title: "Closed",
+        actor: "Only once an invoice is attached (with its total, vendor and how it was paid)",
+        notify: "Requester emailed with the invoice attached; grant purchases post each invoice to the grant in Grant Management, invoice included",
+      },
     ],
     fixed: [
       "Until approved the ticket can only be Open or On Hold; the workboard and buttons can't move it further",

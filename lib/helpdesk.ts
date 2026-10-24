@@ -508,6 +508,18 @@ export async function closeLeg(
   }
 
   await syncWorkboardCardsToLegStatus(supabase, params.legId, "closed");
+
+  // Hardware purchase close-out: email the requester the invoice and
+  // post grant purchases to Grant Management. The server works out
+  // whether this ticket needs it; a failure shows on the ticket with a
+  // Retry button rather than failing the close.
+  if (params.department === "it" && typeof window !== "undefined") {
+    await fetch("/api/helpdesk/hardware-closeout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ legId: params.legId }),
+    }).catch(() => {});
+  }
 }
 
 // Keeps a linked ticket's status in sync with whichever workboard

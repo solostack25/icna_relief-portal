@@ -155,6 +155,7 @@ export default async function HelpdeskRequestPage({
         lineItems={hwState.items}
         proposedAmount={hwState.proposedAmount}
         budget={hwState.budget}
+        closeoutEmailedAt={(hwLeg as any).hardware_closeout_emailed_at ?? null}
       />
     ) : null;
 
