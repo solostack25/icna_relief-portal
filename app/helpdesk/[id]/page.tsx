@@ -120,7 +120,8 @@ export default async function HelpdeskRequestPage({
     null;
   const hwGated = !!(hwLeg as any)?.hardware_gate;
   const hwStatus = ((hwLeg as any)?.hardware_approval_status ?? null) as "pending" | "approved" | "denied" | null;
-  const hwState = hwLeg && hwGated ? await getHardwareState(hwLeg.id).catch(() => ({ steps: [], events: [] })) : { steps: [], events: [] };
+  const emptyHw = { steps: [], events: [], items: [], proposedAmount: null, budget: null };
+  const hwState = hwLeg && hwGated ? await getHardwareState(hwLeg.id).catch(() => emptyHw) : emptyHw;
   let hwHasInvoice = false;
   if (hwLeg) {
     const { count } = await supabase
@@ -151,6 +152,9 @@ export default async function HelpdeskRequestPage({
         canResend={managesIt || isSubmitter}
         canUploadInvoice={managesIt}
         legClosed={hwLeg.status === "closed" || hwLeg.status === "handed_off"}
+        lineItems={hwState.items}
+        proposedAmount={hwState.proposedAmount}
+        budget={hwState.budget}
       />
     ) : null;
 

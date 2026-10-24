@@ -15,7 +15,11 @@ export type HardwarePanelStep = {
   notes: string | null;
   decided_at: string | null;
   emailed_at: string | null;
+  approved_amount?: number | null;
 };
+export type HardwarePanelLineItem = { description: string; quantity: number; unit_price: number };
+
+const usd = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" }));
 export type HardwarePanelEvent = { kind: string; message: string; ok: boolean; created_at: string };
 
 const ROLE: Record<string, string> = { supervisor: "Direct supervisor", cio: "CIO", cso: "CSO" };
@@ -30,6 +34,9 @@ export default function HardwareApprovalPanel({
   canResend,
   canUploadInvoice,
   legClosed,
+  lineItems = [],
+  proposedAmount = null,
+  budget = null,
 }: {
   tone: "quest" | "plain";
   legId: string;
@@ -40,6 +47,11 @@ export default function HardwareApprovalPanel({
   canResend: boolean;
   canUploadInvoice: boolean;
   legClosed: boolean;
+  lineItems?: HardwarePanelLineItem[];
+  /** Supervisor's approved amount, waiting on the CIO/CSO. */
+  proposedAmount?: number | null;
+  /** Final approved budget. */
+  budget?: number | null;
 }) {
   const quest = tone === "quest";
   const c = quest
@@ -52,7 +64,7 @@ export default function HardwareApprovalPanel({
       : approvalStatus === "pending"
         ? { label: "Waiting on approval", color: c.wait, text: "Nothing can be purchased until the direct supervisor, then the CIO and CSO, approve." }
         : approvalStatus === "approved"
-          ? { label: "Approved", color: c.ok, text: "Approved to purchase. The invoice must be uploaded before this ticket can be closed." }
+          ? { label: "Approved", color: c.ok, text: "Approved to purchase within the budget below. The invoice must be uploaded before this ticket can be closed." }
           : approvalStatus === "denied"
             ? { label: "Denied", color: c.bad, text: "The purchase was denied, so the ticket was closed." }
             : null;
@@ -75,6 +87,15 @@ export default function HardwareApprovalPanel({
           </div>
           <p style={{ fontSize: 12.5, margin: "0 0 10px", color: c.dim }}>{headline.text}</p>
 
+          {(budget != null || (proposedAmount != null && approvalStatus === "pending")) && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={label}>{budget != null ? "Approved budget" : "Approved by supervisor, waiting on CIO/CSO"}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'IBM Plex Mono', monospace", color: budget != null ? c.ok : c.text }}>
+                {usd(budget ?? proposedAmount)}
+              </div>
+            </div>
+          )}
+
           {shown.length > 0 && (
             <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
               {shown.map((s, i) => (
@@ -92,6 +113,7 @@ export default function HardwareApprovalPanel({
                       }}
                     >
                       {s.decision === "superseded" ? "not needed" : s.decision}
+                      {s.approved_amount != null ? ` ${usd(s.approved_amount)}` : ""}
                       {s.decided_at ? ` · ${new Date(s.decided_at).toLocaleDateString()}` : ""}
                     </span>
                   </div>
@@ -122,6 +144,26 @@ export default function HardwareApprovalPanel({
 
           {approvalStatus === "pending" && canResend && <HardwareResendButton legId={legId} tone={tone} stuck={stuck} />}
         </>
+      )}
+
+      {lineItems.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ ...label, marginBottom: 6 }}>📦 Devices on this order</div>
+          <div style={{ display: "grid", gap: 4, fontSize: 12.5 }}>
+            {lineItems.map((l, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span>
+                  {l.description} <span style={{ color: c.dim }}>· {l.quantity} × {usd(l.unit_price)}</span>
+                </span>
+                <span style={{ fontWeight: 700 }}>{usd(l.quantity * l.unit_price)}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, borderTop: c.border, paddingTop: 4, fontWeight: 800 }}>
+              <span>Order total</span>
+              <span>{usd(Math.round(lineItems.reduce((s, l) => s + l.quantity * l.unit_price, 0) * 100) / 100)}</span>
+            </div>
+          </div>
+        </div>
       )}
 
       {approvalStatus !== "denied" && (

@@ -215,6 +215,8 @@ export async function createRequestWithFirstLeg(
     /** IT-only extra fields (e.g. a Hardware Request's shipping address
      *  and grant) - saved to helpdesk_leg_details_it with the first leg. */
     itDetails?: Record<string, unknown> | null;
+    /** Hardware Request grant orders: device / quantity / price each. */
+    lineItems?: { description: string; quantity: number; unit_price: number; sort_order: number }[];
   }
 ): Promise<{ requestId: string; legId: string; ticketNumber: string }> {
   const { data: request, error: requestError } = await supabase
@@ -254,6 +256,16 @@ export async function createRequestWithFirstLeg(
       // Legs cascade off the request; don't leave a ticket missing what was asked.
       await supabase.from("helpdesk_requests").delete().eq("id", request.id);
       throw new Error(detailsError.message);
+    }
+  }
+
+  if (params.lineItems?.length && params.department === "it") {
+    const { error: itemsError } = await supabase
+      .from("helpdesk_hardware_line_items")
+      .insert(params.lineItems.map((l) => ({ ...l, leg_id: leg.id })));
+    if (itemsError) {
+      await supabase.from("helpdesk_requests").delete().eq("id", request.id);
+      throw new Error(itemsError.message);
     }
   }
 

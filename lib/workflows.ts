@@ -119,18 +119,18 @@ export const FLOWS: Flow[] = [
       { label: "Manage tickets", href: "/admin/helpdesk/manage" },
     ],
     steps: [
-      { key: "submitted", title: "Submitted", actor: "Staff member picks IT → Hardware Request" },
+      { key: "submitted", title: "Submitted", actor: "Staff member picks IT → Hardware Request; grant orders can list each device with quantity and price each" },
       {
         key: "supervisor",
         title: "Direct supervisor",
-        actor: "The requester's manager in Microsoft 365, so a Regional or Program Director's request goes to whoever they report to",
+        actor: "The requester's manager in Microsoft 365 (so a Regional or Program Director's request goes to whoever they report to) sets the amount they're approving",
         notify: "Email with Approve / Deny (no login); IT or the requester can send a reminder from the ticket",
         count: "hw_pending_supervisor",
       },
       {
         key: "executive",
         title: "CIO + CSO",
-        actor: "Both at the same time; both must approve. If the supervisor was already the CIO or CSO, their one approval counts for both",
+        actor: "Both at the same time approve the supervisor's amount; both must approve. If the supervisor was already the CIO or CSO, their one approval counts for both",
         count: "hw_pending_executive",
         editors: [
           { kind: "setting", key: "wf_hardware_cio_email", label: "CIO approver email", type: "email" },
@@ -138,7 +138,7 @@ export const FLOWS: Flow[] = [
         ],
       },
       { key: "denied", title: "Denied", actor: "Any denial closes the ticket and emails the requester with the reason", branch: true },
-      { key: "purchase", title: "Approved — IT purchases", actor: "IT team buys and uploads the invoice to the ticket", count: "hw_needs_invoice" },
+      { key: "purchase", title: "Approved — IT purchases", actor: "The approved amount becomes the ticket's budget; IT buys and uploads the invoice", count: "hw_needs_invoice" },
       { key: "closed", title: "Closed", actor: "Only once an invoice is attached" },
     ],
     fixed: [

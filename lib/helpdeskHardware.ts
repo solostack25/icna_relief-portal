@@ -34,7 +34,13 @@ export type HardwareApproval = {
   decided_at: string | null;
   emailed_at: string | null;
   created_at: string;
+  approved_amount: number | string | null;
 };
+
+export type HardwareLineItem = { description: string; quantity: number; unit_price: number };
+export const usd = (n: number | string | null | undefined) =>
+  n == null || n === "" ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
+export const lineTotal = (items: HardwareLineItem[]) => Math.round(items.reduce((s, l) => s + l.quantity * l.unit_price, 0) * 100) / 100;
 
 export const ROLE_LABELS: Record<HardwareRole, string> = { supervisor: "Direct supervisor", cio: "CIO", cso: "CSO" };
 export const rolesLabel = (roles: HardwareRole[]) => roles.map((r) => ROLE_LABELS[r]).join(" + ");
@@ -47,13 +53,18 @@ type Ctx = {
   leg: { id: string; request_id: string; status: string; category: string | null; hardware_gate: boolean; hardware_approval_status: HardwareApprovalStatus | null };
   request: { id: string; ticket_number: string | null; title: string; description: string | null; submitted_by: string; submitted_by_email: string };
   detail: Record<string, any> | null;
+  items: HardwareLineItem[];
+  /** The supervisor's approved amount (what the CIO/CSO are approving). */
+  proposedAmount: number | null;
+  /** Final budget, set once everyone has approved. */
+  budget: number | null;
 };
 
 async function loadCtx(legId: string): Promise<Ctx> {
   const admin = createAdminClient();
   const { data: leg } = await admin
     .from("helpdesk_request_legs")
-    .select("id, request_id, status, category, hardware_gate, hardware_approval_status")
+    .select("*")
     .eq("id", legId)
     .maybeSingle();
   if (!leg) throw new Error("Ticket not found.");
@@ -63,7 +74,29 @@ async function loadCtx(legId: string): Promise<Ctx> {
     .eq("id", leg.request_id)
     .single();
   const { data: detail } = await admin.from("helpdesk_leg_details_it").select("*").eq("leg_id", legId).maybeSingle();
-  return { leg: leg as Ctx["leg"], request: request as Ctx["request"], detail: detail ?? null };
+  const { data: items } = await admin
+    .from("helpdesk_hardware_line_items")
+    .select("description, quantity, unit_price")
+    .eq("leg_id", legId)
+    .order("sort_order");
+  const { data: sup } = await admin
+    .from("helpdesk_hardware_approvals")
+    .select("approved_amount")
+    .eq("leg_id", legId)
+    .eq("stage", "supervisor")
+    .eq("decision", "approved")
+    .not("approved_amount", "is", null)
+    .order("decided_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return {
+    leg: leg as Ctx["leg"],
+    request: request as Ctx["request"],
+    detail: detail ?? null,
+    items: ((items ?? []) as any[]).map((i) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+    proposedAmount: sup?.approved_amount != null ? Number(sup.approved_amount) : null,
+    budget: (leg as any).hardware_approved_amount != null ? Number((leg as any).hardware_approved_amount) : null,
+  };
 }
 
 export async function logHardwareEvent(legId: string, kind: string, message: string, ok = true) {
@@ -107,7 +140,23 @@ function ticketRows(c: Ctx): [string, string][] {
   const city = [d.ship_city, [d.ship_state, d.ship_zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   if (d.ship_address_line1) rows.push(["Ship to", [d.ship_to_name, d.ship_address_line1, d.ship_address_line2, city].filter(Boolean).join(", ")]);
   rows.push(["Grant purchase", d.is_grant_purchase ? d.grant_name ?? "Yes" : "No"]);
+  if (c.items.length) rows.push(["Order total (requested)", usd(lineTotal(c.items))]);
+  if (c.budget != null) rows.push(["Approved budget", usd(c.budget)]);
+  else if (c.proposedAmount != null) rows.push(["Amount approved by supervisor", usd(c.proposedAmount)]);
   return rows;
+}
+
+function lineItemsHtml(c: Ctx) {
+  if (!c.items.length) return "";
+  const cell = "padding:6px 8px;border-bottom:1px solid #ECE8DE;font-size:13px;color:#16302B";
+  const rows = c.items
+    .map(
+      (l) =>
+        `<tr><td style="${cell}">${escapeHtml(l.description)}</td><td style="${cell};text-align:right">${l.quantity}</td><td style="${cell};text-align:right">${usd(l.unit_price)}</td><td style="${cell};text-align:right;font-weight:600">${usd(l.quantity * l.unit_price)}</td></tr>`
+    )
+    .join("");
+  const head = "padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6b7c77;text-align:right";
+  return `<table style="border-collapse:collapse;width:100%;margin:14px 0"><tr><th style="${head};text-align:left">Device</th><th style="${head}">Qty</th><th style="${head}">Each</th><th style="${head}">Total</th></tr>${rows}<tr><td colspan="3" style="${cell};text-align:right;font-weight:700">Order total</td><td style="${cell};text-align:right;font-weight:700">${usd(lineTotal(c.items))}</td></tr></table>`;
 }
 
 function descriptionHtml(c: Ctx) {
@@ -125,10 +174,12 @@ async function emailApprover(step: HardwareApproval, c: Ctx, isReminder = false)
       eyebrow: EYEBROW,
       heading: isReminder ? "Still waiting on your decision" : "A hardware purchase needs your approval",
       intro: `${escapeHtml(c.request.submitted_by)} asked IT for hardware. You're approving as <strong>${escapeHtml(rolesLabel(step.roles))}</strong>. ${
-        step.stage === "supervisor" ? "After you, it goes to the CIO and CSO." : "The CIO and CSO both have to approve before IT can buy it."
+        step.stage === "supervisor"
+          ? "Please set the amount you're approving. After you, it goes to the CIO and CSO."
+          : `The supervisor approved <strong>${usd(c.proposedAmount)}</strong>. The CIO and CSO both have to approve that amount before IT can buy it.`
       }`,
       rows: ticketRows(c),
-      extraHtml: descriptionHtml(c),
+      extraHtml: lineItemsHtml(c) + descriptionHtml(c),
       button: { label: "Review — Approve or Deny", href: link },
       footer: "This link works without logging in to the portal.",
     }),
@@ -261,7 +312,7 @@ async function advanceToExecutive(legId: string) {
   );
   const { data: inserted, error } = await admin.from("helpdesk_hardware_approvals").insert(rows).select("*");
   if (error) throw new Error(error.message);
-  await logHardwareEvent(legId, "escalated", `Supervisor approved. Now with ${rows.map((r) => `${r.approver_name} (${rolesLabel(r.roles as HardwareRole[])})`).join(" and ")}.`);
+  await logHardwareEvent(legId, "escalated", `Supervisor approved ${usd(c.proposedAmount)}. Now with ${rows.map((r) => `${r.approver_name} (${rolesLabel(r.roles as HardwareRole[])})`).join(" and ")}.`);
   for (const s of inserted ?? []) await emailApprover(s as HardwareApproval, c);
   return { outcome: "escalated" as const };
 }
@@ -269,9 +320,11 @@ async function advanceToExecutive(legId: string) {
 async function finalizeApproval(legId: string) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
+  // The supervisor's approved amount becomes the ticket's budget.
+  const before = await loadCtx(legId);
   const { data: moved } = await admin
     .from("helpdesk_request_legs")
-    .update({ hardware_approval_status: "approved", hardware_approved_at: now })
+    .update({ hardware_approval_status: "approved", hardware_approved_at: now, hardware_approved_amount: before.proposedAmount })
     .eq("id", legId)
     .eq("hardware_approval_status", "pending")
     .select("id")
@@ -289,7 +342,7 @@ async function finalizeApproval(legId: string) {
       .eq("leg_id", legId);
   }
 
-  await logHardwareEvent(legId, "approved", "Fully approved — IT can purchase. An invoice must be uploaded before the ticket can be closed.");
+  await logHardwareEvent(legId, "approved", `Fully approved with a budget of ${usd(c.budget)}. IT can purchase; an invoice must be uploaded before the ticket can be closed.`);
   const res = await sendPortalEmail({
     to: [c.request.submitted_by_email],
     cc: [await itMailbox()],
@@ -297,8 +350,9 @@ async function finalizeApproval(legId: string) {
     html: emailLayout({
       eyebrow: EYEBROW,
       heading: "Your hardware request is approved",
-      intro: "Your supervisor, the CIO and the CSO have approved it. IT will order the equipment and keep you posted on the ticket.",
+      intro: `Your supervisor, the CIO and the CSO have approved it with a budget of <strong>${usd(c.budget)}</strong>. IT will order the equipment and keep you posted on the ticket.`,
       rows: ticketRows(c),
+      extraHtml: lineItemsHtml(c),
       button: { label: "View ticket", href: `${siteUrl()}/helpdesk/${c.request.id}` },
     }),
   });
@@ -319,12 +373,28 @@ export async function getHardwareApprovalByToken(token: string) {
   return { step: step as HardwareApproval, ctx: c, steps };
 }
 
-export async function decideHardwareApproval(params: { token: string; decision: "approve" | "deny"; notes?: string }) {
+export async function decideHardwareApproval(params: { token: string; decision: "approve" | "deny"; notes?: string; amount?: number | null }) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
+
+  // The supervisor sets the amount they're approving; the CIO/CSO
+  // approve that amount as-is (deny with a note if it's wrong).
+  const { data: pre } = await admin.from("helpdesk_hardware_approvals").select("stage").eq("approval_token", params.token).maybeSingle();
+  let amount: number | null = null;
+  if (params.decision === "approve" && pre?.stage === "supervisor") {
+    amount = Math.round(Number(params.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter the amount you're approving.");
+    if (amount > 10_000_000) throw new Error("That amount looks too large. Check it and try again.");
+  }
+
   const { data: step } = await admin
     .from("helpdesk_hardware_approvals")
-    .update({ decision: params.decision === "approve" ? "approved" : "denied", notes: params.notes?.trim() || null, decided_at: now })
+    .update({
+      decision: params.decision === "approve" ? "approved" : "denied",
+      notes: params.notes?.trim() || null,
+      decided_at: now,
+      ...(amount != null ? { approved_amount: amount } : {}),
+    })
     .eq("approval_token", params.token)
     .eq("decision", "pending")
     .select("*")
@@ -340,7 +410,11 @@ export async function decideHardwareApproval(params: { token: string; decision: 
 
   if (params.decision === "deny") return denyHardware(s, c);
 
-  await logHardwareEvent(s.leg_id, "decision", `${s.approver_name} (${rolesLabel(s.roles)}) approved.${s.notes ? ` Note: ${s.notes}` : ""}`);
+  await logHardwareEvent(
+    s.leg_id,
+    "decision",
+    `${s.approver_name} (${rolesLabel(s.roles)}) approved${s.approved_amount != null ? ` ${usd(s.approved_amount)}` : ""}.${s.notes ? ` Note: ${s.notes}` : ""}`
+  );
 
   if (s.stage === "supervisor") return advanceToExecutive(s.leg_id);
 
@@ -425,8 +499,12 @@ export async function getHardwareState(legId: string) {
     listSteps(legId),
     admin.from("helpdesk_hardware_events").select("kind, message, ok, created_at").eq("leg_id", legId).order("created_at").then((r: { data: unknown[] | null }) => r.data ?? []),
   ]);
+  const c = await loadCtx(legId).catch(() => null);
   return {
-    steps: steps.map(({ approval_token: _t, ...rest }) => rest),
+    steps: steps.map(({ approval_token: _t, ...rest }) => ({ ...rest, approved_amount: rest.approved_amount != null ? Number(rest.approved_amount) : null })),
     events: events as { kind: string; message: string; ok: boolean; created_at: string }[],
+    items: c?.items ?? [],
+    proposedAmount: c?.proposedAmount ?? null,
+    budget: c?.budget ?? null,
   };
 }

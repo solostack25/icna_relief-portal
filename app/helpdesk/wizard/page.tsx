@@ -10,6 +10,7 @@ import HardwareRequestFields, {
   HARDWARE_CATEGORY,
   emptyHardware,
   hardwareDetails,
+  hardwareLineItems,
   useActiveGrants,
   validateHardware,
   type HardwareValue,
@@ -99,6 +100,7 @@ export default function HelpdeskWizardPage() {
         category: intent.category,
         priority,
         itDetails: isHardware ? hardwareDetails(hardware, grants) : null,
+        lineItems: isHardware ? hardwareLineItems(hardware) : [],
       });
 
       // Hardware purchases need supervisor + CIO/CSO approval before IT

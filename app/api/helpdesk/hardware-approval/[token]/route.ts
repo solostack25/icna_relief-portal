@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHardwareApprovalByToken, decideHardwareApproval, rolesLabel } from "@/lib/helpdeskHardware";
+import { getHardwareApprovalByToken, decideHardwareApproval, rolesLabel, lineTotal } from "@/lib/helpdeskHardware";
 
 export const maxDuration = 60;
 
@@ -24,10 +24,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       approval_status: ctx.leg.hardware_approval_status,
       ship_to: d.ship_address_line1 ? [d.ship_to_name, d.ship_address_line1, d.ship_address_line2, city].filter(Boolean).join("\n") : null,
       grant: d.is_grant_purchase ? d.grant_name ?? "Yes" : null,
+      line_items: ctx.items,
+      line_items_total: ctx.items.length ? lineTotal(ctx.items) : null,
+      supervisor_amount: ctx.proposedAmount,
+      budget: ctx.budget,
     },
     steps: steps
       .filter((s) => s.decision !== "superseded" || s.decided_at)
-      .map((s) => ({ stage: s.stage, roles: rolesLabel(s.roles), approver_name: s.approver_name, decision: s.decision, decided_at: s.decided_at, notes: s.notes })),
+      .map((s) => ({
+        stage: s.stage,
+        roles: rolesLabel(s.roles),
+        approver_name: s.approver_name,
+        decision: s.decision,
+        decided_at: s.decided_at,
+        notes: s.notes,
+        approved_amount: s.approved_amount != null ? Number(s.approved_amount) : null,
+      })),
   });
 }
 
@@ -41,7 +53,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: "Add a short reason when denying so the requester knows why." }, { status: 400 });
   }
   try {
-    const result = await decideHardwareApproval({ token, decision: body.decision, notes: body.notes });
+    const amount = body.amount === undefined || body.amount === null || body.amount === "" ? null : Number(String(body.amount).replace(/[$,\s]/g, ""));
+    const result = await decideHardwareApproval({ token, decision: body.decision, notes: body.notes, amount });
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Something went wrong" }, { status: 400 });

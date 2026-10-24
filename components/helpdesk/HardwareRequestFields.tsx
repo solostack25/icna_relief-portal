@@ -21,7 +21,28 @@ export type HardwareValue = {
   ship_zip: string;
   is_grant_purchase: "" | "yes" | "no";
   gm_grant_id: string;
+  /** Grant orders only: one row per device type. Strings while editing. */
+  line_items: HardwareLineDraft[];
 };
+
+export type HardwareLineDraft = { description: string; quantity: string; unit_price: string };
+const emptyLine = (): HardwareLineDraft => ({ description: "", quantity: "1", unit_price: "" });
+
+const lineIsBlank = (l: HardwareLineDraft) => !l.description.trim() && !l.unit_price.trim() && (!l.quantity.trim() || l.quantity.trim() === "1");
+const parseMoney = (s: string) => Number(s.replace(/[$,\s]/g, ""));
+export const money = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Filled rows, parsed. Blank rows are ignored.
+export function hardwareLineItems(v: HardwareValue) {
+  if (v.is_grant_purchase !== "yes") return [];
+  return v.line_items
+    .filter((l) => !lineIsBlank(l))
+    .map((l, i) => ({ description: l.description.trim(), quantity: Math.round(Number(l.quantity)), unit_price: Math.round(parseMoney(l.unit_price) * 100) / 100, sort_order: i }));
+}
+
+export function lineItemsTotal(items: { quantity: number; unit_price: number }[]) {
+  return Math.round(items.reduce((s, l) => s + l.quantity * l.unit_price, 0) * 100) / 100;
+}
 
 export const emptyHardware = (name = ""): HardwareValue => ({
   ship_to_name: name,
@@ -32,6 +53,7 @@ export const emptyHardware = (name = ""): HardwareValue => ({
   ship_zip: "",
   is_grant_purchase: "",
   gm_grant_id: "",
+  line_items: [emptyLine()],
 });
 
 export function validateHardware(v: HardwareValue, grants: HardwareGrant[]): string | null {
@@ -43,6 +65,17 @@ export function validateHardware(v: HardwareValue, grants: HardwareGrant[]): str
   if (!v.is_grant_purchase) return "Is this a grant-related purchase? Choose Yes or No.";
   if (v.is_grant_purchase === "yes" && grants.length > 0 && !grants.some((g) => g.id === v.gm_grant_id)) {
     return "Pick the grant this purchase is for.";
+  }
+  if (v.is_grant_purchase === "yes") {
+    for (const [i, l] of v.line_items.entries()) {
+      if (lineIsBlank(l)) continue;
+      const n = i + 1;
+      if (!l.description.trim()) return `Line ${n}: what device is it?`;
+      const q = Number(l.quantity);
+      if (!Number.isInteger(q) || q < 1) return `Line ${n}: quantity must be a whole number of at least 1.`;
+      const p = parseMoney(l.unit_price);
+      if (!l.unit_price.trim() || !Number.isFinite(p) || p < 0) return `Line ${n}: enter the price per device.`;
+    }
   }
   return null;
 }
@@ -222,6 +255,76 @@ export default function HardwareRequestFields({
               No active grants are set up in Grant Management yet. Name the grant in the description and IT will confirm it with the grant team.
             </p>
           ))}
+
+        {value.is_grant_purchase === "yes" && <LineItemsEditor items={value.line_items} onChange={(line_items) => set({ line_items })} />}
+      </div>
+    </div>
+  );
+}
+
+// Grant orders are often several devices at once: one row per device
+// type with quantity and price each, totalled for the approvers.
+function LineItemsEditor({ items, onChange }: { items: HardwareLineDraft[]; onChange: (items: HardwareLineDraft[]) => void }) {
+  const update = (i: number, patch: Partial<HardwareLineDraft>) => onChange(items.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const remove = (i: number) => onChange(items.length > 1 ? items.filter((_, j) => j !== i) : [emptyLine()]);
+  const lineTotal = (l: HardwareLineDraft) => {
+    const q = Number(l.quantity);
+    const p = parseMoney(l.unit_price);
+    return Number.isFinite(q) && Number.isFinite(p) && l.unit_price.trim() ? q * p : null;
+  };
+  const total = items.reduce((s, l) => s + (lineTotal(l) ?? 0), 0);
+
+  return (
+    <div className="mt-4">
+      <div className="text-sm font-semibold mb-1">Devices on this order</div>
+      <p className="text-xs text-[var(--color-text-dim)] mb-2">Add a line for each device type: what it is, how many, and the price for one.</p>
+      <div className="space-y-2">
+        {items.map((l, i) => {
+          const lt = lineTotal(l);
+          return (
+            <div key={i} className="rounded-lg border border-[var(--color-border)] p-2.5">
+              <div className="flex gap-2 items-start">
+                <input
+                  value={l.description}
+                  onChange={(e) => update(i, { description: e.target.value })}
+                  placeholder="Device, e.g. Dell Latitude 5450 laptop"
+                  className={inputCls}
+                  aria-label={`Line ${i + 1} device`}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="text-xs text-[var(--color-text-dim)] hover:text-red-600 px-2 py-2 cursor-pointer"
+                  aria-label={`Remove line ${i + 1}`}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-2 items-center">
+                <label className="text-xs text-[var(--color-text-dim)]">
+                  Qty
+                  <input value={l.quantity} onChange={(e) => update(i, { quantity: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" className={inputCls} />
+                </label>
+                <label className="text-xs text-[var(--color-text-dim)]">
+                  Price each
+                  <input value={l.unit_price} onChange={(e) => update(i, { unit_price: e.target.value })} inputMode="decimal" placeholder="$0.00" className={inputCls} />
+                </label>
+                <div className="text-xs text-[var(--color-text-dim)] text-right">
+                  Line total
+                  <div className="text-sm font-semibold text-[var(--color-text)] mt-1.5">{lt == null ? "—" : money(lt)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <button type="button" onClick={() => onChange([...items, emptyLine()])} className="text-xs font-medium text-[var(--color-accent)] hover:underline cursor-pointer">
+          + Add another device
+        </button>
+        <div className="text-sm">
+          Order total <span className="font-semibold">{money(total)}</span>
+        </div>
       </div>
     </div>
   );

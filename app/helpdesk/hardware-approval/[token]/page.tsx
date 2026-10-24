@@ -15,9 +15,15 @@ type Data = {
     approval_status: "pending" | "approved" | "denied" | null;
     ship_to: string | null;
     grant: string | null;
+    line_items: { description: string; quantity: number; unit_price: number }[];
+    line_items_total: number | null;
+    supervisor_amount: number | null;
+    budget: number | null;
   };
-  steps: { stage: string; roles: string; approver_name: string; decision: string; decided_at: string | null; notes: string | null }[];
+  steps: { stage: string; roles: string; approver_name: string; decision: string; decided_at: string | null; notes: string | null; approved_amount: number | null }[];
 };
+
+const usd = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" }));
 
 const OUTCOME_TEXT: Record<string, string> = {
   escalated: "Approved. It now goes to the CIO and CSO.",
@@ -33,6 +39,7 @@ export default function HardwareApprovalPage() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
 
@@ -42,6 +49,8 @@ export default function HardwareApprovalPage() {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error ?? "Couldn't load this approval.");
         setData(body);
+        // Start the supervisor from the requested order total, if there is one.
+        if (body.ticket?.line_items_total != null) setAmount(body.ticket.line_items_total.toFixed(2));
       })
       .catch((e) => setError(e.message));
   }, [token]);
@@ -51,12 +60,18 @@ export default function HardwareApprovalPage() {
       setError("Please add a short reason when denying.");
       return;
     }
+    const setsAmount = data?.step.stage === "supervisor";
+    const amt = Number(amount.replace(/[$,\s]/g, ""));
+    if (decision === "approve" && setsAmount && !(amt > 0)) {
+      setError("Enter the amount you're approving for this purchase.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const res = await fetch(`/api/helpdesk/hardware-approval/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, notes: notes.trim() || undefined }),
+      body: JSON.stringify({ decision, notes: notes.trim() || undefined, amount: setsAmount && decision === "approve" ? amt : undefined }),
     });
     const body = await res.json().catch(() => ({}));
     setSubmitting(false);
@@ -121,6 +136,43 @@ export default function HardwareApprovalPage() {
               )}
             </Card>
 
+            {t.line_items.length > 0 && (
+              <Card>
+                <Eyebrow>Devices on this order</Eyebrow>
+                <div className="text-sm">
+                  {t.line_items.map((l, i) => (
+                    <div key={i} className="flex justify-between gap-3 py-1.5" style={{ borderBottom: "1px solid #ECE8DE" }}>
+                      <span style={{ color: ink }}>
+                        {l.description}{" "}
+                        <span className="text-xs" style={{ color: faint }}>
+                          {l.quantity} × {usd(l.unit_price)}
+                        </span>
+                      </span>
+                      <span className="font-semibold" style={{ color: ink }}>
+                        {usd(l.quantity * l.unit_price)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-2 font-bold" style={{ color: ink }}>
+                    <span>Order total</span>
+                    <span>{usd(t.line_items_total)}</span>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {(t.budget != null || t.supervisor_amount != null) && (
+              <Card>
+                <Eyebrow>{t.budget != null ? "Approved budget" : "Amount approved by the supervisor"}</Eyebrow>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 30, color: ink }}>{usd(t.budget ?? t.supervisor_amount)}</div>
+                {t.budget == null && (
+                  <p className="text-xs mt-1 mb-0" style={{ color: dim }}>
+                    You&apos;re approving this amount. If it&apos;s wrong, deny with a note and the requester can resubmit.
+                  </p>
+                )}
+              </Card>
+            )}
+
             <Card>
               <Eyebrow>Approval trail</Eyebrow>
               <p className="text-xs mt-0 mb-2" style={{ color: dim }}>
@@ -136,6 +188,7 @@ export default function HardwareApprovalPage() {
                   </span>
                   <span className="text-xs font-bold" style={{ color: s.decision === "approved" ? emerald : s.decision === "denied" ? rose : gold }}>
                     {s.decision === "superseded" ? "not needed" : s.decision}
+                    {s.approved_amount != null ? ` · ${usd(s.approved_amount)}` : ""}
                   </span>
                 </div>
               ))}
@@ -162,6 +215,25 @@ export default function HardwareApprovalPage() {
               </Card>
             ) : (
               <Card>
+                {data.step.stage === "supervisor" && (
+                  <div className="mb-3">
+                    <label className="block text-sm font-semibold mb-1" style={{ color: ink }}>
+                      Amount you&apos;re approving *
+                    </label>
+                    <input
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="$0.00"
+                      style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace", fontSize: 18 }}
+                    />
+                    <p className="text-xs mt-1 mb-0" style={{ color: dim }}>
+                      {t.line_items_total != null
+                        ? `The requested order totals ${usd(t.line_items_total)}. Change it if you're approving a different amount.`
+                        : "The CIO and CSO will approve this amount, and it becomes the budget for the purchase."}
+                    </p>
+                  </div>
+                )}
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
