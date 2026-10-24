@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   const action = String(body.action ?? "");
 
   if (action === "sync") {
-    const r = await runAmazonSync({ trigger: "manual", startedBy: viewer.employeeId, days: Number(body.days) || 10, budgetMs: 240_000 });
+    const r = await runAmazonSync({ trigger: "manual", startedBy: viewer.employeeId, days: Number(body.days) || 10, budgetMs: 180_000 });
     return NextResponse.json(r, { status: r.ok ? 200 : 400 });
   }
 
@@ -98,6 +98,7 @@ export async function POST(req: Request) {
 
   try {
     if (action === "link") {
+      if (p.helpdesk_attachment_id) return NextResponse.json({ error: "This invoice is already attached to a ticket. Remove it there first." }, { status: 400 });
       const tn = ticketNumberFromPo(String(body.ticket ?? ""));
       if (!tn) return NextResponse.json({ error: "Enter a Help Desk ticket number, like HD-002703." }, { status: 400 });
       const { data: request } = await admin.from("helpdesk_requests").select("id").eq("ticket_number", tn).maybeSingle();
@@ -113,9 +114,9 @@ export async function POST(req: Request) {
       await admin
         .from("amzb_purchases")
         .update({ matched_request_id: request.id, matched_leg_id: leg.id, match_method: "manual", status: p.status === "sent_to_finance" ? p.status : "matched", handled_by: viewer.employeeId, note: null })
-        .eq("id", p.id);
-      const fresh = { ...p, matched_request_id: request.id, matched_leg_id: leg.id, status: "matched" } as AmzbPurchase;
-      const att = await attachToTicket(admin, fresh);
+        .eq("id", p.id)
+        .is("helpdesk_attachment_id", null);
+      const att = await attachToTicket(admin, p);
       return NextResponse.json({ ok: true, attached: att.ok, note: att.ok ? `Linked to ${tn} and the invoice was attached.` : `Linked to ${tn}. ${att.reason ?? ""}` });
     }
     if (action === "unlink") {

@@ -29,14 +29,25 @@ export async function POST(req: Request) {
   let linked = 0;
   let attached = 0;
   if (orderIds.length) {
-    const { data: rows } = await admin.from("amzb_purchases").select("*").overlaps("order_ids", orderIds).eq("transaction_type", "CHARGE").is("matched_leg_id", null);
+    const { data: rows } = await admin
+      .from("amzb_purchases")
+      .select("*")
+      .overlaps("order_ids", orderIds)
+      .eq("transaction_type", "CHARGE")
+      .neq("status", "ignored")
+      .is("matched_leg_id", null);
     for (const p of (rows ?? []) as AmzbPurchase[]) {
-      await admin
+      // Conditional, so a match the sync made a moment ago isn't overwritten.
+      const { data: claimed } = await admin
         .from("amzb_purchases")
         .update({ matched_leg_id: legId, matched_request_id: access.viewer.leg.request_id, match_method: "order_number", status: p.status === "sent_to_finance" ? p.status : "matched" })
-        .eq("id", p.id);
+        .eq("id", p.id)
+        .is("matched_leg_id", null)
+        .select("id")
+        .maybeSingle();
+      if (!claimed) continue;
       linked++;
-      if ((await attachToTicket(admin, { ...p, matched_leg_id: legId, matched_request_id: access.viewer.leg.request_id })).ok) attached++;
+      if ((await attachToTicket(admin, p)).ok) attached++;
     }
   }
   return NextResponse.json({ ok: true, orderIds, linked, attached });

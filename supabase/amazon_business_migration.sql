@@ -96,4 +96,22 @@ alter table helpdesk_attachments drop constraint if exists helpdesk_attachments_
 alter table helpdesk_attachments add constraint helpdesk_attachments_payment_method_check
   check (payment_method is null or payment_method in ('pex', 'corporate_card', 'check', 'ach', 'reimbursement', 'pay_by_invoice', 'other'));
 
-create unique index if not exists finance_tickets_amzb_uniq on amzb_purchases (finance_ticket_id) where finance_ticket_id is not null;
+-- Hard duplicate guards, so overlapping syncs / button clicks can't
+-- double up:
+--   * each Amazon transaction belongs to exactly one purchase
+--   * each purchase attaches to a ticket at most once
+--   * each purchase becomes at most one Finance ticket
+create table if not exists amzb_purchase_transactions (
+  transaction_id text primary key,
+  purchase_id uuid not null references amzb_purchases(id) on delete cascade
+);
+alter table amzb_purchase_transactions enable row level security;
+
+alter table helpdesk_attachments add column if not exists amzb_purchase_id uuid references amzb_purchases(id) on delete set null;
+create unique index if not exists helpdesk_attachments_amzb_uniq on helpdesk_attachments (amzb_purchase_id) where amzb_purchase_id is not null;
+
+create unique index if not exists finance_tickets_amzb_purchase_uniq on finance_tickets ((detail ->> 'amzb_purchase_id')) where detail ? 'amzb_purchase_id';
+
+-- Sending to Finance is claimed with an expiring timestamp, so a run
+-- that dies half way doesn't leave a purchase stuck.
+alter table amzb_purchases add column if not exists finance_claimed_at timestamptz;

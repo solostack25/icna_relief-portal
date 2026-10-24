@@ -56,7 +56,7 @@ export type AmzbPurchase = {
   transaction_date: string | null;
   buyer_name: string | null;
   buyer_email: string | null;
-  items: { title: string; quantity: number; unit_price: number | null; total: number | null; asin: string | null; order_id: string | null; po: string | null }[];
+  items: { title: string; quantity: number; unit_price: number | null; total: number | null; asin: string | null; order_id: string | null; po: string | null; txn?: string }[];
   pdf_status: string;
   pdf_report_id: string | null;
   pdf_storage_path: string | null;
@@ -71,8 +71,18 @@ export type AmzbPurchase = {
   payment_due_date: string | null;
   status: string;
   note: string | null;
+  finance_claimed_at?: string | null;
   raw: { transactions?: Record<string, number> } | null;
 };
+
+// Exact, case-insensitive email lookup (escape ilike's wildcards so
+// j_doe@ can't match jXdoe@).
+async function employeeIdByEmail(admin: Admin, email: string | null | undefined): Promise<string | null> {
+  if (!email) return null;
+  const pattern = email.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data } = await admin.from("employees").select("id").ilike("email", pattern).limit(1);
+  return (data?.[0] as { id: string } | undefined)?.id ?? null;
+}
 
 const num = (m?: { amount: string } | null) => (m?.amount != null && m.amount !== "" ? Number(m.amount) : null);
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -102,7 +112,7 @@ async function upsertPurchases(admin: Admin, cfg: AmzbConfig, txns: AmzbTransact
   let lookup = new Map<string, string>();
   if (needInvoice.length) lookup = await getInvoiceNumbers(cfg, needInvoice).catch(() => new Map());
 
-  type Draft = Omit<AmzbPurchase, "id" | "pdf_status" | "pdf_report_id" | "pdf_storage_path" | "pdf_error" | "pdf_attempts" | "matched_request_id" | "matched_leg_id" | "match_method" | "helpdesk_attachment_id" | "finance_ticket_id" | "payment_status" | "payment_due_date" | "status" | "note">;
+  type Draft = Omit<AmzbPurchase, "id" | "pdf_status" | "pdf_report_id" | "pdf_storage_path" | "pdf_error" | "pdf_attempts" | "matched_request_id" | "matched_leg_id" | "match_method" | "helpdesk_attachment_id" | "finance_ticket_id" | "payment_status" | "payment_due_date" | "status" | "note" | "finance_claimed_at">;
   const drafts = new Map<string, Draft>();
   for (const t of txns) {
     if (!t.transactionId) continue;
@@ -146,6 +156,7 @@ async function upsertPurchases(admin: Admin, cfg: AmzbConfig, txns: AmzbTransact
           asin: l.asin ?? null,
           order_id: l.orderId ?? null,
           po: l.purchaseOrderNumber ?? null,
+          txn: t.transactionId,
         });
       }
     }
@@ -153,41 +164,74 @@ async function upsertPurchases(admin: Admin, cfg: AmzbConfig, txns: AmzbTransact
   }
   if (!drafts.size) return { created: 0, updated: 0 };
 
-  const keys = [...drafts.keys()];
-  const existing = new Map<string, AmzbPurchase>();
-  for (let i = 0; i < keys.length; i += 200) {
-    const { data } = await admin.from("amzb_purchases").select("*").in("purchase_key", keys.slice(i, i + 200));
-    for (const row of (data ?? []) as AmzbPurchase[]) existing.set(row.purchase_key, row);
-  }
-
   let created = 0;
   let updated = 0;
   for (const d of drafts.values()) {
-    const prev = existing.get(d.purchase_key);
-    if (!prev) {
+    // Which purchase already owns these transactions? A transaction can
+    // first arrive without its invoice number and later with it, so the
+    // key alone isn't enough to recognise it (amzb_purchase_transactions
+    // is the hard guarantee: one transaction, one purchase).
+    const { data: owned } = await admin.from("amzb_purchase_transactions").select("transaction_id, purchase_id").in("transaction_id", d.transaction_ids);
+    const ownedIds = new Set((owned ?? []).map((o: { transaction_id: string }) => o.transaction_id));
+    let target: AmzbPurchase | null = null;
+    if (owned?.length) {
+      const { data } = await admin.from("amzb_purchases").select("*").eq("id", (owned[0] as { purchase_id: string }).purchase_id).maybeSingle();
+      target = (data as AmzbPurchase) ?? null;
+    }
+    if (!target) {
+      const { data } = await admin.from("amzb_purchases").select("*").eq("purchase_key", d.purchase_key).maybeSingle();
+      target = (data as AmzbPurchase) ?? null;
+    }
+
+    const fresh = d.transaction_ids.filter((id) => !ownedIds.has(id) && !(target?.transaction_ids ?? []).includes(id));
+
+    if (!target) {
       d.amount = r2(Object.values(d.raw!.transactions!).reduce((s, n) => s + n, 0));
-      const { error } = await admin.from("amzb_purchases").insert({ ...d, status: d.transaction_type === "CHARGE" ? "new" : "ignored", note: d.transaction_type === "CHARGE" ? null : "Refund / credit" });
-      if (!error) created++;
+      const charge = d.transaction_type === "CHARGE";
+      const { data: ins, error } = await admin
+        .from("amzb_purchases")
+        .insert({ ...d, status: charge ? "new" : "ignored", note: charge ? null : "Refund / credit" })
+        .select("id")
+        .single();
+      if (error || !ins) continue; // key taken by a concurrent run; the next sync merges it
+      const { error: ownErr } = await admin.from("amzb_purchase_transactions").insert(d.transaction_ids.map((transaction_id) => ({ transaction_id, purchase_id: ins.id })));
+      if (ownErr) {
+        // Another run claimed these transactions first - drop ours.
+        await admin.from("amzb_purchases").delete().eq("id", ins.id);
+        continue;
+      }
+      created++;
       continue;
     }
-    // Merge in any transactions we hadn't seen (a second shipment on the same invoice).
-    const known = new Set(prev.transaction_ids);
-    const fresh = d.transaction_ids.filter((id) => !known.has(id));
-    if (!fresh.length) continue;
-    const txMap = { ...(prev.raw?.transactions ?? {}), ...d.raw!.transactions! };
-    await admin
-      .from("amzb_purchases")
-      .update({
-        transaction_ids: [...prev.transaction_ids, ...fresh],
-        order_ids: [...new Set([...prev.order_ids, ...d.order_ids])],
-        po_numbers: [...new Set([...prev.po_numbers, ...d.po_numbers])],
-        items: [...(prev.items ?? []), ...d.items.filter((it) => !(prev.items ?? []).some((p) => p.asin === it.asin && p.order_id === it.order_id && p.quantity === it.quantity))],
-        amount: r2(Object.values(txMap).reduce((s, n) => s + n, 0)),
-        raw: { ...(prev.raw ?? {}), transactions: txMap },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", prev.id);
-    updated++;
+
+    // Known purchase: pick up a newly issued invoice number and any
+    // transactions (e.g. a second shipment) we hadn't seen.
+    const patch: Record<string, unknown> = {};
+    if (!target.invoice_number && d.invoice_number) patch.invoice_number = d.invoice_number;
+    if (fresh.length) {
+      const { error: ownErr } = await admin.from("amzb_purchase_transactions").insert(fresh.map((transaction_id) => ({ transaction_id, purchase_id: target!.id })));
+      if (!ownErr) {
+        const txMap = { ...(target.raw?.transactions ?? {}) };
+        for (const id of fresh) txMap[id] = d.raw!.transactions![id] ?? 0;
+        const amount = r2(Object.values(txMap).reduce((s, n) => s + n, 0));
+        patch.transaction_ids = [...target.transaction_ids, ...fresh];
+        patch.order_ids = [...new Set([...target.order_ids, ...d.order_ids])];
+        patch.po_numbers = [...new Set([...target.po_numbers, ...d.po_numbers])];
+        patch.items = [...(target.items ?? []), ...d.items.filter((it) => it.txn && fresh.includes(it.txn))];
+        patch.amount = amount;
+        patch.raw = { ...(target.raw ?? {}), transactions: txMap };
+        if (amount !== Number(target.amount) && (target.helpdesk_attachment_id || target.finance_ticket_id)) {
+          patch.note = `Amazon added another charge: the total changed from ${usd(target.amount)} to ${usd(amount)} after it was ${
+            target.finance_ticket_id ? "sent to Finance" : "attached to the ticket"
+          }. Check the ${target.finance_ticket_id ? "Finance ticket" : "ticket's invoice"} amount.`;
+        }
+      }
+    }
+    if (Object.keys(patch).length) {
+      patch.updated_at = new Date().toISOString();
+      await admin.from("amzb_purchases").update(patch).eq("id", target.id);
+      updated++;
+    }
   }
   return { created, updated };
 }
@@ -278,7 +322,10 @@ async function fetchPdfs(admin: Admin, cfg: AmzbConfig, deadline: number) {
       await admin.from("amzb_purchases").update({ pdf_status: "requested", pdf_report_id: reportId, pdf_attempts: p.pdf_attempts + 1, pdf_error: null }).eq("id", p.id);
     } catch (e) {
       failed++;
-      await admin.from("amzb_purchases").update({ pdf_error: e instanceof Error ? e.message : String(e), pdf_attempts: p.pdf_attempts + 1 }).eq("id", p.id);
+      await admin
+        .from("amzb_purchases")
+        .update({ pdf_status: p.pdf_attempts + 1 >= 6 ? "failed" : "pending", pdf_error: e instanceof Error ? e.message : String(e), pdf_attempts: p.pdf_attempts + 1 })
+        .eq("id", p.id);
     }
     await sleep(550);
   }
@@ -330,7 +377,10 @@ async function fetchPdfs(admin: Admin, cfg: AmzbConfig, deadline: number) {
 // ---------- 4. attach to the ticket ----------
 const PAYMENT_FOR_TICKET: Record<AmzbPurchase["payment_type"], string> = { pay_by_invoice: "pay_by_invoice", card: "corporate_card", other: "other" };
 
-export async function attachToTicket(admin: Admin, p: AmzbPurchase): Promise<{ ok: boolean; reason?: string }> {
+export async function attachToTicket(admin: Admin, stale: AmzbPurchase): Promise<{ ok: boolean; reason?: string }> {
+  // Always work from the current row, not whatever the caller loaded earlier.
+  const { data: freshRow } = await admin.from("amzb_purchases").select("*").eq("id", stale.id).maybeSingle();
+  const p = (freshRow as AmzbPurchase) ?? stale;
   if (!p.matched_leg_id || p.helpdesk_attachment_id) return { ok: false, reason: "Not matched or already attached." };
   if (p.pdf_status !== "ready" || !p.pdf_storage_path) return { ok: false, reason: "Waiting on the PDF from Amazon." };
   const { data: leg } = await admin.from("helpdesk_request_legs").select("id, request_id, status, hardware_gate, hardware_approval_status").eq("id", p.matched_leg_id).maybeSingle();
@@ -372,11 +422,18 @@ export async function attachToTicket(admin: Admin, p: AmzbPurchase): Promise<{ o
       amount: p.amount && p.amount > 0 ? p.amount : null,
       vendor: "Amazon Business",
       payment_method: PAYMENT_FOR_TICKET[p.payment_type],
+      amzb_purchase_id: p.id,
     })
     .select("id")
     .single();
   if (error || !att) {
     await admin.storage.from(INVOICE_BUCKET).remove([path]);
+    // Unique per purchase: another run attached it a moment ago.
+    if (error?.code === "23505") {
+      const { data: other } = await admin.from("helpdesk_attachments").select("id").eq("amzb_purchase_id", p.id).maybeSingle();
+      if (other) await admin.from("amzb_purchases").update({ helpdesk_attachment_id: other.id }).eq("id", p.id);
+      return { ok: false, reason: "Already attached." };
+    }
     return { ok: false, reason: error?.message ?? "Couldn't attach." };
   }
   await admin.from("amzb_purchases").update({ helpdesk_attachment_id: att.id, note: null, updated_at: new Date().toISOString() }).eq("id", p.id);
@@ -395,26 +452,24 @@ export async function sendToFinance(admin: Admin, p: AmzbPurchase, actorId: stri
   if (p.finance_ticket_id) return { ok: false, reason: "Already sent to Finance." };
   if (!(Number(p.amount) > 0)) return { ok: false, reason: "No amount to pay." };
 
-  // Claim it first so two runs can't both create a ticket.
+  // Claim it so two runs can't both create a ticket. The claim expires
+  // after 10 minutes, so a run that dies half way doesn't strand it.
+  const staleBefore = new Date(Date.now() - 10 * 60000).toISOString();
   const { data: claimed } = await admin
     .from("amzb_purchases")
-    .update({ status: "sent_to_finance", handled_by: actorId, updated_at: new Date().toISOString() })
+    .update({ finance_claimed_at: new Date().toISOString(), handled_by: actorId })
     .eq("id", p.id)
     .is("finance_ticket_id", null)
-    .neq("status", "sent_to_finance")
+    .or(`finance_claimed_at.is.null,finance_claimed_at.lt.${staleBefore}`)
     .select("id")
     .maybeSingle();
-  if (!claimed) return { ok: false, reason: "Already being sent to Finance." };
-  const revert = async () => admin.from("amzb_purchases").update({ status: p.status === "sent_to_finance" ? "new" : p.status }).eq("id", p.id);
+  if (!claimed) return { ok: false, reason: "Already being sent to Finance. Try again in a few minutes." };
+  const revert = async () => admin.from("amzb_purchases").update({ finance_claimed_at: null }).eq("id", p.id);
 
   try {
     // Who the ticket is under: the Amazon buyer, else the hardware
     // ticket's requester, else whoever clicked.
-    let requestorId: string | null = null;
-    if (p.buyer_email) {
-      const { data } = await admin.from("employees").select("id").ilike("email", p.buyer_email).maybeSingle();
-      requestorId = data?.id ?? null;
-    }
+    let requestorId: string | null = await employeeIdByEmail(admin, p.buyer_email);
     let hw: { leg: any; request: any; detail: any; approvals: { approver_name: string; roles: string[] }[] } | null = null;
     if (p.matched_leg_id) {
       const [{ data: leg }, { data: request }, { data: detail }, { data: approvals }] = await Promise.all([
@@ -424,10 +479,7 @@ export async function sendToFinance(admin: Admin, p: AmzbPurchase, actorId: stri
         admin.from("helpdesk_hardware_approvals").select("approver_name, roles").eq("leg_id", p.matched_leg_id).eq("decision", "approved").order("decided_at"),
       ]);
       hw = { leg, request, detail, approvals: (approvals ?? []) as { approver_name: string; roles: string[] }[] };
-      if (!requestorId && request?.submitted_by_email) {
-        const { data } = await admin.from("employees").select("id").ilike("email", request.submitted_by_email).maybeSingle();
-        requestorId = data?.id ?? null;
-      }
+      if (!requestorId) requestorId = await employeeIdByEmail(admin, request?.submitted_by_email);
     }
     requestorId = requestorId ?? actorId;
     if (!requestorId) {
@@ -487,8 +539,31 @@ export async function sendToFinance(admin: Admin, p: AmzbPurchase, actorId: stri
       })
       .select("id, ticket_number")
       .single();
-    if (tErr || !ticket) throw new Error(tErr?.message ?? "Couldn't create the finance ticket.");
-    await admin.from("amzb_purchases").update({ finance_ticket_id: ticket.id }).eq("id", p.id);
+    if (tErr || !ticket) {
+      await admin.from("finance_vendors").delete().eq("id", vendor.id);
+      // Unique per purchase: it already has a Finance ticket - link that one.
+      if (tErr?.code === "23505") {
+        const { data: existingTicket } = await admin.from("finance_tickets").select("id, ticket_number").eq("detail->>amzb_purchase_id", p.id).maybeSingle();
+        if (existingTicket) {
+          await admin.from("amzb_purchases").update({ finance_ticket_id: existingTicket.id, status: "sent_to_finance", finance_claimed_at: null }).eq("id", p.id);
+          return { ok: true, ticketNumber: existingTicket.ticket_number };
+        }
+      }
+      throw new Error(tErr?.message ?? "Couldn't create the finance ticket.");
+    }
+    const { error: linkErr } = await admin
+      .from("amzb_purchases")
+      .update({ finance_ticket_id: ticket.id, status: "sent_to_finance", finance_claimed_at: null, updated_at: new Date().toISOString() })
+      .eq("id", p.id);
+    if (linkErr) {
+      // Don't retry: the unique index would stop a duplicate anyway, but say so.
+      await admin.from("finance_ticket_log").insert({
+        finance_ticket_id: ticket.id,
+        comment: `Created from Amazon Business, but couldn't be linked back to the Amazon purchase (${linkErr.message}).`,
+        comment_type: "comment",
+        notify_user: false,
+      });
+    }
 
     // The PDF rides along as the ticket's receipt.
     if (p.pdf_storage_path) {
@@ -579,11 +654,22 @@ export async function runAmazonSync(opts: { trigger: "cron" | "manual"; startedB
     summary.pdfs = await fetchPdfs(admin, cfg, deadline);
 
     // Attach + Finance for everything matched that's ready.
-    const { data: ready } = await admin.from("amzb_purchases").select("*").eq("status", "matched").limit(200);
+    // Only rows that still need something (attaching, or a Finance ticket).
+    const { data: ready } = await admin
+      .from("amzb_purchases")
+      .select("*")
+      .eq("status", "matched")
+      .or("helpdesk_attachment_id.is.null,and(payment_type.eq.pay_by_invoice,finance_ticket_id.is.null)")
+      .order("transaction_date", { ascending: false })
+      .limit(200);
     let attached = 0;
     let financed = 0;
     const autoUnmatched = (await getIntegrationSetting("amazon_business_auto_finance_unmatched", "")) === "true";
+    // Leave time for these steps (and to finish the run record) inside the
+    // function's limit; anything left is picked up next sync.
+    const stepDeadline = started + (opts.budgetMs ?? 240_000) + 40_000;
     for (const p of (ready ?? []) as AmzbPurchase[]) {
+      if (Date.now() > stepDeadline) break;
       if (!p.helpdesk_attachment_id && (await attachToTicket(admin, p)).ok) attached++;
       if (p.payment_type === "pay_by_invoice" && !p.finance_ticket_id && p.pdf_status === "ready") {
         const { data: leg } = await admin.from("helpdesk_request_legs").select("hardware_gate, hardware_approval_status").eq("id", p.matched_leg_id).maybeSingle();
@@ -594,11 +680,14 @@ export async function runAmazonSync(opts: { trigger: "cron" | "manual"; startedB
     // Optional: unmatched Pay by Invoice purchases go to Finance on their own.
     if (autoUnmatched) {
       const { data: loose } = await admin.from("amzb_purchases").select("*").eq("status", "new").eq("payment_type", "pay_by_invoice").eq("pdf_status", "ready").limit(100);
-      for (const p of (loose ?? []) as AmzbPurchase[]) if ((await sendToFinance(admin, p, null)).ok) financed++;
+      for (const p of (loose ?? []) as AmzbPurchase[]) {
+        if (Date.now() > stepDeadline) break;
+        if ((await sendToFinance(admin, p, null)).ok) financed++;
+      }
     }
     summary.attached = attached;
     summary.sent_to_finance = financed;
-    summary.payment_status_changes = await refreshPaymentStatus(admin, cfg).catch((e) => `failed: ${e instanceof Error ? e.message : e}`);
+    summary.payment_status_changes = Date.now() < stepDeadline ? await refreshPaymentStatus(admin, cfg).catch((e) => `failed: ${e instanceof Error ? e.message : e}`) : "skipped (out of time)";
 
     if (run) await admin.from("amzb_sync_runs").update({ finished_at: new Date().toISOString(), ok: true, summary }).eq("id", run.id);
     return { ok: true as const, summary };
