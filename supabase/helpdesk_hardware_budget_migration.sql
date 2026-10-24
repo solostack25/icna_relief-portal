@@ -39,8 +39,10 @@ create policy "staff read hardware line items" on helpdesk_hardware_line_items
 
 -- Browsers can only add items to a ticket that hasn't been decided on
 -- by anyone yet, and can never change or remove them afterwards.
+-- security definer so the check can see approval steps the requester
+-- isn't allowed to read under RLS.
 create or replace function helpdesk_hardware_line_items_guard() returns trigger
-language plpgsql as $$
+language plpgsql security definer set search_path = public as $$
 begin
   if coalesce(auth.role(), '') in ('authenticated', 'anon') then
     -- Cascading delete of the whole ticket (e.g. a failed submit being
@@ -124,3 +126,10 @@ begin
   return new;
 end;
 $$;
+
+-- Hardening (Supabase security advisor): fixed search_path on the
+-- trigger functions, and the security-definer guard can't be called
+-- directly over the API (it only ever runs as a trigger).
+alter function helpdesk_hardware_gate() set search_path = public;
+alter function helpdesk_attachments_invoice_guard() set search_path = public;
+revoke execute on function helpdesk_hardware_line_items_guard() from public, anon, authenticated;
