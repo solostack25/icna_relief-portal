@@ -12,6 +12,7 @@ export type AdminAccess = {
   canZakatFinance: boolean;
   canManageDevices: boolean;
   hasOfficeInfo: boolean;
+  hasOfficeEmployees: boolean;
   hasAnyAccess: boolean;
 };
 
@@ -33,6 +34,8 @@ export async function getAdminAccess(
   // don't get manager-level access to it.
   const hasOfficeInfo = isAdmin || (role === "area_manager" && !!assignedOfficeId);
   const managedDepartments = await getManagedDepartments(supabase, employeeId, role);
+  // Office Employees pages: also regional directors (their region) and HR.
+  const hasOfficeEmployees = hasOfficeInfo || role === "regional_director" || managedDepartments.includes("hr");
   const canManageTickets = isAdmin || managedDepartments.length > 0;
   const canManageFinance = isAdmin || managedDepartments.includes("finance") || managedDepartments.includes("it");
   const canReview = isAdmin || role === "regional_director" || role === "program_director";
@@ -83,6 +86,7 @@ export async function getAdminAccess(
     canZakatFinance,
     canManageDevices,
     hasOfficeInfo,
+    hasOfficeEmployees,
     hasAnyAccess:
       isAdmin ||
       canManageTickets ||
@@ -93,6 +97,7 @@ export async function getAdminAccess(
       canReview ||
       canZakatFinance ||
       canManageDevices ||
-      hasOfficeInfo,
+      hasOfficeInfo ||
+      hasOfficeEmployees,
   };
 }

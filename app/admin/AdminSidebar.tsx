@@ -215,7 +215,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         access.canInkind && { href: "/admin/inkind", label: t("sidebar.nav.inkindAdmin"), icon: "inkind" },
         access.canReview && { href: "/admin/review", label: t("sidebar.nav.reviewSubmissions"), icon: "review" },
-        access.hasOfficeInfo && { href: "/admin/office-info", label: t("sidebar.nav.officeDashboard"), icon: "officeInfo" },
+        (access.hasOfficeInfo || access.hasOfficeEmployees) && { href: "/admin/office-info", label: t("sidebar.nav.officeDashboard"), icon: "officeInfo" },
         access.isAdmin && { href: "/admin/training", label: t("sidebar.nav.trainingCourses"), icon: "training" },
       ].filter(Boolean) as NavItem[],
     },
