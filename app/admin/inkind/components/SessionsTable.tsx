@@ -3,6 +3,50 @@
 import { useState } from "react";
 import type { DashboardSession } from "@/lib/inkind/fetchSessions";
 import { programBreakdownForSession } from "@/lib/inkind/fetchSessions";
+import type { SessionCharges } from "@/lib/inkind/foodBankCharges";
+
+const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Food bank invoices with charges (Orlando-style): where the grant credit
+// and the amount owed were posted, with a retry for whatever's missing.
+function ChargesPanel({ charges, posting, onPost, message }: { charges: SessionCharges; posting: boolean; onPost: () => void; message?: string }) {
+  const pending = charges.grant_credits.some((g) => !g.gm_expense_id) || (charges.amount_owed > 0 && !charges.finance_ticket_id);
+  return (
+    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-[11px] text-gray-700 max-w-[220px] space-y-1">
+      {charges.total_charges != null && <p className="text-gray-500">Billed {usd(charges.total_charges)}</p>}
+      {charges.grant_credits.map((g, i) => (
+        <p key={i}>
+          Grant {g.ref || g.label}: {usd(g.amount)}{" "}
+          {g.gm_expense_id ? (
+            <a href={`/grant-management/expenses/${g.gm_expense_id}`} className="text-brand-dark font-semibold underline">
+              ✓ {g.gm_grant_code ?? "posted"}
+            </a>
+          ) : (
+            <span className="text-amber-800">— {g.error ?? "not posted"}</span>
+          )}
+        </p>
+      ))}
+      {charges.amount_owed > 0 && (
+        <p>
+          Owed {usd(charges.amount_owed)}{" "}
+          {charges.finance_ticket_id ? (
+            <a href={`/finance-tickets/${charges.finance_ticket_id}`} className="text-brand-dark font-semibold underline">
+              ✓ {charges.finance_ticket_number ?? "ticket"}
+            </a>
+          ) : (
+            <span className="text-amber-800">— {charges.ticket_error ?? "no ticket yet"}</span>
+          )}
+        </p>
+      )}
+      {pending && (
+        <button onClick={onPost} disabled={posting} className="rounded-md bg-amber-600 px-2 py-1 font-semibold text-white disabled:opacity-50">
+          {posting ? "Posting…" : "Post charges"}
+        </button>
+      )}
+      {message && <p className="text-red-600">{message}</p>}
+    </div>
+  );
+}
 
 export default function SessionsTable({
   sessions,
@@ -15,6 +59,29 @@ export default function SessionsTable({
   const [errorForId, setErrorForId] = useState<Record<string, string>>({});
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendStatusForId, setResendStatusForId] = useState<Record<string, string>>({});
+  const [chargesForId, setChargesForId] = useState<Record<string, SessionCharges>>({});
+  const [postingChargesId, setPostingChargesId] = useState<string | null>(null);
+  const [chargeMsgForId, setChargeMsgForId] = useState<Record<string, string>>({});
+
+  async function postCharges(sessionId: string) {
+    setPostingChargesId(sessionId);
+    setChargeMsgForId((prev) => ({ ...prev, [sessionId]: "" }));
+    try {
+      const res = await fetch("/api/inkind-admin/food-bank/post-charges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (r.charges) setChargesForId((prev) => ({ ...prev, [sessionId]: r.charges }));
+      const msg = r.error ?? (r.warnings ?? []).join(" ");
+      if (msg) setChargeMsgForId((prev) => ({ ...prev, [sessionId]: msg }));
+    } catch (err: any) {
+      setChargeMsgForId((prev) => ({ ...prev, [sessionId]: err.message ?? "Failed" }));
+    } finally {
+      setPostingChargesId(null);
+    }
+  }
 
   async function resendEmail(sessionId: string) {
     setResendingId(sessionId);
@@ -59,6 +126,8 @@ export default function SessionsTable({
       } catch {
         result = { error: `HTTP ${res.status}: ${rawBody.slice(0, 150) || "(empty response)"}` };
       }
+      if (result.charges) setChargesForId((prev) => ({ ...prev, [sessionId]: result.charges }));
+      if (result.chargeWarnings?.length) setChargeMsgForId((prev) => ({ ...prev, [sessionId]: result.chargeWarnings.join(" ") }));
       if (result.success) {
         onSynced(sessionId);
         if (result.summary) setErrorForId((prev) => ({ ...prev, [sessionId]: result.summary }));
@@ -114,6 +183,14 @@ export default function SessionsTable({
                         <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
                           Food bank{s.vendor_invoice_number ? ` · #${s.vendor_invoice_number}` : ""}
                         </span>
+                      )}
+                      {(chargesForId[s.id] ?? s.charges) && (
+                        <ChargesPanel
+                          charges={(chargesForId[s.id] ?? s.charges)!}
+                          posting={postingChargesId === s.id}
+                          onPost={() => postCharges(s.id)}
+                          message={chargeMsgForId[s.id]}
+                        />
                       )}
                       <div className="flex flex-wrap gap-1 mt-1">
                         <a

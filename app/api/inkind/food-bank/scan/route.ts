@@ -7,6 +7,9 @@ import {
   MAX_INVOICE_PAGES,
   extractFoodBankInvoice,
   loadFoodCatalog,
+  loadOfficeFoodBanks,
+  matchFoodBank,
+  mappingFor,
 } from "@/lib/inkind/foodBank";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +44,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invoice photos must be JPEG/PNG under 8 MB" }, { status: 400 });
     }
   }
+  // A PDF invoice arrives as its pages rendered to images (for the AI)
+  // plus the original file (kept and attached everywhere) and its text.
+  const pdfFile = form.get("pdf");
+  const pdf = pdfFile instanceof File && pdfFile.size > 0 ? pdfFile : null;
+  if (pdf && (pdf.type !== "application/pdf" || pdf.size > 12 * 1024 * 1024)) {
+    return NextResponse.json({ error: "Invoice PDF must be under 12 MB" }, { status: 400 });
+  }
+  const pdfTextRaw = form.get("pdfText");
+  const pdfText = typeof pdfTextRaw === "string" ? pdfTextRaw.slice(0, 40000) : null;
 
   const sharp = (await import("sharp")).default;
   const scanId = randomUUID();
@@ -60,6 +72,14 @@ export async function POST(req: Request) {
     paths.push(path);
     dataUris.push(`data:image/jpeg;base64,${jpeg.toString("base64")}`);
   }
+  if (pdf) {
+    const path = `drafts/${scanId}/original.pdf`;
+    const { error: upErr } = await admin.storage
+      .from(FOOD_BANK_BUCKET)
+      .upload(path, Buffer.from(await pdf.arrayBuffer()), { contentType: "application/pdf" });
+    if (upErr) return NextResponse.json({ error: `Couldn't save the invoice PDF: ${upErr.message}` }, { status: 500 });
+    paths.push(path);
+  }
 
   const catalog = await loadFoodCatalog();
   if (catalog.length === 0) {
@@ -78,8 +98,21 @@ export async function POST(req: Request) {
   const knownFoodBanks = Array.from(new Set((prior ?? []).map((p: any) => p.donor_org_name as string)));
 
   try {
-    const extracted = await extractFoodBankInvoice(dataUris, catalog);
-    return NextResponse.json({ scanId, paths, extracted, catalog, knownFoodBanks });
+    const extracted = await extractFoodBankInvoice(dataUris, catalog, pdfText);
+    // How this office's food bank wants the invoice split.
+    const profiles = await loadOfficeFoodBanks(office.id);
+    const profile = matchFoodBank(profiles, extracted.food_bank_name);
+    const grantStatus = extracted.grant_credits.map((g) => ({ ref: g.ref, mapped: !!mappingFor(profile, g.ref, g.label) }));
+    return NextResponse.json({
+      scanId,
+      paths,
+      extracted,
+      catalog,
+      knownFoodBanks: Array.from(new Set([...profiles.map((p) => p.name), ...knownFoodBanks])),
+      profiles: profiles.map((p) => ({ id: p.id, name: p.name, inkind_rule: p.inkind_rule, track_charges: p.track_charges, has_requestor: !!p.ticket_requestor_id })),
+      profileId: profile?.id ?? null,
+      grantStatus,
+    });
   } catch (err: any) {
     await admin.storage.from(FOOD_BANK_BUCKET).remove(paths);
     return NextResponse.json({ error: err.message ?? "Couldn't read the invoice" }, { status: 502 });

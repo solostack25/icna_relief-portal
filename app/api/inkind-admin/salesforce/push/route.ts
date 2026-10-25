@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getInkindAccess } from "@/lib/inkind/access";
 import { pushSessionToSalesforce } from "@/lib/inkind/salesforce";
 import { loadInvoiceAttachments } from "@/lib/inkind/foodBank";
+import { chargesPending, postFoodBankCharges } from "@/lib/inkind/foodBankCharges";
 
 export async function POST(req: Request) {
   const access = await getInkindAccess();
@@ -59,5 +60,20 @@ export async function POST(req: Request) {
       .eq("id", sessionId);
   }
 
-  return NextResponse.json({ ...result, summary });
+  // Food bank intakes saved with "Save" (not pushed yet) also post their
+  // charges now: grant credit -> Grant Management, amount owed -> Vendor
+  // Payment ticket. Anything already posted is skipped.
+  let charges = session.charges ?? null;
+  let chargeWarnings: string[] = [];
+  if (chargesPending(charges)) {
+    try {
+      const r = await postFoodBankCharges(sessionId, access.employeeId);
+      charges = r.charges;
+      chargeWarnings = r.warnings;
+    } catch (e: any) {
+      chargeWarnings = [e.message ?? "Couldn't post the charges"];
+    }
+  }
+
+  return NextResponse.json({ ...result, summary, charges, chargeWarnings });
 }
