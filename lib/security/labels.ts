@@ -15,4 +15,7 @@ export const SEC_ACTION_LABELS: Record<string, string> = {
   scan_quick: "Quick antivirus scan",
   scan_full: "Full antivirus scan",
   update_signatures: "Updated antivirus definitions",
+  assign_office: "Assigned office in Entra",
+  disable_guests: "Disabled guest accounts",
+  enable_guests: "Re-enabled guest accounts",
 };

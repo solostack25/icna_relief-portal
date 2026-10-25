@@ -37,6 +37,16 @@ type GUser = {
   officeLocation?: string | null;
   department?: string | null;
   jobTitle?: string | null;
+  userType?: string | null;
+  mail?: string | null;
+  state?: string | null;
+  city?: string | null;
+  streetAddress?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  usageLocation?: string | null;
+  companyName?: string | null;
+  createdDateTime?: string | null;
   assignedLicenses?: { skuId: string; disabledPlans?: string[] }[];
   signInActivity?: { lastSignInDateTime?: string | null; lastNonInteractiveSignInDateTime?: string | null };
 };
@@ -139,7 +149,7 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
   const hasIntuneByUpn = new Map<string, boolean>();
   let usersOk = false;
   try {
-    const base = "/v1.0/users?$top=999&$select=id,userPrincipalName,displayName,accountEnabled,assignedLicenses,officeLocation,department,jobTitle";
+    const base = "/v1.0/users?$top=999&$select=id,userPrincipalName,displayName,accountEnabled,assignedLicenses,officeLocation,department,jobTitle,userType,mail,state,city,streetAddress,postalCode,country,usageLocation,companyName,createdDateTime";
     let users: GUser[];
     try {
       // signInActivity caps the page size well below the usual 999.
@@ -170,6 +180,18 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
         office_location: u.officeLocation?.trim() || null,
         department: u.department?.trim() || null,
         job_title: u.jobTitle?.trim() || null,
+        // Guests (#EXT# accounts from Teams/SharePoint sharing) are kept so the
+        // Directory cleanup page can disable them, but hidden everywhere else.
+        user_type: u.userType ?? (/#EXT#/i.test(u.userPrincipalName) ? "Guest" : "Member"),
+        mail: u.mail?.trim() || null,
+        state: u.state?.trim() || null,
+        city: u.city?.trim() || null,
+        street_address: u.streetAddress?.trim() || null,
+        postal_code: u.postalCode?.trim() || null,
+        country: u.country?.trim() || null,
+        usage_location: u.usageLocation?.trim() || null,
+        company_name: u.companyName?.trim() || null,
+        created_at_entra: u.createdDateTime ?? null,
         employee_id: empByObj.get(u.id) ?? empByUpn.get(lower(u.userPrincipalName)) ?? null,
         synced_at: now,
       };

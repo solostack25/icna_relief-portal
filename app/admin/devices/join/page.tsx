@@ -48,7 +48,7 @@ export default async function JoinTrackerPage() {
   type U = { upn: string; display_name: string | null; office_location: string | null; department: string | null; has_intune: boolean };
   const users: U[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data } = await admin.from("it_directory_users").select("upn, display_name, office_location, department, has_intune").range(from, from + 999);
+    const { data } = await admin.from("it_directory_users").select("upn, display_name, office_location, department, has_intune").not("upn", "ilike", "%#EXT#%").range(from, from + 999);
     users.push(...((data ?? []) as U[]));
     if (!data || data.length < 1000) break;
   }

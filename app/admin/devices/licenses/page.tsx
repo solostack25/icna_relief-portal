@@ -20,7 +20,7 @@ export default async function LicensesPage() {
   for (let from = 0; ; from += 1000) {
     const { data } = await admin
       .from("it_directory_users")
-      .select("entra_user_id, upn, display_name, account_enabled, sku_ids, has_intune, last_sign_in")
+      .select("entra_user_id, upn, display_name, account_enabled, sku_ids, has_intune, last_sign_in").not("upn", "ilike", "%#EXT#%")
       .range(from, from + 999);
     users.push(...((data ?? []) as DirUser[]));
     if (!data || data.length < 1000) break;
