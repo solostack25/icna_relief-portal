@@ -30,7 +30,7 @@ export type DirRow = {
 };
 
 type View = "needs" | "assigned" | "guests";
-type Result = { done: number; failed: { name: string; error: string }[]; skipped: number };
+type Result = { done: number; failed: { name: string; error: string }[]; skipped: number; diagnosis?: string[] };
 
 const days = (iso: string | null) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : Infinity);
 const guestEmail = (upn: string) => {
@@ -141,6 +141,7 @@ export default function DirectoryClient({ rows, offices }: { rows: DirRow[]; off
         total.done += r.done;
         total.failed.push(...r.failed);
         total.skipped += r.skipped;
+        if (r.diagnosis?.length && !total.diagnosis) total.diagnosis = r.diagnosis;
       }
       return total;
     });
@@ -245,6 +246,16 @@ export default function DirectoryClient({ rows, offices }: { rows: DirRow[]; off
           {result.skipped > 0 && ` Skipped ${result.skipped}.`}
           {result.failed.length > 0 && ` ${result.failed.length} failed: ${result.failed.slice(0, 3).map((f) => `${f.name} (${f.error})`).join("; ")}`}
         </p>
+      )}
+      {result?.diagnosis && result.diagnosis.length > 0 && (
+        <div style={{ ...card, background: "#FEF3C7", color: "#92400E", fontSize: 13, marginBottom: 12 }}>
+          <b>Why Entra said no:</b>
+          <ul style={{ margin: "6px 0 0 18px", listStyle: "disc" }}>
+            {result.diagnosis.map((d, i) => (
+              <li key={i} style={{ overflowWrap: "anywhere" }}>{d}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div style={{ display: "grid", gap: 8 }}>

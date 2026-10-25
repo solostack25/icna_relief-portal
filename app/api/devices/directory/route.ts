@@ -3,6 +3,7 @@ import { getDeviceViewer } from "@/lib/devices/access";
 import { gBatch } from "@/lib/devices/graph";
 import { logSecurityAction } from "@/lib/security/log";
 import { createAdminClient } from "@/lib/supabase/server";
+import { diagnoseUserWrite } from "@/lib/directory/diagnoseWrite";
 
 export const maxDuration = 300;
 
@@ -56,7 +57,9 @@ export async function POST(req: Request) {
       ok: failed.length === 0,
       detail: { office: office.field_office, officeLocation: locName, ok, failed },
     }).catch(() => {});
-    return NextResponse.json({ done: ok.length, failed, skipped: ids.length - targets.length });
+    const denied = targets.find((id) => /insufficient privileges|authorization_requestdenied/i.test(res.get(id)?.error ?? ""));
+    const diagnosis = denied ? await diagnoseUserWrite(denied).catch(() => []) : undefined;
+    return NextResponse.json({ done: ok.length, failed, skipped: ids.length - targets.length, diagnosis });
   }
 
   if (action === "disable" || action === "enable") {
