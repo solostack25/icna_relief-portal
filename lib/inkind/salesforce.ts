@@ -111,12 +111,13 @@ async function sfAttachFile(
   auth: SalesforceAuth,
   recordId: string,
   filename: string,
-  pdfBytes: Uint8Array
+  bytes: Uint8Array,
+  ext = "pdf"
 ): Promise<void> {
   const versionId = await sfCreate(auth, "ContentVersion", {
     Title: filename,
-    PathOnClient: `${filename}.pdf`,
-    VersionData: Buffer.from(pdfBytes).toString("base64"),
+    PathOnClient: `${filename}.${ext}`,
+    VersionData: Buffer.from(bytes).toString("base64"),
   });
 
   // The ContentDocumentId isn't returned by the create call — look it
@@ -156,7 +157,10 @@ async function sfAttachFile(
 export async function pushSessionToSalesforce(
   session: SessionForSync,
   donor: DonorForSync,
-  lines: DonationLineForSync[]
+  lines: DonationLineForSync[],
+  // Extra files attached to every header this session produces — e.g.
+  // the food bank's invoice photos for a food bank intake.
+  extraFiles: { filename: string; ext: string; bytes: Uint8Array }[] = []
 ): Promise<{ success: boolean; results: ProgramPushResult[]; error?: string }> {
   if (!isSalesforceConfigured()) {
     return {
@@ -290,6 +294,13 @@ export async function pushSessionToSalesforce(
         await sfAttachFile(auth, headerId, invoiceNumber, pdfBytes);
       } catch (err: any) {
         attachError = `Invoice PDF attachment failed: ${err.message ?? err}`;
+      }
+      for (const f of extraFiles) {
+        try {
+          await sfAttachFile(auth, headerId, f.filename, f.bytes, f.ext);
+        } catch (err: any) {
+          attachError = [attachError, `${f.filename} attachment failed: ${err.message ?? err}`].filter(Boolean).join(" | ");
+        }
       }
 
       results.push({

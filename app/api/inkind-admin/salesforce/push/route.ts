@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getInkindAccess } from "@/lib/inkind/access";
 import { pushSessionToSalesforce } from "@/lib/inkind/salesforce";
+import { loadInvoiceAttachments } from "@/lib/inkind/foodBank";
 
 export async function POST(req: Request) {
   const access = await getInkindAccess();
@@ -32,7 +33,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: sessionError?.message ?? "Session not found" }, { status: 404 });
   }
 
-  const result = await pushSessionToSalesforce(session, donor ?? null, donations ?? []);
+  // Food bank intakes carry the food bank's invoice photos onto the header.
+  const extraFiles = await loadInvoiceAttachments(session.invoice_image_paths, session.invoice_id ?? session.id.slice(0, 8));
+  const result = await pushSessionToSalesforce(session, donor ?? null, donations ?? [], extraFiles);
 
   const summary = result.results
     .map((r) => (r.success ? `${r.program}: ✓${r.error ? ` (${r.error})` : ""}` : `${r.program}: ✗ ${r.error}`))

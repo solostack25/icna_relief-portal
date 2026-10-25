@@ -318,3 +318,64 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
   const data = await res.json();
   return data.text as string;
 }
+
+/**
+ * Multi-image vision call that returns parsed JSON - used to read food
+ * bank invoices (one photo per page). Uses azure_openai_vision_deployment
+ * when set, otherwise the main chat deployment (which must then be a
+ * vision-capable model such as gpt-4o / gpt-4.1). Images are passed as
+ * data: URIs so nothing has to be publicly hosted.
+ */
+export async function extractJsonFromImages<T = unknown>(
+  imageDataUris: string[],
+  systemPrompt: string,
+  userPrompt: string
+): Promise<T> {
+  const config = await getAzureConfig();
+  if (!config) {
+    throw new Error(
+      "Azure OpenAI isn't configured yet. Set endpoint, API key, and deployment name in Admin > Connectors."
+    );
+  }
+  const visionDeployment =
+    (await getIntegrationSetting("azure_openai_vision_deployment", process.env.AZURE_OPENAI_VISION_DEPLOYMENT)) ??
+    config.deployment;
+
+  const url = `${config.endpoint}/openai/deployments/${visionDeployment}/chat/completions?api-version=${config.apiVersion}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "api-key": config.apiKey },
+    body: JSON.stringify({
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt },
+            ...imageDataUris.map((u) => ({ type: "image_url", image_url: { url: u, detail: "high" } })),
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 8000,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    const contentFilterError = parseContentFilterError(res.status, errText);
+    if (contentFilterError) throw contentFilterError;
+    throw new Error(`Azure OpenAI vision request failed (${res.status}): ${errText || res.statusText}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Azure OpenAI returned nothing for the invoice.");
+  try {
+    return JSON.parse(content) as T;
+  } catch {
+    throw new Error("Couldn't read the AI's response for this invoice. Try a clearer photo.");
+  }
+}

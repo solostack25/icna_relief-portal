@@ -69,6 +69,13 @@ export default function HomePage() {
             <span className="block text-xl font-semibold">{loading ? "Starting..." : "In-Kind Items"}</span>
             <span className="block text-sm text-gray-500">Goods scanned into inventory</span>
           </button>
+          <button
+            onClick={() => router.push("/inkind/food-bank")}
+            className="tap-target w-full rounded-2xl border-2 border-brand bg-white px-8 py-6 text-left text-brand-dark shadow-lg active:scale-95 transition"
+          >
+            <span className="block text-xl font-semibold">Food Bank Delivery</span>
+            <span className="block text-sm text-gray-500">Photo of the food bank invoice — no donor screen</span>
+          </button>
           <button onClick={() => setChoosing(false)} className="text-sm text-gray-500 underline">
             Back
           </button>
