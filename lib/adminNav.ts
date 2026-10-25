@@ -59,10 +59,11 @@ export const HUBS = {
         a.isAdmin && { href: "/admin/employees", labelKey: "sidebar.nav.employees" },
         a.isAdmin && { href: "/admin/employees/new", labelKey: "sidebar.nav.setUpPortalAccess" },
         a.isAdmin && { href: "/admin/entra-directory", labelKey: "sidebar.nav.entraDirectory" },
+        (a.isAdmin || a.canManageDevices) && { href: "/admin/directory-cleanup", labelKey: "sidebar.nav.directoryCleanup" },
         a.isAdmin && { href: "/admin/ad-mappings", labelKey: "sidebar.nav.adMappings" },
         a.isAdmin && { href: "/admin/ad-preview", labelKey: "sidebar.nav.adProvisioningPreview" },
       ]),
-    prefixes: ["/admin/employees", "/admin/entra-directory", "/admin/ad-mappings", "/admin/ad-preview"],
+    prefixes: ["/admin/employees", "/admin/entra-directory", "/admin/directory-cleanup", "/admin/ad-mappings", "/admin/ad-preview"],
   },
   devices: {
     tabs: (a) =>
@@ -71,7 +72,6 @@ export const HUBS = {
         a.canManageDevices && { href: "/admin/devices/join", labelKey: "devicesHub.tab.join" },
         a.canManageDevices && { href: "/admin/devices/cleanup", labelKey: "devicesHub.tab.cleanup" },
         a.canManageDevices && { href: "/admin/devices/licenses", labelKey: "devicesHub.tab.licenses" },
-        a.canManageDevices && { href: "/admin/devices/directory", labelKey: "devicesHub.tab.directory" },
         a.canManageDevices && { href: "/admin/devices/activity", labelKey: "devicesHub.tab.activity" },
       ]),
     prefixes: ["/admin/devices"],

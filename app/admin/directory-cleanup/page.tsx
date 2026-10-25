@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { suggestOffice, type OfficeLite } from "@/lib/directory/suggestOffice";
-import { dim } from "../style";
+import { dim } from "../devices/style";
 import DirectoryClient, { type DirRow, type OfficeOpt } from "./DirectoryClient";
 
 export const dynamic = "force-dynamic";

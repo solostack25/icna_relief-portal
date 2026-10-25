@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Suggestion } from "@/lib/directory/suggestOffice";
-import { Button } from "../ui";
-import { card, dim, emerald, faint, gold, ink, line, relTime, rose } from "../style";
+import { Button } from "../devices/ui";
+import { card, dim, emerald, faint, gold, ink, line, relTime, rose } from "../devices/style";
 
 export type OfficeOpt = { id: string; name: string; state: string | null; region: string | null };
 export type DirRow = {
