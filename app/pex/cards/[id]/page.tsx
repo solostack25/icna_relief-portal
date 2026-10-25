@@ -20,7 +20,7 @@ export default async function PexCardPage({ params }: { params: Promise<{ id: st
   const today = new Date().toISOString().slice(0, 10);
   const [{ data: links }, { data: txs }, { data: month }, { data: offices }, { data: emps }] = await Promise.all([
     db.from("gm_pex_card_grants").select("id, start_date, end_date, is_default, grant:grant_id(id, code, name)").eq("card_id", id).order("start_date", { ascending: false }),
-    db.from("gm_pex_transactions").select("id, transaction_date, merchant, mcc, amount, is_pending, card_id, employee_id, status").eq("card_id", id).order("transaction_date", { ascending: false }).limit(60),
+    db.from("gm_pex_transactions").select("id, transaction_date, merchant, mcc, amount, is_pending, card_id, employee_id, status, in_grant_scope").eq("card_id", id).order("transaction_date", { ascending: false }).limit(60),
     db.from("gm_pex_transactions").select("amount").eq("card_id", id).eq("is_pending", false).gte("transaction_date", monthStart()),
     db.from("b2s_offices").select("id, field_office").eq("is_active", true).order("field_office"),
     viewer.isAdmin ? db.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name") : Promise.resolve({ data: [] }),

@@ -70,14 +70,8 @@ export async function ensurePexAccess(db: SupabaseClient, employeeIds: (string |
   );
 }
 
-// Cards switched on for grants. Grant Management only works with these
-// (plus anything already coded to a grant, so coded history never
-// disappears if a card is later switched off).
-export async function grantCardIds(db: SupabaseClient): Promise<string[]> {
-  const { data } = await db.from("pex_cards").select("id").eq("grant_eligible", true);
-  return (data ?? []).map((c) => c.id as string);
-}
-
-export function grantScopeFilter(ids: string[]) {
-  return ["allocated_amount.neq.0", ...(ids.length ? [`card_id.in.(${ids.join(",")})`] : [])].join(",");
-}
+// Grant Management only ever sees transactions made on a card that was
+// assigned to a grant on that date. The database keeps this answer in
+// gm_pex_transactions.in_grant_scope (see pex_grant_scope_migration.sql),
+// so filter with .eq("in_grant_scope", true) - never re-derive it.
+export const IN_GRANT_SCOPE = "in_grant_scope";

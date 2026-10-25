@@ -19,7 +19,7 @@ export function readFilters(sp: Record<string, string | undefined>): TxFilters {
 }
 
 export const TX_COLS =
-  "id, transaction_date, transaction_time, merchant, merchant_city, merchant_state, mcc, amount, is_pending, card_id, card_last4, card_holder, employee_id, status, memo, allocated_amount, non_grant_amount";
+  "id, transaction_date, transaction_time, merchant, merchant_city, merchant_state, mcc, amount, is_pending, card_id, card_last4, card_holder, employee_id, status, memo, allocated_amount, non_grant_amount, in_grant_scope";
 
 export async function loadTransactions(db: SupabaseClient, viewer: PexViewer, f: TxFilters) {
   // Which cards are in scope.

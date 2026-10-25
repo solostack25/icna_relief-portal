@@ -23,9 +23,10 @@ export type PexTx = {
   allocated_amount: number;
   non_grant_amount: number;
   non_grant_note: string | null;
+  in_grant_scope: boolean;
 };
 
-const TX_COLS = "id, external_id, source, amount, transaction_date, merchant, memo, employee_id, status, is_pending, allocated_amount, non_grant_amount, non_grant_note";
+const TX_COLS = "id, external_id, source, amount, transaction_date, merchant, memo, employee_id, status, is_pending, allocated_amount, non_grant_amount, non_grant_note, in_grant_scope";
 
 export async function loadTx(db: Admin, id: string): Promise<PexTx | null> {
   const { data } = await db.from("gm_pex_transactions").select(TX_COLS).eq("id", id).maybeSingle();
@@ -80,6 +81,7 @@ export async function allocateTransaction(db: Admin, viewer: GmViewer, txId: str
   const tx = await loadTx(db, txId);
   if (!tx) return { ok: false, error: "Transaction not found.", status: 404 };
   if (!canWorkTx(viewer, tx)) return { ok: false, error: "This card transaction isn't yours to code.", status: 403 };
+  if (!tx.in_grant_scope) return { ok: false, error: "This charge wasn't made on a card assigned to a grant for that date, so it can't be coded to a grant.", status: 403 };
   if (tx.is_pending) return { ok: false, error: "This transaction is still pending at PEX. It can be coded once it settles." };
 
   const fields: Record<string, string> = {};

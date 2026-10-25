@@ -17,7 +17,7 @@ export default async function GrantPex({ id, grant, isManager }: { id: string; g
       .select("id, card_id, start_date, end_date, is_default, card:card_id(id, first_name, last_name, last4, card_status, employee_id)")
       .eq("grant_id", id)
       .order("start_date", { ascending: false }),
-    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").eq("suggested_grant_id", id).in("status", ["unmatched", "partial"]).eq("is_pending", false),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").eq("suggested_grant_id", id).eq("in_grant_scope", true).in("status", ["unmatched", "partial"]).eq("is_pending", false),
     admin.from("gm_expenses").select("amount, status").eq("grant_id", id).eq("source", "pex").neq("status", "rejected"),
     isManager ? admin.from("pex_cards").select("id, first_name, last_name, last4").eq("grant_eligible", true).order("last_name") : Promise.resolve({ data: [] }),
   ]);

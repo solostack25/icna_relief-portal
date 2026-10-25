@@ -17,6 +17,7 @@ export type PexTxRow = {
   card_id: string | null;
   employee_id: string | null;
   status: string;
+  in_grant_scope?: boolean;
 };
 export type PexCardRow = {
   id: string;
@@ -62,7 +63,8 @@ export default function PexTxTable({
           <tbody>
             {rows.map((t) => {
               const c = t.card_id ? cardById.get(t.card_id) : undefined;
-              const grant = !!c?.grant_eligible;
+              // In Grant Management only if the card was assigned to a grant that day.
+              const grant = !!t.in_grant_scope;
               return (
                 <tr key={t.id}>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>

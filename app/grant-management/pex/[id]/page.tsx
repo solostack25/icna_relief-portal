@@ -14,6 +14,13 @@ export default async function PexTransactionPage({ params }: { params: Promise<{
   const admin = createAdminClient();
   const { data: tx } = await admin.from("gm_pex_transactions").select("*").eq("id", id).maybeSingle();
   if (!tx) return <Notice tone="warn">That PEX transaction wasn&apos;t found.</Notice>;
+  // Only charges on a card assigned to a grant (on that date) belong here.
+  if (!tx.in_grant_scope)
+    return (
+      <Notice tone="warn">
+        This charge wasn&apos;t made on a card assigned to a grant for {fmtDate(tx.transaction_date)}, so it isn&apos;t part of Grant Management. It&apos;s still in the PEX app.
+      </Notice>
+    );
 
   const isOwner = !!tx.employee_id && tx.employee_id === viewer.employeeId;
   const suggestedAccess = tx.suggested_grant_id ? await grantAccess(viewer, tx.suggested_grant_id, admin) : null;

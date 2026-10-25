@@ -8,7 +8,6 @@ import { Card, Empty, PageTitle, Stat } from "@/components/grantManagement/ui";
 import { dim, emerald, faint, gold, ink, rose, td, tdNum, th, thNum } from "@/components/grantManagement/styles";
 import { ago, CardStatusPill, FlagPills, holderName, PexStatusPill } from "@/components/grantManagement/pex/pexUi";
 import PexRowActions from "./PexRowActions";
-import { grantCardIds, grantScopeFilter } from "@/lib/pex/access";
 
 type SP = Record<string, string | undefined>;
 
@@ -39,13 +38,12 @@ export default async function PexPage({ searchParams }: { searchParams: Promise<
   const monthStart = new Date().toISOString().slice(0, 8) + "01";
   // Managers see every card; everyone else only their own transactions.
   const own: Record<string, string> = viewer.isManager ? {} : { employee_id: viewer.employeeId };
-  const scope = grantScopeFilter(await grantCardIds(admin));
   const [waitingQ, partialQ, codedQ, pendingQ, flaggedQ, lastRunQ] = await Promise.all([
-    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).or(scope).eq("status", "unmatched").eq("is_pending", false),
-    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).or(scope).eq("status", "partial"),
-    admin.from("gm_pex_transactions").select("allocated_amount").match(own).or(scope).eq("status", "coded").gte("transaction_date", monthStart),
-    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).or(scope).eq("is_pending", true),
-    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).or(scope).in("status", ["unmatched", "partial"]).neq("flags", "{}"),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("in_grant_scope", true).eq("status", "unmatched").eq("is_pending", false),
+    admin.from("gm_pex_transactions").select("amount, allocated_amount, non_grant_amount").match(own).eq("in_grant_scope", true).eq("status", "partial"),
+    admin.from("gm_pex_transactions").select("allocated_amount").match(own).eq("in_grant_scope", true).eq("status", "coded").gte("transaction_date", monthStart),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).eq("in_grant_scope", true).eq("is_pending", true),
+    admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).match(own).eq("in_grant_scope", true).in("status", ["unmatched", "partial"]).neq("flags", "{}"),
     admin.from("pex_sync_runs").select("started_at, finished_at, ok, error, stats, kind").order("started_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const left = (rows: { amount: number; allocated_amount: number; non_grant_amount: number }[] | null) =>
@@ -134,7 +132,7 @@ async function Transactions({ sp, viewer }: { sp: SP; viewer: NonNullable<Awaite
   else if (filter === "partial") q = q.eq("status", "partial");
   else if (filter === "coded") q = q.eq("status", "coded");
   else if (filter === "ignored") q = q.eq("status", "ignored");
-  q = q.or(grantScopeFilter(await grantCardIds(admin)));
+  q = q.eq("in_grant_scope", true);
   if (!viewer.isManager) q = q.eq("employee_id", viewer.employeeId);
   if (sp.card) q = q.eq("card_id", sp.card);
   if (sp.flagged) q = q.neq("flags", "{}");
@@ -330,7 +328,7 @@ async function Cards() {
   const [{ data: cards }, { data: links }, { data: waiting }] = await Promise.all([
     admin.from("pex_cards").select("id, pex_account_id, first_name, last_name, last4, card_status, available_balance, employee_id, is_virtual, grant_eligible, synced_at").eq("grant_eligible", true).order("last_name"),
     admin.from("gm_pex_card_grants").select("card_id, grant_id, start_date, end_date, is_default, grant:grant_id(code, name)"),
-    admin.from("gm_pex_transactions").select("card_id").in("status", ["unmatched", "partial"]).eq("is_pending", false).not("card_id", "is", null),
+    admin.from("gm_pex_transactions").select("card_id").eq("in_grant_scope", true).in("status", ["unmatched", "partial"]).eq("is_pending", false),
   ]);
   const names = await nameMap(admin, (cards ?? []).map((c) => c.employee_id));
   const waitingBy = new Map<string, number>();

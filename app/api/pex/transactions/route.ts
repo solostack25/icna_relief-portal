@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const s = v == null ? "" : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const head = ["Date", "Merchant", "City", "State", "MCC", "Type of spending", "Amount", "Pending", "Card last 4", "Card holder", "Office", "Grant card", "Grant status", "Coded to grants", "Non-grant", "PEX note"];
+  const head = ["Date", "Merchant", "City", "State", "MCC", "Type of spending", "Amount", "Pending", "Card last 4", "Card holder", "Office", "In Grant Management", "Grant status", "Coded to grants", "Non-grant", "PEX note"];
   const lines = rows.map((r) => {
     const c = cardById.get(r.card_id as string);
     return [
@@ -37,8 +37,8 @@ export async function GET(req: Request) {
       c?.last4 ?? r.card_last4,
       emp.get(c?.employee_id ?? "") ?? r.card_holder,
       office.get(c?.office_id ?? ""),
-      c?.grant_eligible ? "yes" : "",
-      c?.grant_eligible ? r.status : "",
+      r.in_grant_scope ? "yes" : "",
+      r.in_grant_scope ? r.status : "",
       Number(r.allocated_amount).toFixed(2),
       Number(r.non_grant_amount).toFixed(2),
       r.memo,

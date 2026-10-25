@@ -29,10 +29,11 @@ export async function POST(req: Request) {
   if (typeof body.pex_transaction_id === "string") {
     const { data } = await admin
       .from("gm_pex_transactions")
-      .select("id, transaction_date, amount, merchant, employee_id, status, is_pending, allocated_amount, non_grant_amount")
+      .select("id, transaction_date, amount, merchant, employee_id, status, is_pending, allocated_amount, non_grant_amount, in_grant_scope")
       .eq("id", body.pex_transaction_id)
       .maybeSingle();
     if (!data) return fail("That PEX transaction wasn't found.", 404);
+    if (!data.in_grant_scope) return fail("This charge wasn't made on a card assigned to a grant for that date, so it can't be coded to a grant.", 403);
     if (data.is_pending) return fail("That PEX transaction is still pending. It can be coded once it settles.");
     if (!["unmatched", "partial"].includes(data.status)) return fail("That PEX transaction has already been fully coded.");
     if (data.employee_id !== viewer.employeeId && !viewer.isManager) return fail("That PEX transaction isn't yours.", 403);
