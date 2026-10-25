@@ -231,6 +231,8 @@ export default async function DevicePage({ params }: { params: Promise<{ key: st
                       { key: "isolate_full", label: "Isolate", danger: true, hidden: !onboarded || isolated, help: "Cuts the PC off from every network except Defender, so an attacker or malware can't use it. The user sees a notice. Release it once it's clean." },
                       { key: "isolate_selective", label: "Isolate, keep Outlook/Teams", danger: true, hidden: !onboarded || isolated, help: "Same as Isolate, but Outlook, Teams and Skype keep working so the person can still communicate." },
                       { key: "release", label: "Release from isolation", hidden: !onboarded || d.mde_isolation_state === "released", help: "Reconnects the PC to the network. Only do this once the threat is cleaned up." },
+                      { key: "restrict_execution", label: "Restrict apps", danger: true, hidden: !onboarded, help: "Only Microsoft-signed programs can run until you lift it. Stops unknown malware or remote-access tools while you investigate, without cutting the network." },
+                      { key: "unrestrict_execution", label: "Lift app restriction", hidden: !onboarded, help: "Lets every program run again. Do this once the PC is clean." },
                       { key: "scan_quick", label: "Quick scan", help: "Runs a Microsoft Defender quick antivirus scan now. Results show in Defender/Intune." },
                       { key: "scan_full", label: "Full scan", help: "Runs a full antivirus scan. It can take hours and slow the PC down." },
                       { key: "update_signatures", label: "Update definitions", hidden: !d.intune_id, help: "Tells Defender Antivirus to download the latest definitions." },

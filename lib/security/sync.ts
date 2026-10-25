@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { gGetAll, gPost, explainGraphError } from "@/lib/devices/graph";
+import { scanAllMailboxRules } from "./mailboxRules";
 
 // Pulls security data from Microsoft Graph into the sec_* tables (and
 // Defender columns on it_devices). Each source is independent: a
@@ -13,6 +14,7 @@ import { gGetAll, gPost, explainGraphError } from "@/lib/devices/graph";
 //   AuditLog.Read.All            MFA registration report
 //   IdentityRiskyUser.Read.All   Entra ID Protection risky users
 //   ThreatHunting.Read.All       Defender for Endpoint device data (advanced hunting)
+//   MailboxSettings.Read         inbox rules (forwarding / hiding rules)
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -291,6 +293,7 @@ export async function runSecuritySync(opts: { trigger: "cron" | "manual"; trigge
     ["mfa", "AuditLog.Read.All", () => mfa(admin, now, counts)],
     ["risky_users", "IdentityRiskyUser.Read.All", () => riskyUsers(admin, now, counts)],
     ["defender", "ThreatHunting.Read.All", () => defenderDevices(admin, now, counts, errors)],
+    ["mailbox_rules", "MailboxSettings.Read", () => scanAllMailboxRules(admin, now, counts)],
   ];
   const results = await Promise.allSettled(sources.map(([, , fn]) => fn()));
   results.forEach((r, i) => {

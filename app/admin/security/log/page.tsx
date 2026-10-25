@@ -6,7 +6,7 @@ import { PageHead, card, dim, faint, fmtDate, ink, line, rose } from "../style";
 
 export const dynamic = "force-dynamic";
 
-const DEVICE_ACTIONS = ["isolate_full", "isolate_selective", "release", "scan_quick", "scan_full", "update_signatures"];
+const DEVICE_ACTIONS = ["isolate_full", "isolate_selective", "release", "scan_quick", "scan_full", "update_signatures", "restrict_execution", "unrestrict_execution"];
 
 // Every security response action: users and incidents (sec_action_log)
 // plus Defender device actions (it_device_audit). Newest first.
@@ -22,7 +22,7 @@ export default async function ResponseLogPage() {
       id: r.id,
       kind: r.target_type,
       targetName: r.target_name ?? r.target_id,
-      href: r.target_type === "user" ? `/admin/security/user?id=${r.target_id}` : r.target_type === "incident" ? "/admin/security/incidents?status=all" : null,
+      href: r.target_type === "user" ? `/admin/security/user?id=${r.target_id}` : r.target_type === "incident" ? "/admin/security/incidents?status=all" : r.target_type === "indicator" ? "/admin/security/indicators" : null,
       action: r.action,
       actor_id: r.actor_id,
       reason: r.reason,

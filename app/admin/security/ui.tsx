@@ -45,6 +45,7 @@ const SOURCE: Record<string, string> = {
   risky_users: "Risky users",
   defender: "Defender devices",
   defender_vulns: "Vulnerabilities",
+  mailbox_rules: "Mailbox rules",
 };
 
 export function SecSyncStatus({ run }: { run: { started_at: string; finished_at: string | null; status: string; errors: Record<string, string> | null } | null }) {

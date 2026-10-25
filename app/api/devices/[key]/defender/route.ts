@@ -4,8 +4,8 @@ import { gPost, explainGraphError } from "@/lib/devices/graph";
 import { mdePost, explainMdeError } from "@/lib/security/mde";
 import { createAdminClient } from "@/lib/supabase/server";
 
-type Act = "scan_quick" | "scan_full" | "update_signatures" | "isolate_full" | "isolate_selective" | "release";
-const VALID: Act[] = ["scan_quick", "scan_full", "update_signatures", "isolate_full", "isolate_selective", "release"];
+type Act = "scan_quick" | "scan_full" | "update_signatures" | "isolate_full" | "isolate_selective" | "release" | "restrict_execution" | "unrestrict_execution";
+const VALID: Act[] = ["scan_quick", "scan_full", "update_signatures", "isolate_full", "isolate_selective", "release", "restrict_execution", "unrestrict_execution"];
 
 // POST { action, reason }
 // Isolation and Defender scans go through the Defender for Endpoint API
@@ -42,6 +42,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
     } else if (action === "release") {
       if (!onboarded) throw new Error("This PC isn't onboarded to Defender for Endpoint.");
       await mdePost(`/machines/${d.mde_device_id}/unisolate`, { Comment: comment });
+    } else if (action === "restrict_execution" || action === "unrestrict_execution") {
+      if (!onboarded) throw new Error("Only PCs onboarded to Defender for Endpoint can be restricted.");
+      await mdePost(`/machines/${d.mde_device_id}/${action === "restrict_execution" ? "restrictCodeExecution" : "unrestrictCodeExecution"}`, { Comment: comment });
     } else if (action === "scan_quick" || action === "scan_full") {
       if (onboarded) {
         await mdePost(`/machines/${d.mde_device_id}/runAntiVirusScan`, { Comment: comment, ScanType: action === "scan_full" ? "Full" : "Quick" });
@@ -60,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
         ? e.message
         : via === "intune"
           ? explainGraphError(e, "DeviceManagementManagedDevices.PrivilegedOperations.All")
-          : explainMdeError(e, action.startsWith("scan") ? "Machine.Scan" : "Machine.Isolate");
+          : explainMdeError(e, action.startsWith("scan") ? "Machine.Scan" : action.includes("restrict") ? "Machine.RestrictExecution" : "Machine.Isolate");
   }
 
   if (!error && (action === "isolate_full" || action === "isolate_selective" || action === "release")) {

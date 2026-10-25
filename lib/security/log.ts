@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 
 export async function logSecurityAction(e: {
-  targetType: "user" | "incident" | "device";
+  targetType: "user" | "incident" | "device" | "indicator";
   targetId: string;
   targetName?: string | null;
   action: string;

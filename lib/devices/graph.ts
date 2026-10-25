@@ -73,6 +73,40 @@ export async function gPatch(path: string, body: unknown) {
   return call("PATCH", path, await getGraphToken(), body);
 }
 
+export async function gDelete(path: string) {
+  return call("DELETE", path, await getGraphToken());
+}
+
+// Batched GETs that keep each response body (gBatch only keeps status).
+// Up to 20 per round trip; throttled sub-requests are retried once.
+export async function gBatchGet(
+  requests: { id: string; url: string }[]
+): Promise<Map<string, { status: number; body?: any; error?: string }>> {
+  const token = await getGraphToken();
+  const out = new Map<string, { status: number; body?: any; error?: string }>();
+  let pending = requests;
+  for (let round = 0; round < 2 && pending.length; round++) {
+    const retry: typeof requests = [];
+    for (let i = 0; i < pending.length; i += 20) {
+      const slice = pending.slice(i, i + 20);
+      const data = await call("POST", "/v1.0/$batch", token, {
+        requests: slice.map((r) => ({ id: r.id, method: "GET", url: r.url, headers: CLIENT_HEADERS })),
+      });
+      for (const res of (data?.responses ?? []) as { id: string; status: number; body?: any }[]) {
+        if (res.status === 429 && round === 0) {
+          const orig = slice.find((r) => r.id === res.id);
+          if (orig) retry.push(orig);
+          continue;
+        }
+        out.set(res.id, res.status >= 300 ? { status: res.status, error: res.body?.error?.message ?? `HTTP ${res.status}` } : { status: res.status, body: res.body });
+      }
+    }
+    if (retry.length) await new Promise((r) => setTimeout(r, 5000));
+    pending = retry;
+  }
+  return out;
+}
+
 export async function gGetAll<T = any>(path: string, extra?: Record<string, string>): Promise<T[]> {
   const token = await getGraphToken();
   const out: T[] = [];

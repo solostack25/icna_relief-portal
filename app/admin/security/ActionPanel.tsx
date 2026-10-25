@@ -5,7 +5,39 @@ import { useRouter } from "next/navigation";
 import { Button } from "../devices/ui";
 import { dim, emerald, ink, line, rose } from "../devices/style";
 
-export type PanelAction = { key: string; label: string; help: string; danger?: boolean; hidden?: boolean };
+export type PanelAction = { key: string; label: string; help: string; danger?: boolean; hidden?: boolean; extra?: Record<string, unknown> };
+
+// Shows a password / access pass once, with a copy button. It isn't
+// stored anywhere, so it's gone once the page is left.
+export function SecretBox({ label, secret, onDone }: { label: string; secret: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="rounded-xl p-3 grid gap-2" style={{ border: `1.5px solid ${emerald}55`, background: `${emerald}08` }}>
+      <div className="text-xs font-bold" style={{ color: emerald }}>
+        {label}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="text-base font-bold px-3 py-1.5 rounded-lg bg-white select-all" style={{ border: `1px solid ${line}`, color: ink, letterSpacing: 0.5 }}>
+          {secret}
+        </code>
+        <Button
+          small
+          onClick={() => {
+            navigator.clipboard?.writeText(secret).then(() => setCopied(true), () => {});
+          }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </Button>
+        <Button small onClick={onDone}>
+          Done
+        </Button>
+      </div>
+      <div className="text-xs" style={{ color: dim }}>
+        Give this to the person directly (phone or in person, not email to the affected mailbox). It won&apos;t be shown again.
+      </div>
+    </div>
+  );
+}
 
 // Buttons for response actions. Picking one opens a short "why?" box;
 // confirming POSTs { action, reason } to the endpoint.
@@ -16,16 +48,18 @@ export default function ActionPanel({ endpoint, actions, note }: { endpoint: str
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [secret, setSecret] = useState<{ label: string; value: string } | null>(null);
 
   async function go() {
     if (!pick) return;
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: pick.key, reason }) });
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(pick.extra ?? {}), action: pick.key, reason }) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Failed");
-      setMsg(`${pick.label}: sent.${d.via === "intune" ? " (through Intune)" : ""}`);
+      if (d.secret) setSecret({ label: d.secretLabel ?? pick.label, value: d.secret });
+      setMsg(d.message ? `${pick.label}: ${d.message}` : `${pick.label}: done.${d.via === "intune" ? " (through Intune)" : ""}`);
       setPick(null);
       setReason("");
       router.refresh();
@@ -48,7 +82,7 @@ export default function ActionPanel({ endpoint, actions, note }: { endpoint: str
           .filter((a) => !a.hidden)
           .map((a) => (
             <Button
-              key={a.key}
+              key={`${a.key}:${a.label}`}
               small
               variant={a.danger ? "danger" : "ghost"}
               onClick={() => {
@@ -66,6 +100,7 @@ export default function ActionPanel({ endpoint, actions, note }: { endpoint: str
           {msg}
         </div>
       )}
+      {secret && <SecretBox label={secret.label} secret={secret.value} onDone={() => setSecret(null)} />}
       {pick && (
         <div className="rounded-xl p-3 grid gap-2" style={{ border: `1.5px solid ${line}`, background: "rgba(22,48,43,0.02)" }}>
           <div className="text-sm font-bold" style={{ color: pick.danger ? rose : ink }}>

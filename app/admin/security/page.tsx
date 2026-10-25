@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { fetchAllRows, lastSecuritySync, loadMfaPeople } from "./data";
 import { activePlatforms, isIrrelevant } from "@/lib/security/platforms";
 import { SecSyncButton, SecSyncStatus } from "./ui";
+import { RULE_SELECT, needsReview, type MailRule } from "./RuleRow";
 import { PageHead, SeverityPill, card, dim, emerald, faint, gold, ink, line, relTime, rose } from "./style";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ function Tile({ n, label, hint, color, href }: { n: string | number; label: stri
 
 export default async function SecurityOverview() {
   const admin = createAdminClient();
-  const [run, { data: scoreRows }, controls, { data: incRows }, mfa, { count: riskyCount }, devices, platforms] = await Promise.all([
+  const [run, { data: scoreRows }, controls, { data: incRows }, mfa, { count: riskyCount }, devices, platforms, flaggedRules] = await Promise.all([
     lastSecuritySync(),
     admin.from("sec_secure_scores").select("created_at, current_score, max_score, comparative").order("created_at", { ascending: true }).limit(90),
     fetchAllRows<Control>("sec_score_controls", "id, title, category, max_score, current_score, user_impact, implementation_cost, deprecated"),
@@ -55,7 +56,10 @@ export default async function SecurityOverview() {
     admin.from("sec_risky_users").select("user_id", { count: "exact", head: true }),
     fetchAllRows<Dev>("it_devices", "device_key, display_name, operating_system, trust_type, mde_onboarding, vuln_critical, approx_last_sign_in, intune_last_sync", (q) => q.is("removed_at", null).neq("account_enabled", false)),
     activePlatforms(),
+    fetchAllRows<MailRule>("sec_mailbox_rules", RULE_SELECT, (q) => q.not("severity", "is", null)),
   ]);
+  const openRules = flaggedRules.filter(needsReview);
+  const externalForwards = openRules.filter((r) => r.external_targets.length > 0).length;
 
   const scores = (scoreRows ?? []) as Score[];
   const latest = scores[scores.length - 1];
@@ -91,6 +95,22 @@ export default async function SecurityOverview() {
     <div className="max-w-6xl">
       <PageHead title="Security" sub="Microsoft Defender, Entra ID Protection and Secure Score for ICNA Relief's Microsoft 365 tenant. Synced nightly." right={<SecSyncButton />} />
       <SecSyncStatus run={run} />
+
+      <form action="/admin/security/user" className="flex flex-wrap items-center gap-2 mb-5 p-3" style={card}>
+        <span className="text-sm font-bold px-1" style={{ color: ink }}>
+          Respond to a person
+        </span>
+        <input name="q" placeholder="Name or email" className="flex-1 min-w-[180px] rounded-xl px-3 py-2 text-sm bg-white outline-none" style={{ border: `1.5px solid ${line}` }} />
+        <button className="text-sm font-bold rounded-full px-4 py-2" style={{ background: emerald, color: "#fff" }}>
+          Find
+        </button>
+        <Link href="/admin/security/signins" className="text-xs font-bold rounded-full px-3 py-2" style={{ border: `1.5px solid ${line}`, color: ink }}>
+          Review sign-ins
+        </Link>
+        <Link href="/admin/security/indicators" className="text-xs font-bold rounded-full px-3 py-2" style={{ border: `1.5px solid ${line}`, color: ink }}>
+          Block a link or file
+        </Link>
+      </form>
 
       <div className="grid lg:grid-cols-3 gap-4 mb-6">
         <section className="p-5 lg:col-span-1" style={card}>
@@ -137,6 +157,13 @@ export default async function SecurityOverview() {
             href="/admin/devices"
           />
           <Tile n={anyDefender ? critDevices : "—"} label="PCs with critical vulns" hint="From Defender vulnerability management" color={critDevices ? rose : emerald} />
+          <Tile
+            n={openRules.length}
+            label="Suspicious mailbox rules"
+            hint={externalForwards ? `${externalForwards} forward outside ICNA` : "Forwarding / hiding rules"}
+            color={externalForwards ? rose : openRules.length ? gold : emerald}
+            href="/admin/security/mailbox-rules"
+          />
         </div>
       </div>
 

@@ -2,7 +2,8 @@ import { GraphError } from "@/lib/devices/graph";
 
 // Microsoft Defender for Endpoint API (separate from Graph). Uses the
 // same Portal app registration with permissions from the
-// "WindowsDefenderATP" API: Machine.Isolate, Machine.Scan.
+// "WindowsDefenderATP" API: Machine.Isolate, Machine.Scan,
+// Machine.RestrictExecution, Ti.ReadWrite.All (custom indicators).
 // Server-only.
 
 async function mdeToken(): Promise<string> {
@@ -21,12 +22,12 @@ async function mdeToken(): Promise<string> {
   return (await res.json()).access_token;
 }
 
-export async function mdePost(path: string, body: unknown) {
+async function mdeCall(method: "GET" | "POST" | "DELETE", path: string, body?: unknown) {
   const token = await mdeToken();
   const res = await fetch(`https://api.securitycenter.microsoft.com/api${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    method,
+    headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
   const text = await res.text();
@@ -38,6 +39,18 @@ export async function mdePost(path: string, body: unknown) {
     throw new GraphError(res.status, msg);
   }
   return text ? JSON.parse(text) : null;
+}
+
+export async function mdePost(path: string, body: unknown) {
+  return mdeCall("POST", path, body);
+}
+
+export async function mdeGet(path: string) {
+  return mdeCall("GET", path);
+}
+
+export async function mdeDelete(path: string) {
+  return mdeCall("DELETE", path);
 }
 
 export function explainMdeError(err: unknown, permission: string) {
