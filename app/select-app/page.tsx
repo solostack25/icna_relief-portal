@@ -43,6 +43,14 @@ export default async function SelectAppPage() {
     .limit(1)
     .maybeSingle();
 
+  // Personal home layout (Quick Actions / Programs). Missing row or a read
+  // error just means the default layout.
+  const { data: homeLayout } = await supabase
+    .from("employee_home_layouts")
+    .select("quick_actions_order, quick_actions_hidden, programs_order, programs_hidden")
+    .eq("employee_id", employee.id)
+    .maybeSingle();
+
   const { data: access } = await supabase
     .from("employee_program_access")
     .select("program_slug")
@@ -171,6 +179,7 @@ export default async function SelectAppPage() {
       employeeIsAdmin={employee.role === "admin"}
       todayLabel={todayLabel}
       hourNow={now.getHours()}
+      homeLayout={homeLayout ?? null}
     />
   );
 }

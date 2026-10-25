@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { INTL_LOCALE } from "@/lib/i18n/translations";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PortalHeader from "@/app/PortalHeader";
 import PortalAssistantLauncher from "@/components/PortalAssistant/PortalAssistantLauncher";
 import ClockControl from "./ClockControl";
 import { HERO_CELL } from "./heroCell";
+import { QUICK_ACTIONS, QUICK_ACTIONS_BY_KEY, type QuickAction } from "./quickActions";
+import { defaultSection, resolveSection, toSaved, type HomeLayoutPref, type LayoutItem } from "./homeLayout";
+import CustomizeHomeSheet, { type SheetRowMeta, type SheetTab } from "./CustomizeHomeSheet";
 
 type ProgramApp = { slug: string; display_name: string; route: string };
 
@@ -29,6 +33,7 @@ export default function SelectAppView({
   employeeIsAdmin,
   todayLabel,
   hourNow,
+  homeLayout,
 }: {
   employeeId: string;
   employeeFirstName: string;
@@ -47,8 +52,88 @@ export default function SelectAppView({
   employeeIsAdmin: boolean;
   todayLabel: string;
   hourNow: number;
+  homeLayout: HomeLayoutPref | null;
 }) {
   const { t, locale } = useLanguage();
+
+  // ---- Customizable layout ----
+  // What this person is allowed to see; the saved layout only reorders/hides
+  // within this, it never adds access.
+  const availableQuick = useMemo(
+    () => QUICK_ACTIONS.filter((q) => q.requires !== "clientIntake" || showClientIntake),
+    [showClientIntake]
+  );
+  const availablePrograms = useMemo(
+    () => visibleApps.map((a) => ({ key: a.slug, defaultOn: true })),
+    [visibleApps]
+  );
+  const [quickLayout, setQuickLayout] = useState<LayoutItem[]>(() =>
+    resolveSection(availableQuick, homeLayout?.quick_actions_order, homeLayout?.quick_actions_hidden)
+  );
+  const [programLayout, setProgramLayout] = useState<LayoutItem[]>(() =>
+    resolveSection(availablePrograms, homeLayout?.programs_order, homeLayout?.programs_hidden)
+  );
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<SheetTab>("quick");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const openSheet = (tab: SheetTab) => {
+    setSaveError(null);
+    setSheetTab(tab);
+    setSheetOpen(true);
+  };
+
+  const qaTitle = (q: QuickAction) => (q.titleKey ? t(q.titleKey) : q.title ?? q.key);
+  const qaDesc = (q: QuickAction) => (q.descKey ? t(q.descKey) : q.desc ?? "");
+
+  const shownQuick = quickLayout
+    .filter((i) => i.visible)
+    .map((i) => QUICK_ACTIONS_BY_KEY.get(i.key))
+    .filter((q): q is QuickAction => !!q);
+  const appsBySlug = useMemo(() => new Map(visibleApps.map((a) => [a.slug, a])), [visibleApps]);
+  const shownPrograms = programLayout
+    .filter((i) => i.visible)
+    .map((i) => appsBySlug.get(i.key))
+    .filter((a): a is ProgramApp => !!a);
+
+  const quickMeta: Record<string, SheetRowMeta> = Object.fromEntries(
+    availableQuick.map((q) => [q.key, { label: qaTitle(q), desc: qaDesc(q), icon: q.icon, tint: q.tint, iconColor: q.iconColor }])
+  );
+  const programMeta: Record<string, SheetRowMeta> = Object.fromEntries(
+    visibleApps.map((a) => [a.slug, { label: a.display_name, desc: programStats[a.slug] }])
+  );
+
+  const saveLayout = useCallback(
+    async (quick: LayoutItem[], programs: LayoutItem[]) => {
+      setSaving(true);
+      setSaveError(null);
+      const q = toSaved(quick);
+      const p = toSaved(programs);
+      const { error } = await createClient()
+        .from("employee_home_layouts")
+        .upsert(
+          {
+            employee_id: employeeId,
+            quick_actions_order: q.order,
+            quick_actions_hidden: q.hidden,
+            programs_order: p.order,
+            programs_hidden: p.hidden,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "employee_id" }
+        );
+      setSaving(false);
+      if (error) {
+        setSaveError(t("selectApp.customize.saveError"));
+        return;
+      }
+      setQuickLayout(quick);
+      setProgramLayout(programs);
+      setSheetOpen(false);
+    },
+    [employeeId, t]
+  );
 
   // Date and greeting come from the viewer's own clock. The server runs on
   // UTC, so its "now" is hours ahead of US staff in the evening.
@@ -143,191 +228,71 @@ export default function SelectAppView({
         {/* ---------- MY DAY: what's waiting on me, my requests, my office ---------- */}
         {myDaySlot}
 
-        {/* ---------- QUICK ACTIONS ---------- */}
-        <SectionHead title={t("selectApp.quickActions.title")} note={t("selectApp.quickActions.note")} />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-10">
-          {showClientIntake && (
-            <QuickCard
-              href="/clients"
-              title={t("selectApp.card.clients.title")}
-              desc={t("selectApp.card.clients.desc")}
-              tint="#EAF3EF"
-              iconColor="var(--portal-emerald)"
-              icon={
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" />
-                </svg>
-              }
-            />
-          )}
-          <QuickCard
-            href="/directory"
-            title={t("selectApp.card.directory.title")}
-            desc={t("selectApp.card.directory.desc")}
-            tint="#FBF0DC"
-            iconColor="#A57420"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 19V6a2 2 0 012-2h9l5 5v10a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
-                <path d="M8 10h6M8 14h8" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/resources"
-            title="Resources"
-            desc="Vehicles, properties, drivers, insurance and expiring documents"
-            tint="#EAF3EF"
-            iconColor="var(--portal-emerald)"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v4a1 1 0 0 1-1 1h-1" />
-                <path d="M5 18H4a1 1 0 0 1-1-1v-4h18" />
-                <circle cx="7.5" cy="17.5" r="1.5" />
-                <circle cx="16.5" cy="17.5" r="1.5" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/office-apps"
-            title={t("selectApp.card.officeApps.title")}
-            desc={t("selectApp.card.officeApps.desc")}
-            tint="#E9F1F4"
-            iconColor="var(--portal-sky)"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="14" rx="2" />
-                <path d="M3 9h18" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/training"
-            title={t("selectApp.card.training.title")}
-            desc={t("selectApp.card.training.desc")}
-            tint="#F3E9F4"
-            iconColor="#8A5FA0"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 10L12 5 2 10l10 5 10-5z" />
-                <path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/upload-content"
-            title={t("selectApp.card.uploadContent.title")}
-            desc={t("selectApp.card.uploadContent.desc")}
-            tint="#E3EEF8"
-            iconColor="#2B6CB0"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <path d="M17 8l-5-5-5 5M12 3v12" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/fliers"
-            title={t("selectApp.card.flier.title")}
-            desc={t("selectApp.card.flier.desc")}
-            tint="#F4E9EE"
-            iconColor="#A0498A"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="4" y="2" width="16" height="20" rx="2" />
-                <path d="M8 8h8M8 12h8M8 16h5" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/fundraisers"
-            title={t("selectApp.card.fundraisers.title")}
-            desc={t("selectApp.card.fundraisers.desc")}
-            tint="#EAF3EF"
-            iconColor="var(--portal-emerald)"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/speaker-requests"
-            title="Speaker Requests"
-            desc="Request a Jummah or program speaker — finance, agreement and W-9 handled automatically"
-            tint="#FBF0DC"
-            iconColor="#A57420"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="9" y="2" width="6" height="12" rx="3" />
-                <path d="M5 11a7 7 0 0014 0M12 18v4M8 22h8" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/mileage"
-            title="Mileage Tracker"
-            desc="Tap Start when you drive, End when you arrive — miles go straight to a reimbursement ticket"
-            tint="#E7F3EE"
-            iconColor="#1F6F54"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 17h14M6 17l1.5-5.5A2 2 0 019.4 10h5.2a2 2 0 011.9 1.5L18 17" />
-                <circle cx="8" cy="17" r="2" />
-                <circle cx="16" cy="17" r="2" />
-                <path d="M12 3v4M9 5h6" />
-              </svg>
-            }
-          />
-          <QuickCard
-            href="/marketing/donor-calling"
-            title={t("selectApp.card.donorCalling.title")}
-            desc={t("selectApp.card.donorCalling.desc")}
-            tint="#E3EEF8"
-            iconColor="#2B6CB0"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .3 2 .6 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.5 2.9.6a2 2 0 011.7 2.1z" />
-              </svg>
-            }
-          />
-        </div>
+        {/* ---------- QUICK ACTIONS (customizable) ---------- */}
+        <SectionHead
+          title={t("selectApp.quickActions.title")}
+          note={t("selectApp.quickActions.note")}
+          action={{ label: t("selectApp.customize.button"), onClick: () => openSheet("quick") }}
+        />
+        {shownQuick.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-10">
+            {shownQuick.map((qa) => (
+              <QuickCard
+                key={qa.key}
+                href={qa.href}
+                title={qaTitle(qa)}
+                desc={qaDesc(qa)}
+                tint={qa.tint}
+                iconColor={qa.iconColor}
+                icon={qa.icon}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyHint text={t("selectApp.customize.emptyQuick")} cta={t("selectApp.customize.button")} onClick={() => openSheet("quick")} />
+        )}
 
         {/* ---------- TODAY'S MEETINGS ---------- */}
         <div className="mb-10">{meetingsSlot}</div>
 
-        {/* ---------- YOUR PROGRAMS ---------- */}
+        {/* ---------- YOUR PROGRAMS (customizable) ---------- */}
         {(visibleApps.length > 0 || employeeIsAdmin) && (
           <>
-            <SectionHead title={t("selectApp.yourPrograms.title")} note={t("selectApp.yourPrograms.note")} />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-10">
-              {visibleApps.map((app) => (
-                <Link
-                  key={app.slug}
-                  href={app.route}
-                  className="rounded-xl bg-white p-4 transition-all hover:-translate-y-0.5"
-                  style={{ border: "1px solid var(--portal-line)", boxShadow: "0 1px 2px rgba(22,48,43,0.04)" }}
-                >
-                  <div className="flex items-center gap-2 text-sm font-bold mb-0.5">
-                    <span
-                      className="inline-block w-1.5 h-1.5 rounded-full"
-                      style={{ background: "var(--portal-emerald)" }}
-                    />
-                    {app.display_name}
-                  </div>
-                  {programStats[app.slug] && (
-                    <div
-                      className="text-[11px]"
-                      style={{ color: "rgba(22,48,43,0.5)", fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      {programStats[app.slug]}
+            <SectionHead
+              title={t("selectApp.yourPrograms.title")}
+              note={t("selectApp.yourPrograms.note")}
+              action={visibleApps.length > 0 ? { label: t("selectApp.customize.button"), onClick: () => openSheet("programs") } : undefined}
+            />
+            {shownPrograms.length > 0 || visibleApps.length === 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-10">
+                {shownPrograms.map((app) => (
+                  <Link
+                    key={app.slug}
+                    href={app.route}
+                    className="rounded-xl bg-white p-4 transition-all hover:-translate-y-0.5"
+                    style={{ border: "1px solid var(--portal-line)", boxShadow: "0 1px 2px rgba(22,48,43,0.04)" }}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-bold mb-0.5">
+                      <span
+                        className="inline-block w-1.5 h-1.5 rounded-full"
+                        style={{ background: "var(--portal-emerald)" }}
+                      />
+                      {app.display_name}
                     </div>
-                  )}
-                </Link>
-              ))}
-            </div>
+                    {programStats[app.slug] && (
+                      <div
+                        className="text-[11px]"
+                        style={{ color: "rgba(22,48,43,0.5)", fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        {programStats[app.slug]}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyHint text={t("selectApp.customize.emptyPrograms")} cta={t("selectApp.customize.button")} onClick={() => openSheet("programs")} />
+            )}
           </>
         )}
 
@@ -380,6 +345,21 @@ export default function SelectAppView({
           </Link>
         )}
       </div>
+      <CustomizeHomeSheet
+        open={sheetOpen}
+        initialTab={sheetTab}
+        quick={quickLayout}
+        programs={programLayout}
+        quickMeta={quickMeta}
+        programMeta={programMeta}
+        quickDefaults={defaultSection(availableQuick)}
+        programDefaults={defaultSection(availablePrograms)}
+        showProgramsTab={visibleApps.length > 0}
+        saving={saving}
+        error={saveError}
+        onClose={() => setSheetOpen(false)}
+        onSave={saveLayout}
+      />
       <PortalAssistantLauncher />
     </main>
   );
@@ -415,9 +395,17 @@ export function HeroStat({
   );
 }
 
-function SectionHead({ title, note }: { title: string; note: string }) {
+function SectionHead({
+  title,
+  note,
+  action,
+}: {
+  title: string;
+  note: string;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
-    <div className="flex items-baseline justify-between mb-4">
+    <div className="flex items-center justify-between gap-3 mb-4">
       <div
         className="text-xs font-medium"
         style={{
@@ -429,10 +417,41 @@ function SectionHead({ title, note }: { title: string; note: string }) {
       >
         {title}
       </div>
-      <div className="text-xs" style={{ color: "rgba(22,48,43,0.5)" }}>
-        {note}
+      <div className="flex items-center gap-3">
+        <div className="hidden sm:block text-xs" style={{ color: "rgba(22,48,43,0.5)" }}>
+          {note}
+        </div>
+        {action && (
+          <button
+            type="button"
+            onClick={action.onClick}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors hover:bg-white"
+            style={{ border: "1px solid var(--portal-line)", color: "var(--portal-emerald)" }}
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+              <circle cx="16" cy="6" r="2" />
+              <circle cx="10" cy="12" r="2" />
+              <circle cx="18" cy="18" r="2" />
+            </svg>
+            {action.label}
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+function EmptyHint({ text, cta, onClick }: { text: string; cta: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full mb-10 rounded-xl px-4 py-5 text-sm text-center transition-colors hover:bg-white"
+      style={{ border: "1.5px dashed var(--portal-line)", color: "rgba(22,48,43,0.6)" }}
+    >
+      {text} <span className="font-semibold" style={{ color: "var(--portal-emerald)" }}>{cta} →</span>
+    </button>
   );
 }
 
