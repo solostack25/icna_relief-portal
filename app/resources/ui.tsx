@@ -37,7 +37,7 @@ export function StatusPill({ status }: { status: string }) {
 export function DaysPill({ days }: { days: number }) {
   const [bg, fg, text] =
     days < 0 ? ["#FDE8E8", "#B91C1C", `Expired ${-days}d ago`] : days === 0 ? ["#FDE8E8", "#B91C1C", "Expires today"] : days <= 30 ? ["#FEF3C7", "#92400E", `${days} days`] : ["#EEF6F1", "#166534", `${days} days`];
-  return <span style={{ fontSize: 12, fontWeight: 700, color: fg, background: bg, borderRadius: 999, padding: "2px 10px", whiteSpace: "nowrap" }}>{text}</span>;
+  return <span style={{ fontSize: 12, fontWeight: 700, color: fg, background: bg, borderRadius: 999, padding: "2px 10px", whiteSpace: "nowrap", alignSelf: "flex-start", flexShrink: 0, lineHeight: 1.5 }}>{text}</span>;
 }
 
 const TABS = [

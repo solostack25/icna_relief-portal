@@ -54,7 +54,7 @@ export default function ResourcesDashboard() {
             <div style={{ display: "grid" }}>
               {d.expiring.map((e, i) => (
                 <Link key={i} href={e.href} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i ? `1px solid ${line}` : 0, color: ink }}>
-                  <span>
+                  <span style={{ minWidth: 0 }}>
                     <b style={{ fontSize: 14 }}>{e.title}</b>
                     <span style={{ display: "block", fontSize: 12, color: dim }}>
                       {e.kind} · {e.office} · {fmtDate(e.date)}

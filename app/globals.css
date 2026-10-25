@@ -124,3 +124,43 @@ option {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* ---- Mobile safety net (see scripts/mobile-audit.mjs) ---- */
+
+/* Pills/badges (inline border-radius: 999px) must never stretch to the height of
+   their flex/grid row. This only affects cross-axis height, so full-width pill
+   buttons in column layouts keep their width. */
+[style*="border-radius: 999px"],
+[style*="border-radius: 9999px"] {
+  height: -webkit-fit-content;
+  height: fit-content;
+}
+
+@media (max-width: 768px) {
+  /* iOS Safari zooms into any field under 16px when tapped. */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Wide tables scroll inside themselves instead of pushing the page sideways.
+     Opt out with class="no-mobile-scroll". */
+  table:not(.no-mobile-scroll) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Last line of defense against sideways page scroll. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+  }
+}
