@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { officesForViewer } from "@/lib/officeEmployees/server";
+import { isStatewideOffice } from "@/lib/offices/statewide";
 
 // Admins see every office and pick one to edit. Staff have exactly one
 // office they can touch (RLS enforces this anyway on save), so we skip
@@ -18,7 +19,11 @@ export default async function OfficeInfoIndexPage() {
   if (!me) redirect("/select-app");
 
   if (me.role !== "admin") {
-    if (me.role === "area_manager" && me.assigned_office_id) redirect(`/admin/office-info/${me.assigned_office_id}`);
+    if (me.role === "area_manager" && me.assigned_office_id) {
+      // Statewide offices have no dashboard, so their managers get the employees picker below instead.
+      const { data: own } = await supabase.from("b2s_offices").select("field_office").eq("id", me.assigned_office_id).maybeSingle();
+      if (!isStatewideOffice(own?.field_office)) redirect(`/admin/office-info/${me.assigned_office_id}`);
+    }
     // Regional directors (their region) and HR (every office) get the
     // offices' Employees pages, not the full office editor.
     const { offices, scope } = await officesForViewer();
@@ -64,7 +69,7 @@ export default async function OfficeInfoIndexPage() {
       </p>
 
       <div className="grid gap-2" style={{ maxWidth: 520 }}>
-        {(offices ?? []).map((office) => (
+        {(offices ?? []).filter((office) => !isStatewideOffice(office.field_office)).map((office) => (
           <Link
             key={office.id}
             href={`/admin/office-info/${office.id}`}

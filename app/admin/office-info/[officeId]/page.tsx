@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isStatewideOffice } from "@/lib/offices/statewide";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
@@ -25,6 +26,8 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
 
   const { data: office } = await supabase.from("b2s_offices").select("id, field_office").eq("id", officeId).single();
   if (!office) redirect("/admin/office-info");
+  // Statewide offices aren't physical locations, so there's no dashboard for them.
+  if (isStatewideOffice(office.field_office)) redirect("/admin/office-info");
 
   const [{ data: hoursRows }, { data: notesRows }, { data: listing }] = await Promise.all([
     supabase.from("office_hours").select("day_of_week, open_time, close_time, is_closed").eq("office_id", officeId),
