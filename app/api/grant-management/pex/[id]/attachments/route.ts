@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const auth = await requireViewer();
   if ("res" in auth) return auth.res;
   const tx = await loadTx(createAdminClient(), id);
-  if (!tx) return fail("Transaction not found.", 404);
+  if (!tx || !tx.in_grant_scope) return fail("Transaction not found.", 404);
   if (!canWorkTx(auth.viewer, tx)) return fail("This card transaction isn't yours.", 403);
   if (!tx.external_id || tx.source === "upload") return NextResponse.json({ attachments: [], connected: false });
   const cfg = await getPexConfig();

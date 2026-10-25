@@ -81,7 +81,7 @@ export default function ImportClient({ initialKind, expenseTemplate, pexTemplate
     setBusy(false);
     if (r.error) return setMsg({ tone: "error", text: r.error });
     reset();
-    setMsg({ tone: "ok", text: `Saved ${r.rows} ${kind === "pex" ? "PEX transactions" : "expenses"} (${money(r.total, true)})${r.skipped ? `, skipped ${r.skipped} already imported` : ""}.${r.notGrant ? ` ${r.notGrant} of them are on cards not marked as used for grants, so they won't appear in the PEX queue until Finance switches those cards on in PEX → Cards.` : ""}` });
+    setMsg({ tone: "ok", text: `Saved ${r.rows} ${kind === "pex" ? "PEX transactions" : "expenses"} (${money(r.total, true)})${r.skipped ? `, skipped ${r.skipped} already imported` : ""}.${r.notGrant ? ` ${r.notGrant} of them aren't on a card assigned to a grant for that date, so they stay out of Grant Management. They're still in the PEX app.` : ""}` });
     router.refresh();
   }
 

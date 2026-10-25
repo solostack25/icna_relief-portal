@@ -23,6 +23,19 @@ async function checkConflicts(db: ReturnType<typeof createAdminClient>, cardId: 
   return null;
 }
 
+// Ending or removing an assignment can't leave already-coded charges
+// outside every assignment - they'd disappear from Grant Management
+// while their expenses still count against the grant.
+async function orphanedCoded(db: ReturnType<typeof createAdminClient>, cardId: string, linkId: string, newEnd: string | null | "remove") {
+  const { data: links } = await db.from("gm_pex_card_grants").select("id, start_date, end_date").eq("card_id", cardId);
+  const proposed = (links ?? [])
+    .filter((l) => !(l.id === linkId && newEnd === "remove"))
+    .map((l) => (l.id === linkId && newEnd !== "remove" ? { ...l, end_date: newEnd } : l));
+  const { data: coded } = await db.from("gm_pex_transactions").select("transaction_date").eq("card_id", cardId).neq("allocated_amount", 0);
+  const covered = (d: string) => proposed.some((l) => d >= l.start_date && (!l.end_date || d <= l.end_date));
+  return (coded ?? []).filter((t) => !covered(t.transaction_date)).length;
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: cardId } = await params;
   const auth = await requireViewer({ manager: true });
@@ -81,6 +94,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   };
   if (next.end_date && (!DATE.test(next.end_date) || next.end_date < row.start_date)) return fail("End date must be on or after the start.", 400, { end_date: "Invalid." });
   const conflict = await checkConflicts(db, cardId, { id: row.id, grant_id: row.grant_id, start_date: row.start_date, end_date: next.end_date, is_default: next.is_default });
+  const orphaned = await orphanedCoded(db, cardId, row.id, next.end_date);
+  if (orphaned) return fail(`${orphaned} charge${orphaned === 1 ? " is" : "s are"} already coded to a grant after that date. Pick a later end date, or un-code ${orphaned === 1 ? "it" : "them"} first.`);
   if (conflict) return fail(conflict);
   const { error } = await db.from("gm_pex_card_grants").update(next).eq("id", row.id);
   if (error) return fail(error.message, 500);
@@ -97,6 +112,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const body = await readJson(req);
   const { data: row } = await db.from("gm_pex_card_grants").select("*").eq("id", String(body.designation_id ?? "")).eq("card_id", cardId).maybeSingle();
   if (!row) return fail("Link not found.", 404);
+  const orphaned = await orphanedCoded(db, cardId, row.id, "remove");
+  if (orphaned) return fail(`${orphaned} charge${orphaned === 1 ? " is" : "s are"} already coded under this assignment. Use End instead of Remove, or un-code ${orphaned === 1 ? "it" : "them"} first.`);
   await db.from("gm_pex_card_grants").delete().eq("id", row.id);
   const resuggested = await resuggestCard(db, cardId);
   await audit(db, { entity: "pex_card", entityId: cardId, grantId: row.grant_id, action: "unlinked_from_grant", actorId: auth.viewer.employeeId, changes: row });

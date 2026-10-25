@@ -15,8 +15,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if ("res" in auth) return auth.res;
   const { viewer } = auth;
   const admin = createAdminClient();
-  const { data: tx } = await admin.from("gm_pex_transactions").select("id, status, employee_id").eq("id", id).maybeSingle();
-  if (!tx) return fail("Transaction not found.", 404);
+  const { data: tx } = await admin.from("gm_pex_transactions").select("id, status, employee_id, in_grant_scope").eq("id", id).maybeSingle();
+  if (!tx || !tx.in_grant_scope) return fail("That charge isn't on a card assigned to a grant, so it isn't in Grant Management.", 404);
   const body = await readJson(req);
   const action = String(body.action ?? "");
 

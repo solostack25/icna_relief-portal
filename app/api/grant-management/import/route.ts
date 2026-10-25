@@ -4,7 +4,6 @@ import { requireViewer, fail, readJson } from "@/lib/grantManagement/api";
 import { audit } from "@/lib/grantManagement/server";
 import { checkExpenseRows, checkPexRows } from "@/lib/grantManagement/importRows";
 import { cardsFromUploads } from "@/lib/pex/sync";
-import { grantCardIds } from "@/lib/pex/access";
 
 export const maxDuration = 60;
 
@@ -96,11 +95,9 @@ export async function POST(req: Request) {
   // Each card in the file is added to the PEX app (by last 4). Only
   // cards Finance has switched on for grants show up here for coding.
   await cardsFromUploads(admin);
-  const grantIds = new Set(await grantCardIds(admin));
-  const { data: landed } = await admin.from("gm_pex_transactions").select("card_id").eq("batch_id", batch.id);
-  const notGrant = (landed ?? []).filter((r) => !r.card_id || !grantIds.has(r.card_id as string)).length;
+  const { count: notGrant } = await admin.from("gm_pex_transactions").select("id", { count: "exact", head: true }).eq("batch_id", batch.id).eq("in_grant_scope", false);
   await audit(admin, { entity: "import", entityId: batch.id, action: "pex_imported", actorId: viewer.employeeId, changes: { file: fileName, rows: good.length, total, skipped: errorRows.length } });
-  return NextResponse.json({ ok: true, batchId: batch.id, rows: good.length, skipped: errorRows.length, total, notGrant });
+  return NextResponse.json({ ok: true, batchId: batch.id, rows: good.length, skipped: errorRows.length, total, notGrant: notGrant ?? 0 });
 }
 
 function sum(ns: number[]) {

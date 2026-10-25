@@ -20,7 +20,7 @@ export default async function PexCardPage({ params, searchParams }: { params: Pr
     admin.from("gm_grants").select("id, code, name, start_date, end_date, status").neq("status", "closed").order("code"),
     admin.from("gm_budget_lines").select("id, grant_id, category, subcategory, sort_order").eq("is_active", true).order("sort_order"),
     admin.from("employees").select("id, first_name, last_name").eq("is_active", true).order("first_name"),
-    admin.from("gm_pex_transactions").select("id, transaction_date, merchant, amount, status, is_pending, allocated_amount, non_grant_amount").eq("card_id", id).order("transaction_date", { ascending: false }).limit(40),
+    admin.from("gm_pex_transactions").select("id, transaction_date, merchant, amount, status, is_pending, allocated_amount, non_grant_amount").eq("card_id", id).eq("in_grant_scope", true).order("transaction_date", { ascending: false }).limit(40),
   ]);
   const grantOptions: GrantOption[] = (grants ?? []).map((g) => ({ ...g, lines: (lines ?? []).filter((l) => l.grant_id === g.id) }));
   const linkRows: LinkRow[] = (links ?? []).map((l) => {
@@ -65,11 +65,11 @@ export default async function PexCardPage({ params, searchParams }: { params: Pr
           </Card>
           <Card className="!p-0 overflow-hidden">
             <div className="px-5 pt-4 pb-2 text-sm font-bold" style={{ color: ink }}>
-              Recent transactions
+              Transactions during its grant assignments
             </div>
             {!rows.length ? (
               <div className="p-4">
-                <Empty>No transactions yet.</Empty>
+                <Empty>No transactions on this card during its grant assignment dates yet.</Empty>
               </div>
             ) : (
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>

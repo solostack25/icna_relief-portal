@@ -8,7 +8,7 @@ import { dim, emerald, faint, gold, ink, rose, sky } from "@/components/grantMan
 import { ago, CardStatusPill, holderName } from "@/components/grantManagement/pex/pexUi";
 import PexTxTable, { type PexCardRow as CardRow, type PexTxRow as Tx } from "@/components/grantManagement/pex/PexTxTable";
 
-const TX_COLS = "id, transaction_date, merchant, mcc, amount, is_pending, card_id, employee_id, status";
+const TX_COLS = "id, transaction_date, merchant, mcc, amount, is_pending, card_id, employee_id, status, in_grant_scope";
 
 export default async function PexDashboard() {
   const viewer = (await getPexViewer())!;
