@@ -20,11 +20,12 @@ type Data = {
     priority: string;
     grant_eligible: boolean;
     submitted_at: string | null;
+    last_push_reminder_at: string | null;
     technician_id: string | null;
     technician: { first_name: string; last_name: string } | null;
   };
   detail: unknown;
-  approvals: { approval_level: number; chain_person_name: string; approval_status: string; decision_date: string | null; comments: string | null }[];
+  approvals: { approval_level: number; chain_person_name: string; approval_status: string; decision_date: string | null; comments: string | null; is_current_step?: boolean }[];
 };
 
 type Row = Record<string, unknown>;
@@ -62,6 +63,25 @@ export default function FinanceTicketDetailClient({
   const [pexCards, setPexCards] = useState<FinancePexCard[]>([]);
   const [grants, setGrants] = useState<FinanceGrant[]>([]);
   const [claiming, setClaiming] = useState(false);
+  const [reminding, setReminding] = useState(false);
+  const [remindMsg, setRemindMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Push reminder to whoever the ticket is waiting on — once a week.
+  async function remind() {
+    setReminding(true);
+    setRemindMsg(null);
+    try {
+      const res = await fetch(`/api/finance-tickets/${id}/remind`, { method: "POST" });
+      const r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok) setRemindMsg({ ok: false, text: r.error ?? "Couldn't send the reminder" });
+      else setRemindMsg({ ok: true, text: `Reminder sent to ${r.to}.` });
+      await load();
+    } catch (e) {
+      setRemindMsg({ ok: false, text: e instanceof Error ? e.message : "Couldn't send the reminder" });
+    } finally {
+      setReminding(false);
+    }
+  }
 
   // Batch-category edit state (Credit Card / Mileage).
   const [batchHeader, setBatchHeader] = useState<Row>({});
@@ -270,6 +290,31 @@ export default function FinanceTicketDetailClient({
                 </div>
               ))}
             </div>
+            {ticket.status === "pending" &&
+              data.approvals.some((a) => a.approval_status === "pending" && a.is_current_step !== false) &&
+              (() => {
+                const waitingOn = data.approvals.find((a) => a.is_current_step && a.approval_status === "pending")?.chain_person_name;
+                const next = ticket.last_push_reminder_at ? new Date(new Date(ticket.last_push_reminder_at).getTime() + 7 * 24 * 3600 * 1000) : null;
+                const locked = !!next && next.getTime() > Date.now();
+                return (
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <button
+                      onClick={remind}
+                      disabled={reminding || locked}
+                      style={{ ...pillButton(!locked), opacity: reminding || locked ? 0.5 : 1, cursor: locked ? "not-allowed" : "pointer" }}
+                      title={locked ? "A reminder can be sent once a week" : `Send ${waitingOn ?? "the approver"} a push notification`}
+                    >
+                      {reminding ? "Sending…" : `🔔 Remind${waitingOn ? ` ${waitingOn.split(" ")[0]}` : ""}`}
+                    </button>
+                    <span style={{ fontSize: 12, color: remindMsg && !remindMsg.ok ? "#B5566B" : "rgba(22,48,43,0.55)" }}>
+                      {remindMsg?.text ??
+                        (locked
+                          ? `Reminder sent ${new Date(ticket.last_push_reminder_at!).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · next one available ${next!.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                          : "Sends a push notification to their phone. Once a week.")}
+                    </span>
+                  </div>
+                );
+              })()}
           </div>
         )}
 

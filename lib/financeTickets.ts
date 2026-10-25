@@ -452,3 +452,79 @@ export async function runFinanceApprovalReminders() {
   }
   return { reminded };
 }
+
+// ---------------------------------------------------------------------
+// "Remind" on the ticket page: a push notification to whoever the
+// ticket's current approval step is waiting on. Once a week per ticket,
+// for anyone who can see the ticket. A press that reaches no phone (the
+// approver never turned notifications on) doesn't use up the week.
+// ---------------------------------------------------------------------
+export const PUSH_REMINDER_COOLDOWN_MS = 7 * 24 * 3600 * 1000;
+
+export async function pushRemindCurrentApprover(ticketId: string, byEmployeeId: string | null) {
+  const { sendToEmployees, pushConfigured } = await import("@/lib/push");
+  if (!pushConfigured()) return { ok: false as const, error: "Push notifications aren't set up for the portal." };
+
+  const admin = createAdminClient();
+  const { data: step } = await admin
+    .from("finance_approvals")
+    .select("approver_email, approver_name, approval_token")
+    .eq("finance_ticket_id", ticketId)
+    .eq("is_current_step", true)
+    .eq("approval_status", "pending")
+    .maybeSingle();
+  if (!step) return { ok: false as const, error: "This ticket isn't waiting on an approver." };
+
+  const { data: approver } = await admin
+    .from("employees")
+    .select("id")
+    .ilike("email", step.approver_email)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!approver) return { ok: false as const, error: `${step.approver_name} isn't a portal user, so they can't get a push notification.` };
+
+  // Claim the weekly slot atomically so two quick presses can't both send.
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - PUSH_REMINDER_COOLDOWN_MS).toISOString();
+  const { data: prev } = await admin.from("finance_tickets").select("last_push_reminder_at, last_push_reminder_by, ticket_number, title, total").eq("id", ticketId).single();
+  if (!prev) return { ok: false as const, error: "Ticket not found." };
+  const { data: claimed } = await admin
+    .from("finance_tickets")
+    .update({ last_push_reminder_at: now.toISOString(), last_push_reminder_by: byEmployeeId })
+    .eq("id", ticketId)
+    .or(`last_push_reminder_at.is.null,last_push_reminder_at.lt.${cutoff}`)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) {
+    const next = new Date(new Date(prev.last_push_reminder_at).getTime() + PUSH_REMINDER_COOLDOWN_MS);
+    return { ok: false as const, error: `A reminder was already sent this week. You can send another on ${next.toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`, nextAvailableAt: next.toISOString() };
+  }
+
+  let delivered = 0;
+  try {
+    const r = await sendToEmployees(admin, [approver.id], {
+      title: `Reminder: approval needed — ${prev.ticket_number}`,
+      body: `${prev.title} · $${Number(prev.total).toLocaleString("en-US", { minimumFractionDigits: 2 })} is waiting on your approval.`,
+      url: `/finance-ticket-approvals/${step.approval_token}`,
+      tag: `finance-remind-${ticketId}`,
+    });
+    delivered = (r as { delivered?: number })?.delivered ?? 0;
+  } catch (e) {
+    console.error("finance push reminder failed", ticketId, e);
+  }
+
+  if (delivered === 0) {
+    // Nothing reached a phone — give the week back.
+    await admin.from("finance_tickets").update({ last_push_reminder_at: prev.last_push_reminder_at, last_push_reminder_by: prev.last_push_reminder_by }).eq("id", ticketId);
+    return { ok: false as const, error: `${step.approver_name} hasn't turned on portal notifications on their phone, so the reminder couldn't be delivered.` };
+  }
+
+  await admin.from("finance_ticket_log").insert({
+    finance_ticket_id: ticketId,
+    comment: `Push reminder sent to ${step.approver_name}.`,
+    comment_type: "status_change",
+    notify_user: false,
+    created_by: byEmployeeId,
+  });
+  return { ok: true as const, to: step.approver_name as string, nextAvailableAt: new Date(now.getTime() + PUSH_REMINDER_COOLDOWN_MS).toISOString() };
+}

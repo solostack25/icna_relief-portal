@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: ticket, error } = await supabase
     .from("finance_tickets")
     .select(
-      "id, ticket_number, title, category, total, status, priority, grant_eligible, submitted_at, credit_card_statement_id, mileage_batch_id, honorarium_id, utility_id, vendor_id, pex_new_request_id, pex_recharge_request_id, technician_id, technician:technician_id(first_name, last_name)"
+      "id, ticket_number, title, category, total, status, priority, grant_eligible, submitted_at, last_push_reminder_at, credit_card_statement_id, mileage_batch_id, honorarium_id, utility_id, vendor_id, pex_new_request_id, pex_recharge_request_id, technician_id, technician:technician_id(first_name, last_name)"
     )
     .eq("id", id)
     .single();
@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { data: approvals } = await supabase
     .from("finance_approvals")
-    .select("approval_level, chain_person_name, approval_status, decision_date, comments")
+    .select("approval_level, chain_person_name, approval_status, decision_date, comments, is_current_step")
     .eq("finance_ticket_id", id)
     .order("approval_level", { ascending: true });
 
