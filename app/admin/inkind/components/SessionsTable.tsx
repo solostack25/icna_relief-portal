@@ -110,6 +110,11 @@ export default function SessionsTable({
                         {s.donor?.name || s.donor_org_name || <span className="text-gray-400">Anonymous</span>}
                       </p>
                       <p className="text-xs text-gray-400">{s.office ?? "—"}</p>
+                      {s.source === "food_bank" && (
+                        <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                          Food bank{s.vendor_invoice_number ? ` · #${s.vendor_invoice_number}` : ""}
+                        </span>
+                      )}
                       <div className="flex flex-wrap gap-1 mt-1">
                         <a
                           href={`/api/inkind-admin/invoices/donor?sessionId=${s.id}`}

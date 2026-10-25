@@ -22,6 +22,8 @@ export type DashboardSession = {
   donor_org_name: string | null;
   synced_to_salesforce: boolean;
   sync_error: string | null;
+  source?: string | null; // 'kiosk' | 'food_bank'
+  vendor_invoice_number?: string | null;
   donor: {
     name: string | null;
     email: string | null;
@@ -49,7 +51,7 @@ export async function fetchCompletedSessions(
   const { data: sessions } = await supabase
     .from("sessions")
     .select(
-      "id, invoice_id, completed_at, office, donor_kind, donor_org_name, synced_to_salesforce, sync_error"
+      "id, invoice_id, completed_at, office, donor_kind, donor_org_name, synced_to_salesforce, sync_error, source, vendor_invoice_number"
     )
     .eq("status", "completed")
     .gte("completed_at", start.toISOString())

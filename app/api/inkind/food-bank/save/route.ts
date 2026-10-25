@@ -11,7 +11,8 @@ type InLine = { item_code: string; qty: number; description?: string };
 
 // Step 2 of a food bank intake: the reviewed lines are saved as a
 // completed in-kind session (organization donor = the food bank, no
-// signature step) and pushed straight to Salesforce. Prices come from the
+// signature step), and pushed to Salesforce unless pushNow is false
+// (then an admin pushes it from the InKind dashboard). Prices come from the
 // catalog here on the server — the page only sends item + quantity.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -120,6 +121,11 @@ export async function POST(req: Request) {
   }
 
   const totalValue = lines.reduce((a, l) => a + l.unit_price * l.qty, 0);
+  const done = { success: true, sessionId: session.id, invoiceId, totalValue: Math.round(totalValue * 100) / 100, lineCount: lines.length };
+
+  // "Save" only: it lands on the InKind dashboard as Not synced, where an
+  // admin reviews it and pushes (photos attached) from there.
+  if (body.pushNow === false) return NextResponse.json({ ...done, salesforce: null });
 
   // Push to Salesforce now. If it fails the intake is still saved — it
   // shows as "Not synced" on the InKind dashboard with a retry button.
@@ -146,12 +152,5 @@ export async function POST(req: Request) {
     salesforce = { success: false, summary: msg };
   }
 
-  return NextResponse.json({
-    success: true,
-    sessionId: session.id,
-    invoiceId,
-    totalValue: Math.round(totalValue * 100) / 100,
-    lineCount: lines.length,
-    salesforce,
-  });
+  return NextResponse.json({ ...done, salesforce });
 }

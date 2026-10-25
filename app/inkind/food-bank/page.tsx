@@ -63,12 +63,13 @@ export default function FoodBankIntakePage() {
   const [lines, setLines] = useState<Line[]>([]);
   const [duplicate, setDuplicate] = useState(false);
   const [viewPage, setViewPage] = useState<number | null>(null);
+  const [pushing, setPushing] = useState(true); // which button was pressed
 
   const [result, setResult] = useState<{
     invoiceId: string;
     totalValue: number;
     lineCount: number;
-    salesforce: { success: boolean; summary: string };
+    salesforce: { success: boolean; summary: string } | null;
   } | null>(null);
 
   useEffect(() => () => pages.forEach((p) => URL.revokeObjectURL(p.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -144,7 +145,9 @@ export default function FoodBankIntakePage() {
       const q = Number(l.qty);
       if (!item || !Number.isFinite(q) || q <= 0) continue;
       value += item.new_price * q;
-      if (item.unit === "lb") lbs += q;
+      // Milk/eggs/meals are counted in their own unit; use the invoice's
+      // printed pounds for them so the weight check still lines up.
+      lbs += item.unit === "lb" ? q : l.weight_lbs ?? 0;
     }
     return { value, lbs };
   }, [lines, byCode]);
@@ -152,9 +155,10 @@ export default function FoodBankIntakePage() {
   const incomplete = lines.filter((l) => !l.item_code || !(Number(l.qty) > 0));
   const canSave = foodBankName.trim() && dateReceived && lines.length > 0 && incomplete.length === 0;
 
-  async function save(allowDuplicate = false) {
+  async function save(pushNow: boolean, allowDuplicate = false) {
     if (!canSave) return;
     setError(null);
+    setPushing(pushNow);
     setStep("saving");
     try {
       const res = await fetch("/api/inkind/food-bank/save", {
@@ -168,6 +172,7 @@ export default function FoodBankIntakePage() {
           invoiceNumber,
           dateReceived,
           allowDuplicate,
+          pushNow,
           lines: lines.map((l) => ({ item_code: l.item_code, qty: Number(l.qty), description: l.description })),
         }),
       });
@@ -195,7 +200,9 @@ export default function FoodBankIntakePage() {
         <p className="text-gray-500 mb-1">
           {result.invoiceId} · {result.lineCount} items · ${result.totalValue.toFixed(2)}
         </p>
-        {result.salesforce.success ? (
+        {!result.salesforce ? (
+          <p className="text-sm text-gray-600 font-medium mb-8">Saved. It&apos;s on the InKind dashboard to review and push to Salesforce.</p>
+        ) : result.salesforce.success ? (
           <p className="text-sm text-brand-dark font-medium mb-8">Pushed to Salesforce with the invoice attached.</p>
         ) : (
           <div className="mb-8 max-w-md rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
@@ -284,7 +291,7 @@ export default function FoodBankIntakePage() {
 
   // ---------------------------------------------------------------- review
   return (
-    <main className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto pb-32">
+    <main className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
       <Logo className="h-8 w-auto mb-4" />
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
@@ -414,6 +421,9 @@ export default function FoodBankIntakePage() {
         </button>
       </div>
 
+      {/* Room so the fixed footer never hides the last lines */}
+      <div aria-hidden className="h-56 sm:h-36" />
+
       {/* Sticky totals + save */}
       <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 p-4">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
@@ -432,17 +442,26 @@ export default function FoodBankIntakePage() {
             {error && <p className="text-red-600 mt-1">{error}</p>}
           </div>
           {duplicate ? (
-            <button onClick={() => save(true)} className="rounded-xl bg-amber-600 px-6 py-4 font-semibold text-white active:scale-95 transition">
+            <button onClick={() => save(pushing, true)} className="rounded-xl bg-amber-600 px-6 py-4 font-semibold text-white active:scale-95 transition">
               Save Anyway
             </button>
           ) : (
-            <button
-              onClick={() => save(false)}
-              disabled={!canSave || step === "saving"}
-              className="rounded-xl bg-brand px-6 py-4 font-semibold text-white active:scale-95 transition disabled:opacity-40"
-            >
-              {step === "saving" ? "Saving & pushing…" : "Save & Push to Salesforce"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => save(false)}
+                disabled={!canSave || step === "saving"}
+                className="flex-1 sm:flex-none rounded-xl border-2 border-brand bg-white px-6 py-4 font-semibold text-brand-dark active:scale-95 transition disabled:opacity-40"
+              >
+                {step === "saving" && !pushing ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => save(true)}
+                disabled={!canSave || step === "saving"}
+                className="flex-1 sm:flex-none rounded-xl bg-brand px-6 py-4 font-semibold text-white active:scale-95 transition disabled:opacity-40"
+              >
+                {step === "saving" && pushing ? "Saving & pushing…" : "Save & Push to Salesforce"}
+              </button>
+            </div>
           )}
         </div>
       </div>
