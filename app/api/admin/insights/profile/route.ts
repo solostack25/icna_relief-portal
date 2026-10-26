@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getInsightsAccess } from "@/lib/insightsAccess";
+import { saveTarget } from "@/lib/goalAgreements";
 
 export const dynamic = "force-dynamic";
 
 const isDate = (s: string | null) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-const METRICS = ["fundraising", "value_of_services", "people_served", "budget"];
 
 // GET /api/admin/insights/profile?from=&to=
 // Regional Profiles: facts by office × program × metric, volunteer headcounts,
@@ -86,25 +86,15 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
 
   if (body.action === "target") {
-    const year = Number(body.year);
-    const scope = String(body.scope);
-    const metric = String(body.metric);
-    const scope_key = scope === "org" ? "" : String(body.scope_key ?? "").trim();
-    if (!(year >= 2000 && year <= 2100) || !["org", "region", "state", "office"].includes(scope) || !METRICS.includes(metric) || (scope !== "org" && !scope_key)) {
-      return NextResponse.json({ error: "Bad goal" }, { status: 400 });
+    // Same path as Settings → Goals & Budgets, so office goals edited here
+    // also send the area manager an agreement to sign.
+    try {
+      const r = await saveTarget({ year: Number(body.year), scope: String(body.scope), scope_key: String(body.scope_key ?? ""), metric: String(body.metric), amount: body.amount, actorId: access.employeeId });
+      if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+      return NextResponse.json(r);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Saved, but the agreement couldn't be created" }, { status: 500 });
     }
-    if (body.amount === null || body.amount === "") {
-      const { error } = await admin.from("insights_targets").delete().match({ year, scope, scope_key, metric });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ ok: true });
-    }
-    const amount = Number(body.amount);
-    if (!(amount >= 0)) return NextResponse.json({ error: "Enter a number" }, { status: 400 });
-    const { error } = await admin
-      .from("insights_targets")
-      .upsert({ year, scope, scope_key, metric, amount, updated_by: access.employeeId, updated_at: new Date().toISOString() });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true });
   }
 
   if (body.action === "reference") {

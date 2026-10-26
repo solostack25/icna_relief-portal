@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { isStatewideOffice } from "@/lib/offices/statewide";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import OfficeInfoEditorClient from "./OfficeInfoEditorClient";
 import OfficeDashboardStats from "./OfficeDashboardStats";
 import { GoalsStrip } from "@/components/insights/GoalsPanel";
@@ -28,6 +28,13 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
   if (!office) redirect("/admin/office-info");
   // Statewide offices aren't physical locations, so there's no dashboard for them.
   if (isStatewideOffice(office.field_office)) redirect("/admin/office-info");
+
+  // Goal agreements still waiting for this office's area manager to sign.
+  const { count: unsignedGoals } = await createAdminClient()
+    .from("insights_goal_agreements")
+    .select("id", { count: "exact", head: true })
+    .eq("office_id", officeId)
+    .eq("status", "pending");
 
   const [{ data: hoursRows }, { data: notesRows }, { data: listing }] = await Promise.all([
     supabase.from("office_hours").select("day_of_week, open_time, close_time, is_closed").eq("office_id", officeId),
@@ -97,6 +104,19 @@ export default async function OfficeInfoEditorPage({ params }: { params: Promise
           <span className="text-sm font-medium" style={{ color: "var(--portal-emerald)" }}>
             Open →
           </span>
+        </Link>
+      )}
+
+      {!!unsignedGoals && (
+        <Link
+          href={me.role === "area_manager" ? "/goal-agreements" : "/admin/goals"}
+          className="flex items-center justify-between gap-3 rounded-2xl px-5 py-3 mb-4"
+          style={{ background: "rgba(201,154,61,0.12)", border: "1px solid rgba(201,154,61,0.4)", color: "#16302B" }}
+        >
+          <span className="text-sm font-semibold">
+            {unsignedGoals} goal agreement{unsignedGoals === 1 ? "" : "s"} {me.role === "area_manager" ? "waiting for your signature" : "waiting for the area manager's signature"}
+          </span>
+          <span className="text-sm font-bold" style={{ color: "#1F6F54" }}>{me.role === "area_manager" ? "Review & sign →" : "View →"}</span>
         </Link>
       )}
 
