@@ -1312,7 +1312,9 @@ export default function BuilderClient({ template }: { template: any }) {
                     snapEnabled={snapEnabled}
                     cropModeId={cropModeId}
                     onStageReady={(s) => (mainStageRef.current = s)}
-                    onImageMeta={(id, w, h) => setElements(elements.map((e) => (e.id === id ? ({ ...e, naturalWidth: w, naturalHeight: h } as FlierElement) : e)))}
+                    onImageMeta={(id, w, h) =>
+                      setPages((ps) => ps.map((p, i) => (i === pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? ({ ...e, naturalWidth: w, naturalHeight: h } as FlierElement) : e)) } : p)))
+                    }
                     renderToolbar={(el) => (
                       <FloatingToolbar
                         el={el}
