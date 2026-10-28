@@ -252,9 +252,15 @@ export async function revealKey(upgradeId: string, actorId: string, opts: { isIt
 
 export async function setStep(upgradeId: string, actorId: string, step: "upgraded" | "joined" | "blocked" | "cancelled" | "reported_edition", value?: string) {
   const admin = createAdminClient();
-  const { data: up } = await admin.from("win_upgrades").select("id, status, steps, key_id").eq("id", upgradeId).maybeSingle();
+  const { data: up } = await admin.from("win_upgrades").select("id, status, steps, key_id, device_key").eq("id", upgradeId).maybeSingle();
   if (!up) throw new Error("Upgrade not found.");
   const now = new Date().toISOString();
+  // What someone saw on the PC also feeds the edition report (Intune data
+  // still wins on the next sync for managed PCs).
+  if (step === "reported_edition" && value) {
+    await admin.from("it_devices").update({ windows_edition: value, edition_source: "reported", edition_checked_at: now }).eq("device_key", up.device_key).neq("edition_source", "intune");
+    await admin.from("it_devices").update({ windows_edition: value, edition_source: "reported", edition_checked_at: now }).eq("device_key", up.device_key).is("edition_source", null);
+  }
   const steps = { ...(up.steps ?? {}) } as Record<string, string>;
   const patch: Record<string, unknown> = { updated_at: now };
   if (step === "reported_edition") {
