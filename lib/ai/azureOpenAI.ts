@@ -213,15 +213,22 @@ export async function describeImage(imageUrl: string, instruction: string): Prom
  * — image models are deployed independently in Azure OpenAI Studio.
  */
 export async function generateImage(prompt: string, size: "1024x1024" | "1792x1024" | "1024x1792" = "1024x1024") {
-  const endpoint = await getIntegrationSetting("azure_openai_endpoint", process.env.AZURE_OPENAI_ENDPOINT);
-  const apiKey = await getIntegrationSetting("azure_openai_api_key", process.env.AZURE_OPENAI_API_KEY);
+  // Images may live on a different Azure resource than chat (e.g. a
+  // Foundry resource in East US 2, since gpt-image-* is only offered in a
+  // few regions) - the image-specific settings override the shared ones.
+  const endpoint =
+    (await getIntegrationSetting("azure_openai_image_endpoint", process.env.AZURE_OPENAI_IMAGE_ENDPOINT)) ??
+    (await getIntegrationSetting("azure_openai_endpoint", process.env.AZURE_OPENAI_ENDPOINT));
+  const apiKey =
+    (await getIntegrationSetting("azure_openai_image_api_key", process.env.AZURE_OPENAI_IMAGE_API_KEY)) ??
+    (await getIntegrationSetting("azure_openai_api_key", process.env.AZURE_OPENAI_API_KEY));
   const imageDeployment = await getIntegrationSetting(
     "azure_openai_image_deployment",
     process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT
   );
   const apiVersion =
-    (await getIntegrationSetting("azure_openai_api_version", process.env.AZURE_OPENAI_API_VERSION)) ??
-    "2024-10-21";
+    (await getIntegrationSetting("azure_openai_image_api_version", process.env.AZURE_OPENAI_IMAGE_API_VERSION)) ??
+    "2025-04-01-preview";
 
   if (!endpoint || !apiKey || !imageDeployment) {
     throw new Error(
@@ -237,7 +244,13 @@ export async function generateImage(prompt: string, size: "1024x1024" | "1792x10
       "Content-Type": "application/json",
       "api-key": apiKey,
     },
-    body: JSON.stringify({ prompt, size, n: 1 }),
+    body: JSON.stringify({
+      prompt,
+      // gpt-image-* accepts 1024x1024 / 1536x1024 / 1024x1536; DALL-E 3 used
+      // 1792x1024 / 1024x1792. Map the legacy sizes so both deployments work.
+      size: /gpt-image/i.test(imageDeployment) ? size.replace("1792x1024", "1536x1024").replace("1024x1792", "1024x1536") : size,
+      n: 1,
+    }),
   });
 
   if (!res.ok) {

@@ -54,7 +54,10 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="azure_openai_endpoint" label="Endpoint" placeholder="https://your-resource.openai.azure.com" />
         <ConnectorKeyField settingKey="azure_openai_api_key" label="API Key" placeholder="From Azure OpenAI Studio > Keys and Endpoint" />
         <ConnectorKeyField settingKey="azure_openai_deployment" label="Chat Deployment Name" placeholder="e.g. gpt-4o" />
-        <ConnectorKeyField settingKey="azure_openai_image_deployment" label="Image Deployment Name (optional)" placeholder="e.g. dall-e-3" />
+        <ConnectorKeyField settingKey="azure_openai_image_deployment" label="Image Deployment Name (optional)" placeholder="e.g. gpt-image-1-mini" />
+        <ConnectorKeyField settingKey="azure_openai_image_endpoint" label="Image Endpoint (optional — only if images live on a different resource)" placeholder="https://your-resource.services.ai.azure.com" />
+        <ConnectorKeyField settingKey="azure_openai_image_api_key" label="Image API Key (optional — defaults to the key above)" placeholder="From Foundry > deployment > Details > Key" />
+        <ConnectorKeyField settingKey="azure_openai_image_api_version" label="Image API Version (optional)" placeholder="2025-04-01-preview" />
         <ConnectorKeyField
           settingKey="azure_openai_whisper_deployment"
           label="Whisper Deployment Name (optional)"

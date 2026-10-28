@@ -25,8 +25,12 @@ async function fetchBytes(src: string): Promise<Buffer> {
 }
 
 async function imageConfig() {
-  const endpoint = await getIntegrationSetting("azure_openai_endpoint", process.env.AZURE_OPENAI_ENDPOINT);
-  const apiKey = await getIntegrationSetting("azure_openai_api_key", process.env.AZURE_OPENAI_API_KEY);
+  const endpoint =
+    (await getIntegrationSetting("azure_openai_image_endpoint", process.env.AZURE_OPENAI_IMAGE_ENDPOINT)) ??
+    (await getIntegrationSetting("azure_openai_endpoint", process.env.AZURE_OPENAI_ENDPOINT));
+  const apiKey =
+    (await getIntegrationSetting("azure_openai_image_api_key", process.env.AZURE_OPENAI_IMAGE_API_KEY)) ??
+    (await getIntegrationSetting("azure_openai_api_key", process.env.AZURE_OPENAI_API_KEY));
   const deployment = await getIntegrationSetting("azure_openai_image_deployment", process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT);
   // Image edits need a newer API version than chat; allow an override.
   const apiVersion =
