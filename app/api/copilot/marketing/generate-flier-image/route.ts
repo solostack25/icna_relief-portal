@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       next: "Show each option to the employee as an image (markdown ![Option N](url)). When they pick one, call save_generated_flier with that option's url to save it as a flier they can download or open in the editor.",
     });
   } catch (err) {
+    console.error("[generate-flier-image]", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "Flier generation failed." }, { status: 500 });
   }
 }

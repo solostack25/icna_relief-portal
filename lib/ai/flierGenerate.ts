@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
-import { describeImage } from "@/lib/ai/azureOpenAI";
+import { describeImage, normalizeAzureEndpoint } from "@/lib/ai/azureOpenAI";
 
 // "Generate a flier" the way ChatGPT does it: the image model paints the
 // whole flier - type, color, imagery - as one picture. What keeps it on
@@ -68,7 +68,7 @@ async function imageConfig(quality: "draft" | "final") {
   if (!endpoint || !apiKey || !deployment) {
     throw new Error("Flier generation isn't configured. Set the Image Deployment (gpt-image-1.5), endpoint and key in Admin > Connectors.");
   }
-  return { endpoint: endpoint.replace(/\/+$/, ""), apiKey, deployment, apiVersion };
+  return { endpoint: normalizeAzureEndpoint(endpoint), apiKey, deployment, apiVersion };
 }
 
 type Brand = {
@@ -268,10 +268,12 @@ export async function generateBrandFliers(input: FlierGenInput): Promise<{ resul
 
   const palette = brand.colors.map((c) => c.hex).filter((h) => /^#[0-9a-f]{3,6}$/i.test(h));
   const required = [input.title, ...input.lines];
-  const results: FlierGenResult[] = [];
   const count = Math.max(1, Math.min(3, input.count));
 
-  for (let v = 0; v < count; v++) {
+  // Variants run in parallel (each with its own single retry) so two
+  // options take about as long as one - keeps us well inside the
+  // function time limit.
+  async function oneVariant(v: number): Promise<FlierGenResult | null> {
     let attempts = 0;
     let retryNote: string | undefined;
     let best: FlierGenResult | null = null;
@@ -293,8 +295,14 @@ export async function generateBrandFliers(input: FlierGenInput): Promise<{ resul
         .filter(Boolean)
         .join(" ");
     }
-    if (best) results.push(best);
+    return best;
   }
+
+  const settled = await Promise.allSettled(Array.from({ length: count }, (_, v) => oneVariant(v)));
+  const results = settled.flatMap((s) => (s.status === "fulfilled" && s.value ? [s.value] : []));
+  const failures = settled.flatMap((s) => (s.status === "rejected" ? [s.reason instanceof Error ? s.reason.message : String(s.reason)] : []));
+  if (results.length === 0) throw new Error(failures[0] ?? "Image generation failed.");
+  if (failures.length) warnings.push(`${failures.length} option(s) failed: ${failures[0]}`);
 
   return { results, brandRefs: refCount, warnings };
 }

@@ -37,6 +37,19 @@ export type ToolDefinition = {
   };
 };
 
+// People paste whatever Azure/Foundry shows them: the bare resource URL,
+// or a full request URL like ".../openai/v1/images/generations" or
+// ".../openai/deployments/x/chat/completions?api-version=...". Every call
+// site appends its own path, so keep only the scheme + host.
+export function normalizeAzureEndpoint(raw: string): string {
+  const trimmed = raw.trim();
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+}
+
 type AzureConfig = {
   endpoint: string; // e.g. https://icna-portal-ai.openai.azure.com
   apiKey: string;
@@ -53,7 +66,7 @@ async function getAzureConfig(): Promise<AzureConfig | null> {
     "2024-10-21";
 
   if (!endpoint || !apiKey || !deployment) return null;
-  return { endpoint: endpoint.replace(/\/+$/, ""), apiKey, deployment, apiVersion };
+  return { endpoint: normalizeAzureEndpoint(endpoint), apiKey, deployment, apiVersion };
 }
 
 export class AzureContentFilterError extends Error {
@@ -236,7 +249,7 @@ export async function generateImage(prompt: string, size: "1024x1024" | "1792x10
     );
   }
 
-  const url = `${endpoint.replace(/\/+$/, "")}/openai/deployments/${imageDeployment}/images/generations?api-version=${apiVersion}`;
+  const url = `${normalizeAzureEndpoint(endpoint)}/openai/deployments/${imageDeployment}/images/generations?api-version=${apiVersion}`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -315,7 +328,7 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
   form.append("file", new Blob([new Uint8Array(audioBuffer)]), filename);
 
   const res = await fetch(
-    `${endpoint.replace(/\/+$/, "")}/openai/deployments/${deployment}/audio/transcriptions?api-version=${apiVersion}`,
+    `${normalizeAzureEndpoint(endpoint)}/openai/deployments/${deployment}/audio/transcriptions?api-version=${apiVersion}`,
     {
       method: "POST",
       headers: { "api-key": apiKey },

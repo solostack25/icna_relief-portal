@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { getIntegrationSetting } from "@/lib/integrationSettings";
+import { normalizeAzureEndpoint } from "@/lib/ai/azureOpenAI";
 
 // Azure OpenAI image EDITS (inpainting) - the backend for Magic Erase,
 // Generative Fill and Generative Expand in the Flier Builder's AI Studio.
@@ -40,7 +41,7 @@ async function imageConfig() {
       "AI image editing isn't configured yet. Set 'azure_openai_image_deployment' (a gpt-image-1 deployment) in Admin > Connectors."
     );
   }
-  return { endpoint: endpoint.replace(/\/+$/, ""), apiKey, deployment, apiVersion };
+  return { endpoint: normalizeAzureEndpoint(endpoint), apiKey, deployment, apiVersion };
 }
 
 // Azure/OpenAI edits accept square or a few fixed sizes; we send the

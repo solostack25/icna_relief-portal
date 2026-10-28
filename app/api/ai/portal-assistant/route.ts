@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runPortalAssistant } from "@/lib/ai/portalAssistant";
 
+// Flier generation runs inside a tool call and can take ~1-2 minutes.
+export const maxDuration = 300;
+
 // Identity here comes from the portal's own logged-in session (same
 // Supabase auth every other page in this app uses) — not from MSAL or
 // any client-supplied identifier. This is simpler than the previous
