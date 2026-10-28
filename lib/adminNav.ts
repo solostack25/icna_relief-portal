@@ -73,6 +73,7 @@ export const HUBS = {
         a.canManageDevices && { href: "/admin/devices/join", labelKey: "devicesHub.tab.join" },
         a.canManageDevices && { href: "/admin/devices/cleanup", labelKey: "devicesHub.tab.cleanup" },
         a.canManageDevices && { href: "/admin/devices/licenses", labelKey: "devicesHub.tab.licenses" },
+        a.canManageDevices && { href: "/admin/devices/windows-upgrade", labelKey: "devicesHub.tab.windowsUpgrade" },
         a.canManageDevices && { href: "/admin/devices/activity", labelKey: "devicesHub.tab.activity" },
       ]),
     prefixes: ["/admin/devices"],

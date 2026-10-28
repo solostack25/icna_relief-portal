@@ -11,6 +11,12 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["training", "course", "lms", "certification", "onboarding training"],
   },
   {
+    name: "Upgrade my PC",
+    path: "/devices/upgrade",
+    description: "Step-by-step: move your work computer to Windows 11 Pro (with an ICNA Relief license key) and connect it to ICNA Relief so you can sign in with your work account.",
+    keywords: ["windows 11 pro", "upgrade windows", "windows home", "product key", "license key", "join entra", "join azure ad", "work account sign in", "upgrade my pc", "upgrade my computer"],
+  },
+  {
     name: "Help Desk",
     path: "/helpdesk",
     description: "Submit and track IT, HR, Marketing, or Finance tickets.",

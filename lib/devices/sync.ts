@@ -1,3 +1,4 @@
+import { syncWindowsEditions } from "@/lib/devices/windowsUpgrade";
 import { createAdminClient } from "@/lib/supabase/server";
 import { SKU_FRIENDLY_NAMES } from "@/lib/msgraph";
 import { gGetAll, explainGraphError } from "./graph";
@@ -360,6 +361,14 @@ export async function runDeviceSync(opts: { trigger: "cron" | "manual"; triggere
       .eq("compliance_state", "compliant")
       .not("compliance_reasons", "is", null);
     counts.noncompliant = failing.length;
+  }
+
+  // Windows edition (Home / Pro / Enterprise) for Intune-managed PCs, then
+  // auto-complete any Windows 11 Pro upgrades the sync can now confirm.
+  if (intuneOk) {
+    const ed = await syncWindowsEditions();
+    counts.windows_editions = ed.updated;
+    if (ed.error) errors.windows_edition = `Couldn't read Windows editions: ${ed.error}`;
   }
 
   // Devices Graph no longer returns: mark removed, but only when the
