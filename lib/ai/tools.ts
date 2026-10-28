@@ -261,7 +261,7 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "find_employee_info",
       description:
-        "Looks up an employee by name and returns their job title, department, office location, email, phone, and manager, pulled live from Active Directory - works for anyone in the org. If the person is a member of ICNA Relief's national executive leadership, also includes their public bio from the ICNA Relief website (this only exists for a handful of leadership roles like CEO/CSO - regular staff won't have one, which is normal, not an error). If the response is ambiguous_target, show the candidates (name + title) and ask which one; when they answer (even just \"the CIO\" or \"the Houston one\"), call again with that candidate's exact email in `email`. Never call again with a made-up name like \"Amir Saeed CIO\".",
+        "Looks up a coworker and returns a full picture, like Microsoft 365 Copilot's people answer: title, department, office, email, phone, manager, direct reports, their Microsoft 365 profile (about me, skills, past projects), the public leadership bio if they have one, portal context (their office, open helpdesk work, grants they manage), and - read with the ASKER's own Microsoft access, so only things the asker can already see - files this person shared with the asker, their trending files the asker can open, and upcoming meetings they both have. Use it for any \"who is X\" or \"what is X working on\" question, then follow the response's howToAnswer field. If the response is ambiguous_target, show the candidates (name + title) and ask which one; when they answer (even just \"the CIO\" or \"the Houston one\"), call again with that candidate's exact email in `email`. Never call again with a made-up name like \"Amir Saeed CIO\".",
       parameters: {
         type: "object",
         properties: {
@@ -408,7 +408,11 @@ export async function executeTool(
         "Content-Type": "application/json",
         "X-Copilot-Api-Key": apiKey,
       },
-      body: JSON.stringify({ requesterEmail, ...args }),
+      // requesterEmail comes from the signed-in session and is applied
+      // LAST, so a model-supplied argument can never impersonate another
+      // employee (tickets, approval coverage, and lookups that use the
+      // asker's own Microsoft access all key off it).
+      body: JSON.stringify({ ...args, requesterEmail }),
     });
 
     const data = await res.json().catch(() => ({}));

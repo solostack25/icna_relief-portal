@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { provisionEmployee } from "@/lib/provisionEmployee";
+import { createAdminClient } from "@/lib/supabase/server";
+import { saveRefreshToken } from "@/lib/msgraphDelegated";
 
 // Handles the redirect back from Azure AD after SSO login, exchanges
 // the auth code for a session, then provisions the employee record
@@ -25,6 +27,18 @@ export async function GET(request: NextRequest) {
         // shows "no employee record" if it didn't end up creating one,
         // which is the right fallback for a real mapping/Graph issue.
       });
+
+      // Keep the Microsoft refresh token (Supabase returns it only here,
+      // never again) so assistant lookups can run as this employee.
+      // Best-effort: failure just means those lookups ask them to re-sign-in.
+      const providerRefresh = data.session?.provider_refresh_token;
+      if (providerRefresh) {
+        try {
+          const admin = createAdminClient();
+          const { data: emp } = await admin.from("employees").select("id").eq("auth_user_id", data.user.id).maybeSingle();
+          if (emp) await saveRefreshToken(emp.id, providerRefresh);
+        } catch {}
+      }
       return NextResponse.redirect(`${origin}/select-app`);
     }
   }

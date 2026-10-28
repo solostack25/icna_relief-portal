@@ -163,6 +163,16 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        id="sso-delegated"
+        title="Microsoft Sign-in (assistant lookups as the employee)"
+        description="The Portal Assistant reads shared files and shared meetings using each employee's OWN Microsoft access, captured when they sign in, so it only ever sees what they can see. By default it uses the same Entra app as the rest of the portal (AZURE_CLIENT_ID / AZURE_CLIENT_SECRET). Only fill these in if the app configured in Supabase → Auth → Providers → Azure is a different app registration. That app needs delegated Graph permissions: User.Read, User.ReadBasic.All, Calendars.Read, Sites.Read.All, People.Read, offline_access (grant admin consent once)."
+      >
+        <ConnectorKeyField settingKey="azure_sso_tenant_id" label="Directory (tenant) ID (optional)" envFallbackKey="AZURE_SSO_TENANT_ID" />
+        <ConnectorKeyField settingKey="azure_sso_client_id" label="SSO Application (client) ID (optional)" envFallbackKey="AZURE_SSO_CLIENT_ID" />
+        <ConnectorKeyField settingKey="azure_sso_client_secret" label="SSO Client secret (optional)" envFallbackKey="AZURE_SSO_CLIENT_SECRET" />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="Brand Assets"
         description="A hosted URL for the ICNA Relief logo, used when the Portal Assistant creates a flier from scratch (no template) — it's placed on the flier automatically, never invented or approximated. Upload the logo anywhere with a stable public URL (e.g. WordPress media library, or the Content Library/Dropbox) and paste that URL here. Without this set, AI-generated fliers are created without a logo and staff are told to add one manually before publishing."
       >

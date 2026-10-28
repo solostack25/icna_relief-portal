@@ -40,7 +40,9 @@ export default function LoginPage() {
       provider: "azure",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: "email openid profile",
+        // offline_access + read scopes let the Portal Assistant look things
+        // up AS this employee (shared files/meetings) - see lib/msgraphDelegated.
+        scopes: "email openid profile offline_access User.Read User.ReadBasic.All Calendars.Read Sites.Read.All People.Read",
       },
     });
   }

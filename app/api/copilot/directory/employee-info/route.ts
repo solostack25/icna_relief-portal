@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getGraphToken, graphGet } from "@/lib/msgraph";
 import { requireCopilotAuth } from "@/lib/copilotAuth";
 import { findIcnaTeamBio } from "@/lib/icnaTeamPage";
+import { createAdminClient } from "@/lib/supabase/server";
+import { lookupEmployeeByEmail } from "@/lib/copilotAuth";
+import { getDelegatedToken, delegatedGet, DelegatedAccessUnavailable } from "@/lib/msgraphDelegated";
+
+export const maxDuration = 60;
 
 // Same $search mechanics as /api/admin/finance/directory-search (the
 // only other place this portal does a live, unscoped AD name search)
@@ -44,7 +49,7 @@ export async function POST(req: Request) {
   const authError = await requireCopilotAuth(req);
   if (authError) return authError;
 
-  const { name, email, hint } = (await req.json()) as { name?: string; email?: string; hint?: string };
+  const { name, email, hint, requesterEmail } = (await req.json()) as { name?: string; email?: string; hint?: string; requesterEmail?: string };
   if (!name?.trim() && !email?.trim()) {
     return NextResponse.json({ error: "name or email is required" }, { status: 400 });
   }
@@ -95,7 +100,34 @@ export async function POST(req: Request) {
     // No manager on file, or the lookup failed - not fatal, just omit it.
   }
 
-  const teamBio = await findIcnaTeamBio(person.displayName);
+  const personEmail = (person.mail || person.userPrincipalName).toLowerCase();
+
+  // Everything below is best-effort and runs in parallel: a failed piece
+  // is simply omitted rather than failing the whole lookup.
+  const [teamBio, directReports, m365Profile, portal, together] = await Promise.all([
+    findIcnaTeamBio(person.displayName),
+    // Direct reports (app-only directory read - same visibility as the org chart).
+    graphGet(`/users/${person.id}/directReports?$select=displayName,jobTitle&$top=25`)
+      .then((r: any) => (r.value ?? []).map((u: any) => ({ name: u.displayName, title: u.jobTitle ?? null })))
+      .catch(() => null),
+    // The person's own Microsoft 365 profile ("About me", skills, past
+    // projects, responsibilities) - what they chose to publish org-wide.
+    graphGet(`/users/${person.id}?$select=aboutMe,skills,pastProjects,responsibilities,interests,hireDate`)
+      .then((u: any) => {
+        const out = {
+          aboutMe: u.aboutMe || null,
+          skills: (u.skills ?? []).slice(0, 12),
+          pastProjects: (u.pastProjects ?? []).slice(0, 8),
+          responsibilities: (u.responsibilities ?? []).slice(0, 8),
+          interests: (u.interests ?? []).slice(0, 8),
+          hireDate: u.hireDate && !String(u.hireDate).startsWith("0001") ? u.hireDate : null,
+        };
+        return Object.values(out).some((v) => (Array.isArray(v) ? v.length : v)) ? out : null;
+      })
+      .catch(() => null),
+    portalContext(personEmail),
+    requesterEmail ? sharedWithRequester(requesterEmail, person.id, personEmail) : Promise.resolve(null),
+  ]);
 
   return NextResponse.json({
     name: person.displayName,
@@ -105,9 +137,99 @@ export async function POST(req: Request) {
     officeLocation: person.officeLocation,
     phone: person.mobilePhone || person.businessPhones?.[0] || null,
     manager,
+    directReports,
+    m365Profile,
     publicBio:
       teamBio.found === true
         ? { title: teamBio.title, bio: teamBio.bio, source: "ICNA Relief national leadership page" }
         : null,
+    portal,
+    withYou: together,
+    howToAnswer:
+      "Write a short 2-4 sentence bio from these facts only (role, department, who they report to, team size, office, M365 profile, public bio), then list what they're working on that's visible to the asker (withYou.sharedFiles / trendingFiles, portal.openTickets, portal.grantsManaged) and upcoming meetings you both have (withYou.upcomingMeetingsTogether). Don't invent anything, don't mention LinkedIn. If withYou.unavailable is set, say in one line that signing out and back in once will add shared files and meetings.",
   });
+}
+
+// Portal-only context M365 Copilot can't see: office, open helpdesk work,
+// grants they manage.
+async function portalContext(email: string) {
+  try {
+    const admin = createAdminClient();
+    const { data: emp } = await admin.from("employees").select("id, assigned_office_id, assigned_region").ilike("email", email).maybeSingle();
+    if (!emp) return null;
+    const [office, legs, grants] = await Promise.all([
+      emp.assigned_office_id ? admin.from("b2s_offices").select("field_office, state, region").eq("id", emp.assigned_office_id).maybeSingle() : Promise.resolve({ data: null }),
+      admin
+        .from("helpdesk_request_legs")
+        .select("status, department, request:helpdesk_requests(title)")
+        .eq("assigned_to_employee_id", emp.id)
+        .in("status", ["open", "in_progress", "on_hold"])
+        .order("created_at", { ascending: false })
+        .limit(5),
+      admin.from("gm_grant_members").select("role, grant:gm_grants(name, funder, status, end_date)").eq("employee_id", emp.id).eq("role", "grant_manager").limit(8),
+    ]);
+    return {
+      office: office.data ? `${office.data.field_office}${office.data.state ? `, ${office.data.state}` : ""}` : null,
+      region: emp.assigned_region ?? (office.data as any)?.region ?? null,
+      openTickets: (legs.data ?? []).map((l: any) => ({ title: l.request?.title ?? "(untitled)", department: l.department, status: l.status })),
+      grantsManaged: (grants.data ?? [])
+        .map((g: any) => g.grant)
+        .filter((g: any) => g && g.status !== "closed")
+        .map((g: any) => ({ name: g.name, funder: g.funder, ends: g.end_date })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Things the ASKER can see that involve this person, read with the
+// asker's own Microsoft token so Microsoft enforces their permissions:
+// files this person shared with them, this person's trending files the
+// asker has access to, and upcoming meetings on the asker's calendar that
+// this person is also invited to.
+async function sharedWithRequester(requesterEmail: string, personId: string, personEmail: string) {
+  const requester = await lookupEmployeeByEmail(requesterEmail);
+  if (!requester) return null;
+  if (requester.email.toLowerCase() === personEmail) return null;
+  let token: string;
+  try {
+    token = await getDelegatedToken(requester.id);
+  } catch (e) {
+    return { unavailable: e instanceof DelegatedAccessUnavailable ? e.message : "Couldn't reach Microsoft for shared items." };
+  }
+  const now = new Date();
+  const in14 = new Date(now.getTime() + 14 * 864e5);
+  const [shared, trending, meetings] = await Promise.all([
+    delegatedGet(token, `/me/insights/shared?$filter=${encodeURIComponent(`lastShared/sharedBy/address eq '${personEmail.replace(/'/g, "''")}'`)}&$top=8`)
+      .then((r: any) =>
+        (r.value ?? []).map((i: any) => ({
+          name: i.resourceVisualization?.title ?? "(file)",
+          type: i.resourceVisualization?.type ?? null,
+          sharedOn: i.lastShared?.sharedDateTime ?? null,
+          url: i.resourceReference?.webUrl ?? null,
+        }))
+      )
+      .catch(() => null),
+    delegatedGet(token, `/users/${personId}/insights/trending?$top=6`)
+      .then((r: any) => (r.value ?? []).map((i: any) => ({ name: i.resourceVisualization?.title ?? "(file)", type: i.resourceVisualization?.type ?? null, url: i.resourceReference?.webUrl ?? null })))
+      .catch(() => null),
+    delegatedGet(
+      token,
+      `/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${in14.toISOString()}&$select=subject,start,end,attendees,organizer,isCancelled,onlineMeeting&$orderby=start/dateTime&$top=100`,
+      { Prefer: 'outlook.timezone="Central Standard Time"' }
+    )
+      .then((r: any) =>
+        (r.value ?? [])
+          .filter((ev: any) => !ev.isCancelled)
+          .filter(
+            (ev: any) =>
+              (ev.organizer?.emailAddress?.address ?? "").toLowerCase() === personEmail ||
+              (ev.attendees ?? []).some((a: any) => (a.emailAddress?.address ?? "").toLowerCase() === personEmail)
+          )
+          .slice(0, 6)
+          .map((ev: any) => ({ subject: ev.subject, start: ev.start?.dateTime, end: ev.end?.dateTime, organizer: ev.organizer?.emailAddress?.name ?? null }))
+      )
+      .catch(() => null),
+  ]);
+  return { sharedFiles: shared, trendingFiles: trending, upcomingMeetingsTogether: meetings };
 }
