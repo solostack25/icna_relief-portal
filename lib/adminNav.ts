@@ -42,6 +42,7 @@ export const HUBS = {
       tabs([
         a.canManageTickets && { href: "/admin/helpdesk/manage", labelKey: "sidebar.nav.manageTickets" },
         a.isAdmin && { href: "/admin/helpdesk", labelKey: "sidebar.nav.helpDeskWorkload", exact: true },
+        a.canManageDevices && { href: "/admin/helpdesk/help-articles", labelKey: "sidebar.nav.itHelpArticles" },
       ]),
     prefixes: ["/admin/helpdesk"],
   },

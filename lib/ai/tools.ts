@@ -14,7 +14,7 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "create_helpdesk_ticket",
       description:
-        "Creates a new helpdesk ticket routed to the given department (IT, HR, Marketing, or Finance). Always confirm the details with the requester before calling this.",
+        "Creates a new helpdesk ticket routed to the given department (IT, HR, Marketing, or Finance). For IT problems, troubleshoot first (diagnose_my_issue + search_it_help) unless it's urgent, a security incident, a hardware/purchase/access request, or the employee asks for a ticket - then include stepsTried and diagnosticsSummary so IT doesn't repeat them. Always confirm the details with the requester before calling this.",
       parameters: {
         type: "object",
         properties: {
@@ -38,8 +38,18 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
           },
           category: {
             type: "string",
-            description: 'Optional free-text category, e.g. "Hardware", "Access Request".',
+            description: 'Optional free-text category, e.g. "Hardware", "Access Request". Use the help article\'s ticketCategory when one was used.',
           },
+          stepsTried: {
+            type: "array",
+            items: { type: "string" },
+            description: "Troubleshooting steps the employee already tried in this chat and what happened, e.g. [\"Restarted laptop - still slow\", \"Freed disk space to 25 GB - no change\"].",
+          },
+          diagnosticsSummary: {
+            type: "string",
+            description: "One to four short lines summarizing what diagnose_my_issue found (account, device, service health, office reports).",
+          },
+          kbArticleIds: { type: "array", items: { type: "string" }, description: "ids of help articles used." },
         },
         required: ["title", "department"],
       },
@@ -151,6 +161,70 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
           },
         },
         required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "diagnose_my_issue",
+      description:
+        "Runs read-only checks on the EMPLOYEE'S OWN Microsoft account, their company devices, Microsoft 365 service health, and whether others in their office reported the same thing today. Call this first when someone describes an IT problem (no confirmation needed - it changes nothing). Returns plain-English findings: e.g. account disabled, no license, recent failed sign-ins and why, nearly-full disk, device out of compliance or not checking in, an active Microsoft outage, or an office-wide issue. Lead with any 'problem' finding - it often IS the answer (a Microsoft outage or office-wide outage means don't make them troubleshoot their own computer).",
+      parameters: {
+        type: "object",
+        properties: {
+          area: {
+            type: "string",
+            enum: ["sign-in", "email", "teams", "device", "printer", "network", "onedrive", "phone", "software", "security", "general"],
+            description: "Which kind of problem it is.",
+          },
+        },
+        required: ["area"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_it_help",
+      description:
+        "Searches IT's troubleshooting playbooks for the employee's problem. Returns up to 3 articles with numbered steps, when to escalate, and the ticket category to use. Walk the employee through the best one 1-2 steps at a time, asking if it worked after each, skipping steps diagnostics already ruled out.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "The problem in the employee's own words, e.g. \"outlook not getting new emails\"." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "sync_my_device",
+      description:
+        "Asks Intune to sync one of the employee's OWN managed devices (pulls pending updates, policies and Company Portal apps). Safe; use when diagnostics show a device hasn't checked in, is out of compliance, or an app from Company Portal won't install. Confirm which device first if they have more than one. Use the device 'key' from diagnose_my_issue.",
+      parameters: {
+        type: "object",
+        properties: { deviceKey: { type: "string", description: "The device's key from diagnose_my_issue's devices list." } },
+        required: ["deviceKey"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_troubleshooting_outcome",
+      description:
+        "Call once when a troubleshooting conversation ends WITHOUT a ticket: outcome 'resolved' when the employee confirms it's fixed, 'abandoned' if they stop. (If it becomes a ticket, create_helpdesk_ticket records it instead.) No confirmation needed; don't mention it to the employee.",
+      parameters: {
+        type: "object",
+        properties: {
+          issue: { type: "string", description: "Short summary of the problem." },
+          category: { type: "string" },
+          kbArticleIds: { type: "array", items: { type: "string" } },
+          stepsTried: { type: "array", items: { type: "string" }, description: "Steps tried, ending with the one that fixed it." },
+          outcome: { type: "string", enum: ["resolved", "abandoned"] },
+        },
+        required: ["issue", "outcome"],
       },
     },
   },
@@ -360,6 +434,10 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
 
 const TOOL_ROUTES: Record<string, string> = {
   create_helpdesk_ticket: "/api/copilot/helpdesk/create-ticket",
+  diagnose_my_issue: "/api/copilot/helpdesk/diagnose",
+  search_it_help: "/api/copilot/helpdesk/search-help",
+  sync_my_device: "/api/copilot/helpdesk/sync-my-device",
+  log_troubleshooting_outcome: "/api/copilot/helpdesk/log-outcome",
   click_to_call: "/api/copilot/calling/click-to-call",
   quick_sms: "/api/copilot/calling/quick-sms",
   create_flier_draft: "/api/copilot/marketing/create-flier-draft",

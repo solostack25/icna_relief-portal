@@ -20,11 +20,12 @@ type Props = {
 };
 
 const GREETING =
-  "Hi! I can design a finished on-brand flier for you, create helpdesk tickets, place calls, send texts, or find your way around the portal. What do you need?";
+  "Hi! Tell me if something isn't working and I'll help you fix it (or open a ticket if we can't). I can also design an on-brand flier, look up a coworker, place calls, send texts, or find your way around the portal.";
 
 const QUICK_ACTIONS: { label: string; text: string }[] = [
   { label: "✦ Make a flier", text: "I need a flier. Here are the details: " },
   { label: "Translate a flier", text: "Translate my flier to Spanish" },
+  { label: "🛠 Something's not working", text: "Something isn't working: " },
   { label: "Open a ticket", text: "I need to open a helpdesk ticket" },
   { label: "Office hours", text: "What are my office's hours?" },
 ];
@@ -147,7 +148,7 @@ export default function PortalAssistantPanel({ onClose }: Props) {
         )}
         {sending && (
           <div className="pa-bubble-row pa-row-bot">
-            <div className="pa-bubble pa-bubble-bot pa-typing">{/designing|generat|flier/i.test(messages[messages.length - 1]?.content ?? "") ? "Working on it — designing can take up to a minute…" : "Thinking…"}</div>
+            <div className="pa-bubble pa-bubble-bot pa-typing">{/designing|generat|flier/i.test(messages[messages.length - 1]?.content ?? "") ? "Working on it — designing can take up to a minute…" : /not working|broken|can.?t|won.?t|error|slow|down/i.test(messages[messages.length - 1]?.content ?? "") ? "Checking your account and devices…" : "Thinking…"}</div>
           </div>
         )}
         {error && <p className="pa-error">{error}</p>}
