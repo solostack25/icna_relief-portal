@@ -157,6 +157,51 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "generate_flier_image",
+      description:
+        "Designs complete, finished flier options with the AI image model (the way ChatGPT makes a flier): layout, typography, imagery and the brand logo all composed together, strictly in ICNA Relief's brand colors/fonts/style and matched to Marketing's reference fliers. This is the BEST-looking option and the default when an employee asks for a flier. Collect the title, the date/time, the location and a contact or call-to-action first (ask in ONE message if several are missing), confirm the exact wording, then call this. Every option is checked afterwards: textOk=false means a line was misspelled/missing, brandOk=false means off-palette colors - tell the employee plainly and offer to regenerate. Show each option with markdown image syntax ![Option 1](url) so it renders in the chat. Takes 20-60 seconds; say so before calling.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "The headline, exactly as it should appear." },
+          lines: {
+            type: "array",
+            items: { type: "string" },
+            description: 'Up to 6 short lines rendered verbatim, in order: date & time, location/address, who it\'s for, contact phone/email, call to action. e.g. ["Saturday, Nov 15 · 10 AM – 2 PM", "12121 Veterans Memorial Dr, Houston TX", "Free · All welcome", "(713) 555-0142 · houston@icnarelief.org"]',
+          },
+          program: { type: "string", description: "Program name if known (Hunger Prevention, Transitional Housing, Disaster Response, Fundraisers, Volunteer events, Ramadan / Eid...)." },
+          subject: { type: "string", description: "Imagery to depict, described visually (no text): e.g. \"volunteers sorting winter coats at a community center\"." },
+          format: { type: "string", enum: ["vertical", "square", "landscape", "story"], description: "Default vertical (print + Instagram/Facebook). story for Instagram Stories, square for feed posts, landscape for banners/email." },
+          styleHint: { type: "string", description: "Optional art-direction from the employee: \"photo-led\", \"bold illustration\", \"minimal\", \"festive\"." },
+          quality: { type: "string", enum: ["draft", "final"], description: "draft = quick/cheap options to choose a direction (default when count > 1); final = highest quality (use once they've picked a direction, or for count = 1)." },
+          count: { type: "number", description: "How many options, 1-3. Default 2." },
+        },
+        required: ["title", "lines"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_generated_flier",
+      description:
+        "Saves one of the options returned by generate_flier_image as a flier the employee can download (PNG / print PDF) and open in the editor. Call it with the url of the option they chose. Returns downloadUrl and editorUrl - give them both. The flier shows in the shared gallery for other offices only after Marketing approves it; say that in one sentence.",
+      parameters: {
+        type: "object",
+        properties: {
+          imageUrl: { type: "string", description: "The chosen option's url, exactly as returned." },
+          title: { type: "string", description: "The flier title (used as the saved name)." },
+          width: { type: "number" },
+          height: { type: "number" },
+          program: { type: "string" },
+        },
+        required: ["imageUrl", "title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "find_portal_page",
       description:
         "Finds the right page in the portal for a topic (training, volunteer, help desk, transitional housing, fundraisers, client directory, employee directory, fliers, and more), including matching specific training courses by title. Use this whenever the employee asks where something is, how to get to it, or wants to be pointed to a resource. Always return the page name and URL so the employee can click through.",
@@ -314,6 +359,8 @@ const TOOL_ROUTES: Record<string, string> = {
   quick_sms: "/api/copilot/calling/quick-sms",
   create_flier_draft: "/api/copilot/marketing/create-flier-draft",
   create_flier_from_scratch: "/api/copilot/marketing/create-flier-from-scratch",
+  generate_flier_image: "/api/copilot/marketing/generate-flier-image",
+  save_generated_flier: "/api/copilot/marketing/save-generated-flier",
   find_portal_page: "/api/copilot/portal/find-page",
   list_my_helpdesk_tickets: "/api/copilot/helpdesk/my-tickets",
   get_office_info: "/api/copilot/office/info",

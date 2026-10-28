@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import PortalHeader from "@/app/PortalHeader";
 import FillClient from "./FillClient";
+import { getFlierMarketingAccess } from "@/lib/flierMarketingAccess";
 
 export default async function FlierFillPage({
   params,
@@ -26,6 +27,15 @@ export default async function FlierFillPage({
     .eq("is_active", true)
     .single();
   if (!template) notFound();
+
+  // AI-generated fliers awaiting Marketing review are visible only to the
+  // person who made them (and to Marketing) until approved.
+  if (template.review_status && template.review_status !== "approved") {
+    const { data: me } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).maybeSingle();
+    const isOwner = !!me && template.created_by === me.id;
+    const marketing = await getFlierMarketingAccess();
+    if (!isOwner && !marketing.ok) notFound();
+  }
 
   // If opened from a prefilled draft (e.g. generated via the API for
   // a future Copilot action), merge those values into the canvas

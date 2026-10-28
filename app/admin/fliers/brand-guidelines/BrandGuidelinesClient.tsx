@@ -16,6 +16,28 @@ export default function BrandGuidelinesClient() {
   const [voiceTone, setVoiceTone] = useState("");
   const [dos, setDos] = useState<string[]>([]);
   const [donts, setDonts] = useState<string[]>([]);
+  const [aiStyleNotes, setAiStyleNotes] = useState("");
+  const [referenceUrls, setReferenceUrls] = useState<string[]>([]);
+  const [uploadingRefs, setUploadingRefs] = useState(false);
+  const [refError, setRefError] = useState<string | null>(null);
+
+  async function uploadReferences(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadingRefs(true);
+    setRefError(null);
+    const fd = new FormData();
+    Array.from(files).forEach((f) => fd.append("files", f));
+    const res = await fetch("/api/marketing/fliers/brand-guidelines/reference", { method: "POST", body: fd });
+    const body = await res.json();
+    if (!res.ok) setRefError(body.error ?? "Upload failed");
+    else setReferenceUrls(body.urls);
+    setUploadingRefs(false);
+  }
+  async function removeReference(url: string) {
+    const res = await fetch("/api/marketing/fliers/brand-guidelines/reference", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+    const body = await res.json();
+    if (res.ok) setReferenceUrls(body.urls);
+  }
 
   useEffect(() => {
     fetch("/api/marketing/fliers/brand-guidelines")
@@ -29,6 +51,8 @@ export default function BrandGuidelinesClient() {
         setVoiceTone(g.voice_tone ?? "");
         setDos(g.dos ?? []);
         setDonts(g.donts ?? []);
+        setAiStyleNotes(g.ai_style_notes ?? "");
+        setReferenceUrls(Array.isArray(g.reference_flier_urls) ? g.reference_flier_urls : []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -39,7 +63,7 @@ export default function BrandGuidelinesClient() {
     const res = await fetch("/api/marketing/fliers/brand-guidelines", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colors, fonts, logoUsageNotes, voiceTone, dos, donts }),
+      body: JSON.stringify({ colors, fonts, logoUsageNotes, voiceTone, dos, donts, aiStyleNotes }),
     });
     setSaving(false);
     setSaveMsg(res.ok ? "Saved" : "Failed to save");
@@ -160,6 +184,42 @@ export default function BrandGuidelinesClient() {
       <div className={sectionClass} style={sectionStyle}>
         <h2 className="text-sm font-semibold mb-3">Don&apos;ts</h2>
         <BulletListEditor items={donts} onChange={setDonts} placeholder="e.g. Never stretch or recolor the logo" />
+      </div>
+
+      {/* AI flier generation */}
+      <div className={sectionClass} style={sectionStyle}>
+        <h2 className="text-sm font-semibold mb-1">AI Flier Generation</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          When someone asks the Portal Assistant for a flier, the image model gets these reference fliers, the logo, and every section above. 3–6 of your best real fliers make the biggest difference — the model copies their layout and polish.
+        </p>
+        <label className={labelClass}>Reference fliers (PNG/JPG, up to 6)</label>
+        <div className="flex flex-wrap gap-3 mb-3">
+          {referenceUrls.map((u) => (
+            <div key={u} className="relative w-28 rounded-lg overflow-hidden border" style={{ borderColor: "var(--portal-border, #e5ddd0)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={u} alt="" className="w-full h-36 object-cover" />
+              <button onClick={() => removeReference(u)} className="absolute top-1 right-1 w-6 h-6 rounded-full text-xs bg-white/90 text-gray-700" aria-label="Remove reference">
+                ✕
+              </button>
+            </div>
+          ))}
+          <label className="w-28 h-36 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-xs text-gray-500 cursor-pointer" style={{ borderColor: "var(--portal-emerald, #1F6F54)" }}>
+            <span className="text-xl" style={{ color: "var(--portal-emerald, #1F6F54)" }}>+</span>
+            {uploadingRefs ? "Uploading…" : "Add fliers"}
+            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => uploadReferences(e.target.files)} disabled={uploadingRefs} />
+          </label>
+        </div>
+        {refError && <p className="text-xs text-red-600 mb-2">{refError}</p>}
+        <label className={labelClass}>Art direction for the AI (optional)</label>
+        <textarea
+          className={inputClass}
+          style={inputStyle}
+          rows={3}
+          placeholder="e.g. Photography-led with real people, warm natural light, generous white space, title in green on cream, gold accent bar, never clip-art"
+          value={aiStyleNotes}
+          onChange={(e) => setAiStyleNotes(e.target.value)}
+        />
+        <p className="text-[11px] text-gray-400 mt-2">The logo image comes from Admin → Connectors → Brand Assets → Logo Image URL.</p>
       </div>
 
       <button

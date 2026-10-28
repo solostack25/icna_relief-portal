@@ -18,6 +18,8 @@ export type GalleryTemplate = {
   updated_at: string;
   extra_pages?: unknown[] | null;
   editable_element_ids?: unknown[] | null;
+  review_status?: string | null;
+  source?: string | null;
 };
 
 const SWATCHES = ["#2F6D46", "#E2892F", "#4A7FB5", "#B5566B", "#7A5FB0", "#3E9E8F"];
@@ -44,6 +46,7 @@ export default function FlierTemplateGallery({
   hrefFor,
   admin = false,
   onToggleActive,
+  onReview,
   leading,
   recentIds,
 }: {
@@ -51,6 +54,7 @@ export default function FlierTemplateGallery({
   hrefFor: (t: GalleryTemplate) => string;
   admin?: boolean;
   onToggleActive?: (t: GalleryTemplate) => void;
+  onReview?: (t: GalleryTemplate, status: "approved" | "rejected") => void;
   leading?: React.ReactNode;
   // Template ids this office used recently - shown in a row at the top.
   recentIds?: string[];
@@ -136,7 +140,7 @@ export default function FlierTemplateGallery({
             <h2 className="text-sm font-extrabold mb-2.5">Recently used by your office</h2>
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
               {recent.map((t) => (
-                <Card key={t.id} t={t} href={hrefFor(t)} admin={admin} onToggleActive={onToggleActive} />
+                <Card key={t.id} t={t} href={hrefFor(t)} admin={admin} onToggleActive={onToggleActive} onReview={onReview} />
               ))}
             </div>
           </section>
@@ -146,7 +150,7 @@ export default function FlierTemplateGallery({
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
             {leading}
             {rest.map((t) => (
-              <Card key={t.id} t={t} href={hrefFor(t)} admin={admin} onToggleActive={onToggleActive} />
+              <Card key={t.id} t={t} href={hrefFor(t)} admin={admin} onToggleActive={onToggleActive} onReview={onReview} />
             ))}
           </div>
           {filtered.length === 0 && (
@@ -160,7 +164,9 @@ export default function FlierTemplateGallery({
   );
 }
 
-function Card({ t, href, admin, onToggleActive }: { t: GalleryTemplate; href: string; admin: boolean; onToggleActive?: (t: GalleryTemplate) => void }) {
+function Card({ t, href, admin, onToggleActive, onReview }: { t: GalleryTemplate; href: string; admin: boolean; onToggleActive?: (t: GalleryTemplate) => void; onReview?: (t: GalleryTemplate, status: "approved" | "rejected") => void }) {
+  const pending = t.review_status === "pending";
+  const rejected = t.review_status === "rejected";
   const swatch = swatchFor(t.category ?? t.name);
   const aspect = `${t.canvas_width} / ${t.canvas_height}`;
   const pageCount = 1 + (Array.isArray(t.extra_pages) ? t.extra_pages.length : 0);
@@ -177,8 +183,13 @@ function Card({ t, href, admin, onToggleActive }: { t: GalleryTemplate; href: st
           </span>
         )}
         {admin && (
-          <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: t.is_active ? "var(--portal-emerald)" : "rgba(22,48,43,0.55)", color: "white" }}>
-            {t.is_active ? "Published" : "Draft"}
+          <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: pending ? "#C99A3D" : rejected ? "#B55139" : t.is_active ? "var(--portal-emerald)" : "rgba(22,48,43,0.55)", color: pending ? "#16302B" : "white" }}>
+            {pending ? "Needs review" : rejected ? "Rejected" : t.is_active ? "Published" : "Draft"}
+          </span>
+        )}
+        {t.source === "ai-image" && (
+          <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.9)", color: "#16302B" }}>
+            ✦ AI
           </span>
         )}
         {pageCount > 1 && (
@@ -192,7 +203,17 @@ function Card({ t, href, admin, onToggleActive }: { t: GalleryTemplate; href: st
         <span className="text-[11px]" style={{ color: "rgba(22,48,43,0.5)" }}>
           {[t.program ?? t.category, `${t.canvas_width}×${t.canvas_height}`, editable ? `${editable} editable` : null].filter(Boolean).join(" · ")}
         </span>
-        {admin && onToggleActive && (
+        {admin && pending && onReview && (
+          <div className="flex gap-1.5 mt-1">
+            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReview(t, "approved"); }} className="text-[11px] font-bold px-2.5 py-1 rounded-full text-white" style={{ background: "var(--portal-emerald)" }}>
+              Approve
+            </button>
+            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReview(t, "rejected"); }} className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ border: "1px solid #B55139", color: "#B55139" }}>
+              Reject
+            </button>
+          </div>
+        )}
+        {admin && onToggleActive && !pending && (
           <button
             onClick={(e) => {
               e.preventDefault();

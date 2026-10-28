@@ -15,6 +15,7 @@ export default async function FliersGalleryPage() {
     .from("flier_templates")
     .select("id, name, category, program, language, format_label, is_active, updated_at, canvas_width, canvas_height, canvas_background, thumbnail_data_url, extra_pages, editable_element_ids")
     .eq("is_active", true)
+    .eq("review_status", "approved")
     .order("updated_at", { ascending: false });
 
   // "Recently used by your office": this employee's own recent downloads.

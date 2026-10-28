@@ -20,7 +20,7 @@ export async function PUT(req: Request) {
   if (!access.ok) return NextResponse.json({ error: "Not authorized" }, { status: access.status });
 
   const body = await req.json();
-  const { colors, fonts, logoUsageNotes, voiceTone, dos, donts } = body;
+  const { colors, fonts, logoUsageNotes, voiceTone, dos, donts, aiStyleNotes } = body;
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -32,6 +32,7 @@ export async function PUT(req: Request) {
       voice_tone: voiceTone,
       dos,
       donts,
+      ai_style_notes: aiStyleNotes ?? null,
       updated_by: access.employeeId,
       updated_at: new Date().toISOString(),
     })

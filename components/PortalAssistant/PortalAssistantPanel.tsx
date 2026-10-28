@@ -19,9 +19,59 @@ type Props = {
   onClose?: () => void;
 };
 
+const GREETING =
+  "Hi! I can design a finished on-brand flier for you, create helpdesk tickets, place calls, send texts, or find your way around the portal. What do you need?";
+
+const QUICK_ACTIONS: { label: string; text: string }[] = [
+  { label: "✦ Make a flier", text: "I need a flier. Here are the details: " },
+  { label: "Translate a flier", text: "Translate my flier to Spanish" },
+  { label: "Open a ticket", text: "I need to open a helpdesk ticket" },
+  { label: "Office hours", text: "What are my office's hours?" },
+];
+
+// Minimal markdown for assistant replies: images, links, bare URLs, bold.
+// The model is told to show generated fliers as ![Option 1](url), so this
+// is what turns those into actual pictures in the chat.
+function renderRich(text: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  const re = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<)]+)|\*\*([^*]+)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[2]) {
+      out.push(
+        <a key={k++} href={m[2]} target="_blank" rel="noreferrer" className="pa-img-wrap">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={m[2]} alt={m[1] || "Flier"} className="pa-img" />
+          {m[1] && <span className="pa-img-cap">{m[1]} · tap to open</span>}
+        </a>
+      );
+    } else if (m[4]) {
+      out.push(
+        <a key={k++} href={m[4]} target="_blank" rel="noreferrer" className="pa-link">
+          {m[3]}
+        </a>
+      );
+    } else if (m[5]) {
+      out.push(
+        <a key={k++} href={m[5]} target="_blank" rel="noreferrer" className="pa-link">
+          {m[5]}
+        </a>
+      );
+    } else if (m[6]) {
+      out.push(<strong key={k++}>{m[6]}</strong>);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 export default function PortalAssistantPanel({ onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: "Hi! I can create helpdesk tickets, place calls, or send texts — what do you need?" },
+    { role: "assistant", content: GREETING },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -32,8 +82,8 @@ export default function PortalAssistantPanel({ onClose }: Props) {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || sending) return;
 
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
@@ -71,7 +121,7 @@ export default function PortalAssistantPanel({ onClose }: Props) {
       <header className="pa-header">
         <div>
           <p className="pa-title">Portal Assistant</p>
-          <p className="pa-subtitle">Tickets, calls, texts, and finding your way around — ask in plain language</p>
+          <p className="pa-subtitle">Fliers, tickets, calls, texts, and finding your way around — ask in plain language</p>
         </div>
         {onClose && (
           <button type="button" className="pa-close" onClick={onClose} aria-label="Close assistant">
@@ -83,12 +133,21 @@ export default function PortalAssistantPanel({ onClose }: Props) {
       <div className="pa-body" ref={bodyRef}>
         {messages.map((m, i) => (
           <div key={i} className={`pa-bubble-row ${m.role === "user" ? "pa-row-user" : "pa-row-bot"}`}>
-            <div className={`pa-bubble ${m.role === "user" ? "pa-bubble-user" : "pa-bubble-bot"}`}>{m.content}</div>
+            <div className={`pa-bubble ${m.role === "user" ? "pa-bubble-user" : "pa-bubble-bot"}`}>{m.role === "assistant" ? renderRich(m.content) : m.content}</div>
           </div>
         ))}
+        {messages.length === 1 && !sending && (
+          <div className="pa-chips">
+            {QUICK_ACTIONS.map((q) => (
+              <button key={q.label} type="button" className="pa-chip" onClick={() => (q.text.endsWith(": ") ? setInput(q.text) : send(q.text))}>
+                {q.label}
+              </button>
+            ))}
+          </div>
+        )}
         {sending && (
           <div className="pa-bubble-row pa-row-bot">
-            <div className="pa-bubble pa-bubble-bot pa-typing">Thinking…</div>
+            <div className="pa-bubble pa-bubble-bot pa-typing">{/designing|generat|flier/i.test(messages[messages.length - 1]?.content ?? "") ? "Working on it — designing can take up to a minute…" : "Thinking…"}</div>
           </div>
         )}
         {error && <p className="pa-error">{error}</p>}
@@ -103,7 +162,7 @@ export default function PortalAssistantPanel({ onClose }: Props) {
           rows={1}
           disabled={sending}
         />
-        <button type="button" onClick={send} disabled={sending || !input.trim()} aria-label="Send">
+        <button type="button" onClick={() => send()} disabled={sending || !input.trim()} aria-label="Send">
           Send
         </button>
       </div>
@@ -188,6 +247,49 @@ export default function PortalAssistantPanel({ onClose }: Props) {
           background: var(--pa-user-bubble);
           color: var(--pa-user-text);
           border-bottom-right-radius: 4px;
+        }
+        .pa-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .pa-chip {
+          border: 1px solid var(--portal-line, rgba(22, 48, 43, 0.15));
+          background: #fff;
+          border-radius: 999px;
+          padding: 6px 11px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: var(--pa-heading);
+          cursor: pointer;
+        }
+        .pa-chip:hover {
+          background: var(--pa-bot-bubble);
+        }
+        .pa-bubble :global(.pa-img-wrap) {
+          display: block;
+          margin: 8px 0;
+          text-decoration: none;
+          color: inherit;
+        }
+        .pa-bubble :global(.pa-img) {
+          display: block;
+          width: 100%;
+          max-width: 260px;
+          border-radius: 10px;
+          border: 1px solid var(--portal-line, rgba(22, 48, 43, 0.12));
+          box-shadow: 0 4px 14px rgba(22, 48, 43, 0.12);
+        }
+        .pa-bubble :global(.pa-img-cap) {
+          display: block;
+          font-size: 0.72rem;
+          opacity: 0.65;
+          margin-top: 3px;
+        }
+        .pa-bubble :global(.pa-link) {
+          color: var(--pa-accent);
+          text-decoration: underline;
+          word-break: break-all;
         }
         .pa-typing {
           font-style: italic;

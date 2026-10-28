@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import FlierTemplateGallery, { type GalleryTemplate } from "@/components/FlierTemplateGallery";
 
-const SELECT = "id, name, category, program, language, format_label, is_active, updated_at, canvas_width, canvas_height, canvas_background, thumbnail_data_url, extra_pages, editable_element_ids";
+const SELECT = "id, name, category, program, language, format_label, is_active, updated_at, canvas_width, canvas_height, canvas_background, thumbnail_data_url, extra_pages, editable_element_ids, review_status, source";
 
 export default function TemplatesListClient() {
   const supabase = createClient();
@@ -37,6 +37,11 @@ export default function TemplatesListClient() {
     if (!error && data) router.push(`/admin/fliers/builder/${data.id}`);
   }
 
+  async function review(t: GalleryTemplate, status: "approved" | "rejected") {
+    await fetch("/api/marketing/fliers/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: t.id, status }) });
+    load();
+  }
+
   async function toggleActive(t: GalleryTemplate) {
     await supabase.from("flier_templates").update({ is_active: !t.is_active }).eq("id", t.id);
     load();
@@ -66,5 +71,5 @@ export default function TemplatesListClient() {
     </button>
   );
 
-  return <FlierTemplateGallery templates={templates} hrefFor={(t) => `/admin/fliers/builder/${t.id}`} admin onToggleActive={toggleActive} leading={blankTile} />;
+  return <FlierTemplateGallery templates={templates} hrefFor={(t) => `/admin/fliers/builder/${t.id}`} admin onToggleActive={toggleActive} onReview={review} leading={blankTile} />;
 }
