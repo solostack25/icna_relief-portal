@@ -3,7 +3,20 @@
 // scene-graph format for both, matching how it's persisted in
 // flier_templates.canvas_data.
 
-export type FlierTextElement = {
+// Fields every element type may carry (all optional so templates saved
+// before Builder 2.0 keep loading unchanged):
+//   locked  - can't be selected/moved on the canvas (still renders)
+//   groupId - elements sharing a groupId move/select together
+//   name    - friendly layer-panel label ("Header band") instead of the type
+export type FlierElementBase = {
+  locked?: boolean;
+  groupId?: string;
+  name?: string;
+};
+
+export type TextEffect = "none" | "shadow" | "outline" | "glow" | "background" | "curve";
+
+export type FlierTextElement = FlierElementBase & {
   id: string;
   type: "text";
   x: number;
@@ -22,9 +35,17 @@ export type FlierTextElement = {
   lineHeight: number;
   editable: boolean;
   editableLabel?: string;
+  // Text effects (Builder 2.0). effectColor doubles as the shadow/outline/
+  // glow/background color; effectStrength is 0..100 and maps to blur/
+  // offset/stroke width depending on the effect; curveRadius (px, in
+  // canvas units) bends the text along an arc when effect === "curve".
+  textEffect?: TextEffect;
+  effectColor?: string;
+  effectStrength?: number;
+  curveRadius?: number;
 };
 
-export type FlierImageElement = {
+export type FlierImageElement = FlierElementBase & {
   id: string;
   type: "image";
   x: number;
@@ -61,6 +82,16 @@ export type FlierImageElement = {
   borderWidth: number;
   borderColor: string;
   shadow: boolean;
+  // Builder 2.0 photo tools (all optional / default off)
+  blendMode?: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "soft-light";
+  overlayColor?: string; // color overlay drawn above the photo, inside the mask
+  overlayOpacity?: number; // 0..1
+  warmth?: number; // -50..50 (negative = cooler/blue, positive = warmer/gold)
+  vignette?: number; // 0..100
+  flipX?: boolean;
+  flipY?: boolean;
+  naturalWidth?: number; // recorded on load, used by preflight to flag low-res photos
+  naturalHeight?: number;
 };
 
 export type GradientProps = {
@@ -77,7 +108,7 @@ export const defaultGradient = (): GradientProps => ({
   direction: "diagonal",
 });
 
-export type FlierRectElement = {
+export type FlierRectElement = FlierElementBase & {
   id: string;
   type: "rect";
   x: number;
@@ -95,7 +126,7 @@ export type FlierRectElement = {
   editable: false;
 };
 
-export type FlierCircleElement = {
+export type FlierCircleElement = FlierElementBase & {
   id: string;
   type: "circle";
   x: number;
@@ -112,7 +143,7 @@ export type FlierCircleElement = {
   editable: false;
 };
 
-export type FlierLineElement = {
+export type FlierLineElement = FlierElementBase & {
   id: string;
   type: "line";
   x: number;
@@ -126,7 +157,7 @@ export type FlierLineElement = {
   editable: false;
 };
 
-export type FlierStarElement = {
+export type FlierStarElement = FlierElementBase & {
   id: string;
   type: "star";
   x: number;
@@ -140,7 +171,7 @@ export type FlierStarElement = {
   editable: false;
 };
 
-export type FlierPolygonElement = {
+export type FlierPolygonElement = FlierElementBase & {
   id: string;
   type: "polygon";
   x: number;
@@ -154,7 +185,7 @@ export type FlierPolygonElement = {
   editable: false;
 };
 
-export type FlierArrowElement = {
+export type FlierArrowElement = FlierElementBase & {
   id: string;
   type: "arrow";
   x: number;
@@ -172,7 +203,7 @@ export type FlierArrowElement = {
 // height. Distinct from the Star/Polygon/Arrow shape primitives above -
 // those are geometric Konva shapes; icons are arbitrary path data from
 // the curated set in lib/flierIcons.ts.
-export type FlierIconElement = {
+export type FlierIconElement = FlierElementBase & {
   id: string;
   type: "icon";
   x: number;
@@ -548,3 +579,132 @@ export function computeCoverCrop(
   const cropY = (maxPanY * (1 + Math.max(-1, Math.min(1, offsetY)))) / 2;
   return { cropX, cropY, cropWidth, cropHeight };
 }
+
+// ---------------------------------------------------------------------
+// Builder 2.0: pages, print sizes, preflight, grouping helpers
+// ---------------------------------------------------------------------
+
+// A multi-page flier. Page 1 is persisted in the legacy columns
+// (canvas_data / canvas_background) so every existing reader (Fill tool,
+// Copilot routes, downloads) keeps working; pages 2..n live in the new
+// flier_templates.extra_pages jsonb column.
+export type FlierPage = {
+  id: string;
+  name: string;
+  background: string;
+  elements: FlierElement[];
+};
+
+export function pagesFromTemplate(template: {
+  canvas_data?: FlierElement[] | null;
+  canvas_background?: string | null;
+  extra_pages?: FlierPage[] | null;
+}): FlierPage[] {
+  const first: FlierPage = {
+    id: "page-1",
+    name: "Page 1",
+    background: template.canvas_background ?? "#FFFFFF",
+    elements: Array.isArray(template.canvas_data) ? template.canvas_data : [],
+  };
+  const extra = Array.isArray(template.extra_pages) ? template.extra_pages : [];
+  return [first, ...extra.map((p, i) => ({ ...p, id: p.id || `page-${i + 2}`, name: p.name || `Page ${i + 2}`, elements: p.elements ?? [] }))];
+}
+
+export function pagesToTemplateColumns(pages: FlierPage[]) {
+  const [first, ...rest] = pages;
+  return {
+    canvas_data: first?.elements ?? [],
+    canvas_background: first?.background ?? "#FFFFFF",
+    extra_pages: rest,
+  };
+}
+
+// Print presets in pixels at 300 DPI. Width/height are the TRIM size; the
+// exporter adds bleed around it.
+export type PrintPreset = { id: string; label: string; widthIn: number; heightIn: number };
+export const PRINT_PRESETS: PrintPreset[] = [
+  { id: "letter", label: "US Letter 8.5 × 11 in", widthIn: 8.5, heightIn: 11 },
+  { id: "half-letter", label: "Half Letter 5.5 × 8.5 in", widthIn: 5.5, heightIn: 8.5 },
+  { id: "tabloid", label: "Tabloid 11 × 17 in", widthIn: 11, heightIn: 17 },
+  { id: "a4", label: "A4 210 × 297 mm", widthIn: 8.27, heightIn: 11.69 },
+  { id: "postcard", label: "Postcard 4 × 6 in", widthIn: 4, heightIn: 6 },
+  { id: "match", label: "Match canvas size", widthIn: 0, heightIn: 0 },
+];
+export const PRINT_DPI = 300;
+export const BLEED_IN = 0.125;
+
+export type PreflightIssue = { level: "warn" | "error"; elementId?: string; message: string };
+
+// Deterministic pre-export checks: low-res photos at the target DPI,
+// off-brand fonts/colors, text outside the safe margin, empty image
+// frames. Pure function so the Export sheet can re-run it on every change.
+export function preflight(
+  pages: FlierPage[],
+  canvasWidth: number,
+  canvasHeight: number,
+  opts: { targetDpi?: number; printWidthIn?: number; safeMarginPx?: number } = {}
+): PreflightIssue[] {
+  const issues: PreflightIssue[] = [];
+  const safe = opts.safeMarginPx ?? Math.round(Math.min(canvasWidth, canvasHeight) * 0.04);
+  // How many source pixels each canvas pixel needs to be at the target print size.
+  const printScale = opts.targetDpi && opts.printWidthIn ? (opts.targetDpi * opts.printWidthIn) / canvasWidth : 1;
+
+  pages.forEach((page, pi) => {
+    const { offBrandFonts, offBrandColors } = checkBrandConsistency(page.elements, page.background);
+    if (offBrandFonts.length) issues.push({ level: "warn", message: `Page ${pi + 1}: off-brand font${offBrandFonts.length > 1 ? "s" : ""} ${offBrandFonts.join(", ")}` });
+    if (offBrandColors.length) issues.push({ level: "warn", message: `Page ${pi + 1}: ${offBrandColors.length} off-brand color${offBrandColors.length > 1 ? "s" : ""} (${offBrandColors.slice(0, 3).join(", ")}${offBrandColors.length > 3 ? "…" : ""})` });
+
+    for (const el of page.elements) {
+      if (el.type === "image") {
+        if (!el.imageUrl) {
+          issues.push({ level: "warn", elementId: el.id, message: `Page ${pi + 1}: an image frame is still empty` });
+        } else if (el.naturalWidth && el.naturalHeight) {
+          const needW = el.width * printScale * Math.max(1, el.cropZoom);
+          const effective = el.naturalWidth / needW;
+          if (effective < 0.5) {
+            issues.push({ level: "error", elementId: el.id, message: `Page ${pi + 1}: "${el.name ?? "photo"}" is ${el.naturalWidth} px wide — will print very soft at ${opts.targetDpi ?? PRINT_DPI} DPI (${Math.round(effective * (opts.targetDpi ?? PRINT_DPI))} effective DPI)` });
+          } else if (effective < 0.8) {
+            issues.push({ level: "warn", elementId: el.id, message: `Page ${pi + 1}: "${el.name ?? "photo"}" is ${el.naturalWidth} px wide — may print soft at ${opts.targetDpi ?? PRINT_DPI} DPI` });
+          }
+        }
+      }
+      if (el.type === "text") {
+        if (!el.text.trim()) issues.push({ level: "warn", elementId: el.id, message: `Page ${pi + 1}: a text box is empty` });
+        const outside = el.x < safe || el.y < safe || el.x + el.width > canvasWidth - safe || el.y + el.height > canvasHeight - safe;
+        if (outside) issues.push({ level: "warn", elementId: el.id, message: `Page ${pi + 1}: "${el.text.slice(0, 24)}" sits inside the trim/safe margin` });
+      }
+    }
+  });
+  return issues;
+}
+
+export function groupElements(elements: FlierElement[], ids: string[]): FlierElement[] {
+  if (ids.length < 2) return elements;
+  const groupId = crypto.randomUUID();
+  return elements.map((el) => (ids.includes(el.id) ? ({ ...el, groupId } as FlierElement) : el));
+}
+
+export function ungroupElements(elements: FlierElement[], ids: string[]): FlierElement[] {
+  return elements.map((el) => {
+    if (!ids.includes(el.id)) return el;
+    const { groupId: _g, ...rest } = el as any;
+    return rest as FlierElement;
+  });
+}
+
+// Everything that should move with `id`: itself plus any group-mates.
+export function expandSelection(elements: FlierElement[], ids: string[]): string[] {
+  const groups = new Set(elements.filter((e) => ids.includes(e.id) && e.groupId).map((e) => e.groupId as string));
+  const out = new Set(ids);
+  for (const el of elements) if (el.groupId && groups.has(el.groupId)) out.add(el.id);
+  return [...out];
+}
+
+export function layerLabel(el: FlierElement): string {
+  if (el.name) return el.name;
+  if (el.type === "text") return el.text.trim().slice(0, 22) || "Text";
+  if (el.type === "image") return el.imageUrl ? "Photo" : "Photo frame";
+  return el.type.charAt(0).toUpperCase() + el.type.slice(1);
+}
+
+export const DEFAULT_TEXT_EFFECT = { textEffect: "none" as TextEffect, effectColor: "#C99A3D", effectStrength: 40, curveRadius: 300 };
