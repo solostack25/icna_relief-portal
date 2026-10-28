@@ -10,12 +10,12 @@ async function searchDirectory(query: string) {
   const token = await getGraphToken();
   const search = `"displayName:${query}" OR "mail:${query}"`;
   const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users?$search=${encodeURIComponent(search)}&$select=id,displayName,mail,userPrincipalName&$top=10`,
+    `https://graph.microsoft.com/v1.0/users?$search=${encodeURIComponent(search)}&$select=id,displayName,mail,userPrincipalName,jobTitle,department&$top=10`,
     { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" } }
   );
   if (!res.ok) throw new Error(`Graph search failed: ${res.status}`);
   const body = await res.json();
-  return (body.value ?? []) as { id: string; displayName: string; mail: string | null; userPrincipalName: string }[];
+  return (body.value ?? []) as { id: string; displayName: string; mail: string | null; userPrincipalName: string; jobTitle?: string | null; department?: string | null }[];
 }
 
 // This is the narrower, self-service sibling of the admin-only
@@ -34,16 +34,17 @@ export async function POST(req: Request) {
   const authError = await requireCopilotAuth(req);
   if (authError) return authError;
 
-  const { requesterEmail, delegateName, startsAt, endsAt, note } = (await req.json()) as {
+  const { requesterEmail, delegateName, delegateEmail: pickEmail, startsAt, endsAt, note } = (await req.json()) as {
     requesterEmail: string;
     delegateName?: string;
+    delegateEmail?: string;
     startsAt?: string;
     endsAt?: string;
     note?: string;
   };
 
   if (!requesterEmail?.trim()) return NextResponse.json({ error: "requesterEmail is required" }, { status: 400 });
-  if (!delegateName?.trim()) return NextResponse.json({ error: "delegateName is required" }, { status: 400 });
+  if (!delegateName?.trim() && !pickEmail?.trim()) return NextResponse.json({ error: "delegateName or delegateEmail is required" }, { status: 400 });
 
   const requester = await lookupEmployeeByEmail(requesterEmail);
   if (!requester) {
@@ -52,15 +53,29 @@ export async function POST(req: Request) {
 
   let matches;
   try {
-    matches = await searchDirectory(delegateName.trim());
+    matches = await searchDirectory((pickEmail ?? delegateName ?? "").trim());
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Directory search failed" }, { status: 500 });
   }
+  if (pickEmail?.trim()) {
+    const e = pickEmail.trim().toLowerCase();
+    matches = matches.filter((m) => (m.mail ?? "").toLowerCase() === e || (m.userPrincipalName ?? "").toLowerCase() === e);
+  }
+  // Never hand approval rights to a guest/external account when a real
+  // staff account with the same name exists.
+  if (matches.length > 1) {
+    const real = matches.filter((m) => !/#EXT#/i.test(m.userPrincipalName ?? ""));
+    if (real.length > 0) matches = real;
+  }
   if (matches.length === 0) {
-    return NextResponse.json({ error: `No one found in the directory matching "${delegateName}".` }, { status: 404 });
+    return NextResponse.json({ error: `No one found in the directory matching "${pickEmail ?? delegateName}".` }, { status: 404 });
   }
   if (matches.length > 1) {
-    return NextResponse.json({ ambiguous_target: true, candidates: matches.map((m) => m.displayName) });
+    return NextResponse.json({
+      ambiguous_target: true,
+      candidates: matches.map((m) => ({ name: m.displayName, title: m.jobTitle ?? null, department: m.department ?? null, email: m.mail || m.userPrincipalName })),
+      how_to_pick: "Ask which person they mean (show name + title), then call again with that person's exact email in 'delegateEmail'.",
+    });
   }
 
   const delegate = matches[0];

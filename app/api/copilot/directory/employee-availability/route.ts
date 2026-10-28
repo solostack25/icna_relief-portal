@@ -10,12 +10,12 @@ async function searchDirectory(query: string) {
   const token = await getGraphToken();
   const search = `"displayName:${query}" OR "mail:${query}"`;
   const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users?$search=${encodeURIComponent(search)}&$select=id,displayName,mail,userPrincipalName&$top=10`,
+    `https://graph.microsoft.com/v1.0/users?$search=${encodeURIComponent(search)}&$select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation&$top=10`,
     { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" } }
   );
   if (!res.ok) throw new Error(`Graph search failed: ${res.status}`);
   const body = await res.json();
-  return (body.value ?? []) as { id: string; displayName: string; mail: string | null; userPrincipalName: string }[];
+  return (body.value ?? []) as { id: string; displayName: string; mail: string | null; userPrincipalName: string; jobTitle?: string | null; department?: string | null; officeLocation?: string | null }[];
 }
 
 // "YYYY-MM-DDTHH:mm:ss" in Central time, no offset - same convention
@@ -41,16 +41,34 @@ export async function POST(req: Request) {
   const authError = await requireCopilotAuth(req);
   if (authError) return authError;
 
-  const { name } = (await req.json()) as { name?: string };
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  const { name, email: pickEmail, hint } = (await req.json()) as { name?: string; email?: string; hint?: string };
+  if (!name?.trim() && !pickEmail?.trim()) {
+    return NextResponse.json({ error: "name or email is required" }, { status: 400 });
   }
 
   let matches;
   try {
-    matches = await searchDirectory(name.trim());
+    matches = await searchDirectory((pickEmail ?? name ?? "").trim());
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Directory search failed" }, { status: 500 });
+  }
+
+  // An email is a pick from a previous ambiguous result - match it exactly.
+  if (pickEmail?.trim()) {
+    const e = pickEmail.trim().toLowerCase();
+    matches = matches.filter((m) => (m.mail ?? "").toLowerCase() === e || (m.userPrincipalName ?? "").toLowerCase() === e);
+  }
+  // Same display name twice (e.g. a real account plus a stale/guest one):
+  // a hint like "CIO" or "Houston" narrows it by title/department/office.
+  // Guest accounts (#EXT# UPNs) never win a tie over a real staff account.
+  if (matches.length > 1) {
+    const real = matches.filter((m) => !/#EXT#/i.test(m.userPrincipalName ?? ""));
+    if (real.length > 0) matches = real;
+  }
+  if (matches.length > 1 && hint?.trim()) {
+    const h = hint.trim().toLowerCase();
+    const narrowed = matches.filter((m: any) => [m.jobTitle, m.department, m.officeLocation, m.mail].some((v) => (v ?? "").toLowerCase().includes(h)));
+    if (narrowed.length > 0) matches = narrowed;
   }
 
   if (matches.length === 0) {
@@ -59,7 +77,8 @@ export async function POST(req: Request) {
   if (matches.length > 1) {
     return NextResponse.json({
       ambiguous_target: true,
-      candidates: matches.map((m) => m.displayName),
+      candidates: matches.map((m) => ({ name: m.displayName, title: m.jobTitle ?? null, department: m.department ?? null, email: m.mail || m.userPrincipalName })),
+      how_to_pick: "Ask which person they mean (show name + title), then call this tool again with that person's exact email in the 'email' parameter.",
     });
   }
 

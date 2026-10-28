@@ -261,13 +261,15 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "find_employee_info",
       description:
-        "Looks up an employee by name and returns their job title, department, office location, email, phone, and manager, pulled live from Active Directory - works for anyone in the org. If the person is a member of ICNA Relief's national executive leadership, also includes their public bio from the ICNA Relief website (this only exists for a handful of leadership roles like CEO/CSO - regular staff won't have one, which is normal, not an error). If the response is an ambiguous_target error, ask which person they meant and call again with the exact full name.",
+        "Looks up an employee by name and returns their job title, department, office location, email, phone, and manager, pulled live from Active Directory - works for anyone in the org. If the person is a member of ICNA Relief's national executive leadership, also includes their public bio from the ICNA Relief website (this only exists for a handful of leadership roles like CEO/CSO - regular staff won't have one, which is normal, not an error). If the response is ambiguous_target, show the candidates (name + title) and ask which one; when they answer (even just \"the CIO\" or \"the Houston one\"), call again with that candidate's exact email in `email`. Never call again with a made-up name like \"Amir Saeed CIO\".",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string", description: 'Full or partial name of the employee to look up, e.g. "Amir Saeed".' },
+          email: { type: "string", description: "Exact email of one candidate from a previous ambiguous_target result. Use this to pick between people with the same name." },
+          hint: { type: "string", description: 'Optional title/department/office the employee mentioned to tell same-named people apart, e.g. "CIO" or "Houston". Use with name when you don\'t have an email yet.' },
         },
-        required: ["name"],
+        required: [],
       },
     },
   },
@@ -276,13 +278,15 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "get_employee_availability",
       description:
-        "Checks whether a coworker is currently busy or free on their calendar, and when they'll next be available today. Deliberately returns ONLY busy/free status and a time - never meeting titles, locations, or other details, out of respect for the coworker's privacy. Use this alongside find_employee_info whenever an employee asks who someone is (so you can mention their current availability too, the way Microsoft 365 Copilot does), or on its own when they ask if someone is free/available right now. If the response is an ambiguous_target error, ask which person they meant and call again with the exact full name.",
+        "Checks whether a coworker is currently busy or free on their calendar, and when they'll next be available today. Deliberately returns ONLY busy/free status and a time - never meeting titles, locations, or other details, out of respect for the coworker's privacy. Use this alongside find_employee_info whenever an employee asks who someone is (so you can mention their current availability too, the way Microsoft 365 Copilot does), or on its own when they ask if someone is free/available right now. If the response is ambiguous_target, show the candidates (name + title) and ask which one; when they answer (even just \"the CIO\" or \"the Houston one\"), call again with that candidate's exact email in `email`. Never call again with a made-up name like \"Amir Saeed CIO\".",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string", description: 'Full or partial name of the coworker to check, e.g. "Amir Saeed".' },
+          email: { type: "string", description: "Exact email of one candidate from a previous ambiguous_target result. Use this to pick between people with the same name." },
+          hint: { type: "string", description: 'Optional title/department/office the employee mentioned to tell same-named people apart, e.g. "CIO" or "Houston". Use with name when you don\'t have an email yet.' },
         },
-        required: ["name"],
+        required: [],
       },
     },
   },
@@ -324,16 +328,17 @@ export const PORTAL_ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "set_finance_approval_delegate",
       description:
-        "Sets up someone to cover the requester's OWN finance ticket approvals while they're out - e.g. \"I'll be out next week, have Sarah cover my finance approvals.\" Applies automatically at every approval level, for every finance ticket category, the same as the admin-managed Temporary Coverage tool - this is the self-service version, and can ONLY set coverage for the requester's own approvals, never someone else's. ALWAYS confirm who's covering and the date range with the employee before calling this. If the response is an ambiguous_target error, list the candidate names and ask which one they meant.",
+        "Sets up someone to cover the requester's OWN finance ticket approvals while they're out - e.g. \"I'll be out next week, have Sarah cover my finance approvals.\" Applies automatically at every approval level, for every finance ticket category, the same as the admin-managed Temporary Coverage tool - this is the self-service version, and can ONLY set coverage for the requester's own approvals, never someone else's. ALWAYS confirm who's covering and the date range with the employee before calling this. If the response is ambiguous_target, show the candidates (name + title) and ask which one; then call again with that candidate's exact email in delegateEmail.",
       parameters: {
         type: "object",
         properties: {
           delegateName: { type: "string", description: 'Full or partial name of the coworker who will cover approvals, e.g. "Sarah Khan".' },
+          delegateEmail: { type: "string", description: "Exact email of one candidate from a previous ambiguous_target result." },
           startsAt: { type: "string", description: "Start date, YYYY-MM-DD. Defaults to today if not specified." },
           endsAt: { type: "string", description: "End date, YYYY-MM-DD. Omit if the employee doesn't know yet or wants it to run until manually removed." },
           note: { type: "string", description: "Optional short note, e.g. reason for being out." },
         },
-        required: ["delegateName"],
+        required: [],
       },
     },
   },
