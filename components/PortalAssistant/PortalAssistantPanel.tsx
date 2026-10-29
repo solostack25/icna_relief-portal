@@ -1,133 +1,73 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ASSISTANT_STARTERS, renderRich, typingLabel, useAssistantChat } from "./chatShared";
 
 /**
- * Plain chat UI, no external chat-widget dependency.
+ * Plain chat UI, no external chat-widget dependency. Identity comes from
+ * the portal's own logged-in session (/api/ai/portal-assistant reads the
+ * Supabase session server-side).
  *
- * The previous version of this panel loaded botframework-webchat from
- * Microsoft's CDN and used MSAL to acquire a delegated Copilot Studio
- * token. Both are gone: identity now comes for free from the portal's
- * own logged-in session (this panel just calls /api/ai/portal-assistant,
- * which reads the Supabase session server-side), and there's no
- * Copilot Studio connection to authenticate to at all anymore.
+ * variant "dock"  - the floating panel (rounded card)
+ * variant "sheet" - full screen, used behind the phone tab bar's Ask button
  */
-
-type ChatMessage = { role: "user" | "assistant"; content: string };
 
 type Props = {
   onClose?: () => void;
+  variant?: "dock" | "sheet";
 };
 
-const GREETING =
-  "Hi! Tell me if something isn't working and I'll help you fix it (or open a ticket if we can't). I can also design an on-brand flier, look up a coworker, place calls, send texts, or find your way around the portal.";
-
-const QUICK_ACTIONS: { label: string; text: string }[] = [
-  { label: "✦ Make a flier", text: "I need a flier. Here are the details: " },
-  { label: "Translate a flier", text: "Translate my flier to Spanish" },
-  { label: "🛠 Something's not working", text: "Something isn't working: " },
-  { label: "Open a ticket", text: "I need to open a helpdesk ticket" },
-  { label: "Office hours", text: "What are my office's hours?" },
-];
-
-// Minimal markdown for assistant replies: images, links, bare URLs, bold.
-// The model is told to show generated fliers as ![Option 1](url), so this
-// is what turns those into actual pictures in the chat.
-function renderRich(text: string): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
-  const re = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<)]+)|\*\*([^*]+)\*\*/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    if (m[2]) {
-      out.push(
-        <a key={k++} href={m[2]} target="_blank" rel="noreferrer" className="pa-img-wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={m[2]} alt={m[1] || "Flier"} className="pa-img" />
-          {m[1] && <span className="pa-img-cap">{m[1]} · tap to open</span>}
-        </a>
-      );
-    } else if (m[4]) {
-      out.push(
-        <a key={k++} href={m[4]} target="_blank" rel="noreferrer" className="pa-link">
-          {m[3]}
-        </a>
-      );
-    } else if (m[5]) {
-      out.push(
-        <a key={k++} href={m[5]} target="_blank" rel="noreferrer" className="pa-link">
-          {m[5]}
-        </a>
-      );
-    } else if (m[6]) {
-      out.push(<strong key={k++}>{m[6]}</strong>);
-    }
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
-}
-
-export default function PortalAssistantPanel({ onClose }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: GREETING },
-  ]);
+export default function PortalAssistantPanel({ onClose, variant = "dock" }: Props) {
+  const { messages, sending, error, send, reset, lastUser } = useAssistantChat();
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
-  async function send(preset?: string) {
+  async function submit(preset?: string) {
     const text = (preset ?? input).trim();
     if (!text || sending) return;
-
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
-    setMessages(nextMessages);
     setInput("");
-    setSending(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/ai/portal-assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "The assistant couldn't respond.");
-
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setSending(false);
-    }
+    await send(text);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      send();
+      submit();
     }
   }
 
+  const sheet = variant === "sheet";
+
   return (
-    <div className="pa-panel" role="dialog" aria-label="Portal Assistant">
+    <div className={`pa-panel ${sheet ? "pa-sheet" : ""}`} role="dialog" aria-label="Portal Assistant">
       <header className="pa-header">
-        <div>
-          <p className="pa-title">Portal Assistant</p>
-          <p className="pa-subtitle">Fliers, tickets, calls, texts, and finding your way around — ask in plain language</p>
-        </div>
-        {onClose && (
-          <button type="button" className="pa-close" onClick={onClose} aria-label="Close assistant">
-            ×
+        {sheet && onClose && (
+          <button type="button" className="pa-back" onClick={onClose} aria-label="Close assistant">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
           </button>
+        )}
+        <div className="pa-head-text">
+          <p className="pa-title">Portal Assistant</p>
+          {!sheet && <p className="pa-subtitle">Fliers, tickets, calls, texts, and finding your way around — ask in plain language</p>}
+        </div>
+        {sheet ? (
+          messages.length > 1 && (
+            <button type="button" className="pa-new" onClick={reset}>
+              New
+            </button>
+          )
+        ) : (
+          onClose && (
+            <button type="button" className="pa-close" onClick={onClose} aria-label="Close assistant">
+              ×
+            </button>
+          )
         )}
       </header>
 
@@ -139,8 +79,8 @@ export default function PortalAssistantPanel({ onClose }: Props) {
         ))}
         {messages.length === 1 && !sending && (
           <div className="pa-chips">
-            {QUICK_ACTIONS.map((q) => (
-              <button key={q.label} type="button" className="pa-chip" onClick={() => (q.text.endsWith(": ") ? setInput(q.text) : send(q.text))}>
+            {ASSISTANT_STARTERS.map((q) => (
+              <button key={q.label} type="button" className="pa-chip" onClick={() => (q.text.endsWith(": ") ? setInput(q.text) : submit(q.text))}>
                 {q.label}
               </button>
             ))}
@@ -148,7 +88,7 @@ export default function PortalAssistantPanel({ onClose }: Props) {
         )}
         {sending && (
           <div className="pa-bubble-row pa-row-bot">
-            <div className="pa-bubble pa-bubble-bot pa-typing">{/designing|generat|flier/i.test(messages[messages.length - 1]?.content ?? "") ? "Working on it — designing can take up to a minute…" : /not working|broken|can.?t|won.?t|error|slow|down/i.test(messages[messages.length - 1]?.content ?? "") ? "Checking your account and devices…" : "Thinking…"}</div>
+            <div className="pa-bubble pa-bubble-bot pa-typing">{typingLabel(lastUser)}</div>
           </div>
         )}
         {error && <p className="pa-error">{error}</p>}
@@ -159,11 +99,12 @@ export default function PortalAssistantPanel({ onClose }: Props) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask the assistant…"
+          placeholder={messages.length > 1 ? "Ask a follow-up…" : "Ask the assistant…"}
+          aria-label="Message the Portal Assistant"
           rows={1}
           disabled={sending}
         />
-        <button type="button" onClick={() => send()} disabled={sending || !input.trim()} aria-label="Send">
+        <button type="button" onClick={() => submit()} disabled={sending || !input.trim()} aria-label="Send">
           Send
         </button>
       </div>
@@ -330,6 +271,63 @@ export default function PortalAssistantPanel({ onClose }: Props) {
         .pa-sendbox button:disabled {
           opacity: 0.5;
           cursor: default;
+        }
+        .pa-head-text {
+          flex: 1;
+          min-width: 0;
+        }
+        .pa-back,
+        .pa-new {
+          flex-shrink: 0;
+          min-width: 44px;
+          min-height: 44px;
+          border-radius: 999px;
+          border: 1px solid var(--portal-line, rgba(22, 48, 43, 0.15));
+          background: var(--portal-sand, #fbf7ef);
+          color: var(--pa-heading);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font: inherit;
+          font-size: 0.85rem;
+          font-weight: 600;
+          padding: 0 14px;
+        }
+        .pa-back {
+          padding: 0;
+          width: 44px;
+        }
+        .pa-sheet {
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+        .pa-sheet .pa-header {
+          align-items: center;
+          padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+        }
+        .pa-sheet .pa-title {
+          font-size: 1rem;
+        }
+        .pa-sheet .pa-bubble {
+          font-size: 0.95rem;
+        }
+        .pa-sheet .pa-chip {
+          min-height: 40px;
+          font-size: 0.85rem;
+        }
+        .pa-sheet .pa-sendbox {
+          padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+        }
+        .pa-sheet .pa-sendbox textarea {
+          font-size: 16px; /* stops iOS zooming into the box */
+          border-radius: 999px;
+          padding: 11px 16px;
+        }
+        .pa-sheet .pa-sendbox button {
+          border-radius: 999px;
+          min-height: 44px;
         }
       `}</style>
     </div>

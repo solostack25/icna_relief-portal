@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { INTL_LOCALE } from "@/lib/i18n/translations";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import PortalHeader from "@/app/PortalHeader";
-import PortalAssistantLauncher from "@/components/PortalAssistant/PortalAssistantLauncher";
+import MobileTabBar from "@/components/MobileTabBar";
+import HomeAskBar from "./HomeAskBar";
+import HeroStatsSheet from "./HeroStatsSheet";
+import { HERO_STATS_BY_KEY, type HeroStatKey } from "./heroStats";
 import ClockControl from "./ClockControl";
 import { HERO_CELL } from "./heroCell";
 import { QUICK_ACTIONS, QUICK_ACTIONS_BY_KEY, type QuickAction } from "./quickActions";
@@ -19,9 +23,6 @@ export default function SelectAppView({
   employeeId,
   employeeFirstName,
   openClockEntry,
-  openTicketsCount,
-  pendingApprovalsCount,
-  trainingDueCount,
   itTicketSlot,
   meetingsSlot,
   meetingsTodaySlot,
@@ -34,6 +35,9 @@ export default function SelectAppView({
   todayLabel,
   hourNow,
   homeLayout,
+  heroSelected,
+  heroAvailable,
+  heroValues,
 }: {
   employeeId: string;
   employeeFirstName: string;
@@ -53,8 +57,38 @@ export default function SelectAppView({
   todayLabel: string;
   hourNow: number;
   homeLayout: HomeLayoutPref | null;
+  heroSelected: HeroStatKey[];
+  heroAvailable: string[];
+  heroValues: Record<string, string | number>;
 }) {
   const { t, locale } = useLanguage();
+  const router = useRouter();
+
+  // ---- Greeting box stats (pick up to 4) ----
+  const [heroKeys, setHeroKeys] = useState<HeroStatKey[]>(heroSelected);
+  useEffect(() => setHeroKeys(heroSelected), [heroSelected]);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsSaving, setStatsSaving] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const saveHeroStats = useCallback(
+    async (keys: HeroStatKey[]) => {
+      setStatsSaving(true);
+      setStatsError(null);
+      const { error } = await createClient()
+        .from("employee_home_layouts")
+        .upsert({ employee_id: employeeId, hero_stats: keys, updated_at: new Date().toISOString() }, { onConflict: "employee_id" });
+      setStatsSaving(false);
+      if (error) {
+        setStatsError("Couldn't save. Try again.");
+        return;
+      }
+      setHeroKeys(keys);
+      setStatsOpen(false);
+      // Values are only computed for chosen stats, so reload them.
+      router.refresh();
+    },
+    [employeeId, router]
+  );
 
   // ---- Customizable layout ----
   // What this person is allowed to see; the saved layout only reorders/hides
@@ -163,7 +197,7 @@ export default function SelectAppView({
       <div className="max-w-4xl mx-auto px-4 sm:px-10 py-8 sm:py-10">
         {/* ---------- HERO ---------- */}
         <div
-          className="relative overflow-hidden rounded-3xl px-6 py-8 sm:px-10 sm:py-10 mb-10"
+          className="relative overflow-hidden rounded-3xl px-6 py-8 sm:px-10 sm:pt-10 sm:pb-16 mb-10 sm:mb-0"
           style={{ background: "var(--portal-emerald)", color: "var(--portal-sand)" }}
         >
           <div
@@ -213,17 +247,49 @@ export default function SelectAppView({
               </div>
             </div>
 
-            <div
-              className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap rounded-2xl overflow-hidden"
-              style={{ background: "rgba(251,247,239,0.08)", border: "1px solid rgba(251,247,239,0.18)" }}
-            >
-              <HeroStat value={openTicketsCount} label={t("selectApp.stat.openTickets")} />
-              <HeroStat value={pendingApprovalsCount} label={t("selectApp.stat.awaitingApproval")} gold />
-              <HeroStat value={trainingDueCount} label={t("selectApp.stat.trainingDue")} />
-              {itTicketSlot}
+            <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+              {heroKeys.length > 0 && (
+                <div
+                  className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap rounded-2xl overflow-hidden"
+                  style={{ background: "rgba(251,247,239,0.08)", border: "1px solid rgba(251,247,239,0.18)" }}
+                >
+                  {heroKeys.map((key, i) => {
+                    if (key === "helpDeskIt") return <Fragment key={key}>{itTicketSlot}</Fragment>;
+                    const def = HERO_STATS_BY_KEY.get(key);
+                    if (!def) return null;
+                    return (
+                      <HeroStat
+                        key={key}
+                        value={heroValues[key] ?? "—"}
+                        label={def.labelKey ? t(def.labelKey) : def.label}
+                        gold={def.gold}
+                        href={def.href}
+                        last={i === heroKeys.length - 1}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setStatsError(null);
+                  setStatsOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors"
+                style={{ minHeight: 36, color: "var(--portal-sand)", background: "rgba(251,247,239,0.10)", border: "1px solid rgba(251,247,239,0.22)" }}
+              >
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 20h4L19 9l-4-4L4 16z" />
+                  <path d="M13.5 6.5l4 4" />
+                </svg>
+                {heroKeys.length > 0 ? "Edit stats" : "Add stats"}
+              </button>
             </div>
           </div>
         </div>
+
+        <HomeAskBar />
 
         {/* ---------- MY DAY: what's waiting on me, my requests, my office ---------- */}
         {myDaySlot}
@@ -360,7 +426,16 @@ export default function SelectAppView({
         onClose={() => setSheetOpen(false)}
         onSave={saveLayout}
       />
-      <PortalAssistantLauncher />
+      <HeroStatsSheet
+        open={statsOpen}
+        selected={heroKeys}
+        availableKeys={heroAvailable}
+        saving={statsSaving}
+        error={statsError}
+        onClose={() => setStatsOpen(false)}
+        onSave={saveHeroStats}
+      />
+      <MobileTabBar active="home" showAdmin={canSeeAdminPortal} />
     </main>
   );
 }
@@ -370,14 +445,16 @@ export function HeroStat({
   label,
   gold,
   last,
+  href,
 }: {
   value: number | string;
   label: string;
   gold?: boolean;
   last?: boolean;
+  href?: string;
 }) {
-  return (
-    <div className={HERO_CELL} data-last={last ? "" : undefined}>
+  const inner = (
+    <>
       <div
         style={{
           fontFamily: "'IBM Plex Mono', monospace",
@@ -391,6 +468,18 @@ export function HeroStat({
       <div className="text-[11px]" style={{ color: "rgba(251,247,239,0.65)" }}>
         {label}
       </div>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={`${HERO_CELL} block transition-colors hover:bg-[rgba(251,247,239,0.06)]`} data-last={last ? "" : undefined}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <div className={HERO_CELL} data-last={last ? "" : undefined}>
+      {inner}
     </div>
   );
 }

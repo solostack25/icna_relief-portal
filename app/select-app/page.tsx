@@ -9,6 +9,9 @@ import MyMeetingsCard, { MyMeetingsSkeleton } from "./MyMeetingsCard";
 import MeetingsTodayLink, { MeetingsTodayLinkSkeleton } from "./MeetingsTodayLink";
 import MyDay, { MyDaySkeleton } from "./MyDay";
 import { loadMyDay } from "@/lib/myDay";
+import { HERO_STATS, resolveHeroStats } from "./heroStats";
+import { managesTime, pendingTimeOffCount, type Me } from "@/lib/timeOff";
+import { addDays, buildWeek, formatHours, mondayOf, todayIn } from "@/lib/timeOffShared";
 
 export default async function SelectAppPage() {
   const supabase = await createClient();
@@ -20,7 +23,7 @@ export default async function SelectAppPage() {
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, first_name, last_name, role, email")
+    .select("id, first_name, last_name, role, email, manager_email, assigned_office_id")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -47,7 +50,7 @@ export default async function SelectAppPage() {
   // error just means the default layout.
   const { data: homeLayout } = await supabase
     .from("employee_home_layouts")
-    .select("quick_actions_order, quick_actions_hidden, programs_order, programs_hidden")
+    .select("quick_actions_order, quick_actions_hidden, programs_order, programs_hidden, hero_stats")
     .eq("employee_id", employee.id)
     .maybeSingle();
 
@@ -133,6 +136,78 @@ export default async function SelectAppPage() {
     (c) => c.required && (c.status === "not_started" || c.status === "due_for_refresher")
   ).length;
 
+  // ---- Green greeting box stats (each person picks up to 4) ----
+  const me: Me = {
+    id: employee.id,
+    first_name: employee.first_name,
+    last_name: employee.last_name,
+    email: employee.email,
+    role: employee.role,
+    manager_email: employee.manager_email,
+  };
+  const isTimeManager = await managesTime(me).catch(() => false);
+  const heroAvailable = HERO_STATS.filter((s) => !s.managerOnly || isTimeManager).map((s) => s.key);
+  const heroSelected = resolveHeroStats(homeLayout?.hero_stats, new Set(heroAvailable));
+  const heroValues: Record<string, string | number> = {
+    openTickets: openTicketsCount ?? 0,
+    awaitingApproval: pendingApprovalsCount ?? 0,
+    trainingDue: trainingDueCount,
+  };
+  await Promise.all(
+    heroSelected.map(async (key) => {
+      try {
+        if (key === "hoursThisWeek") {
+          const weekStart = mondayOf(todayIn());
+          const { data: punches } = await supabase
+            .from("time_clock_entries")
+            .select("clock_in_at, clock_out_at")
+            .eq("employee_id", employee.id)
+            .gte("clock_in_at", `${addDays(weekStart, -1)}T00:00:00Z`);
+          const week = buildWeek(weekStart, punches ?? [], []);
+          let hours = week.workedHours;
+          if (openClockEntry) hours += Math.max(0, (Date.now() - new Date(openClockEntry.clock_in_at).getTime()) / 3_600_000);
+          heroValues.hoursThisWeek = `${formatHours(Math.round(hours * 10) / 10)}h`;
+        } else if (key === "timeOffBalance") {
+          const { data: bal } = await supabase
+            .from("hr_time_off_balances")
+            .select("hours_available")
+            .eq("employee_id", employee.id)
+            .eq("leave_type", "vacation")
+            .maybeSingle();
+          heroValues.timeOffBalance = bal ? `${formatHours(Number(bal.hours_available))}h` : "—";
+        } else if (key === "teamTime") {
+          heroValues.teamTime = await pendingTimeOffCount(me);
+        } else if (key === "milesThisMonth") {
+          const monthStart = `${year}-${String(month).padStart(2, "0")}-01T00:00:00Z`;
+          const { data: drives } = await supabase
+            .from("finance_mileage_drives")
+            .select("miles")
+            .eq("employee_id", employee.id)
+            .in("status", ["ready", "submitted"])
+            .gte("started_at", monthStart);
+          heroValues.milesThisMonth = Math.round((drives ?? []).reduce((sum, d) => sum + Number(d.miles ?? 0), 0));
+        } else if (key === "volunteerEvents") {
+          if (!employee.assigned_office_id) {
+            heroValues.volunteerEvents = 0;
+          } else {
+            const today = todayIn();
+            const { count } = await supabase
+              .from("volunteer_events")
+              .select("id", { count: "exact", head: true })
+              .eq("office_id", employee.assigned_office_id)
+              .eq("is_published", true)
+              .lte("starts_on", addDays(today, 7))
+              .or(`ends_on.gte.${today},and(ends_on.is.null,starts_on.gte.${today})`);
+            heroValues.volunteerEvents = count ?? 0;
+          }
+        }
+      } catch (e) {
+        console.error("hero stat failed", key, e);
+        heroValues[key] = "—";
+      }
+    })
+  );
+
   const canSeeAdminPortal =
     employee.role === "admin" ||
     employee.role === "regional_director" ||
@@ -180,6 +255,9 @@ export default async function SelectAppPage() {
       todayLabel={todayLabel}
       hourNow={now.getHours()}
       homeLayout={homeLayout ?? null}
+      heroSelected={heroSelected}
+      heroAvailable={heroAvailable}
+      heroValues={heroValues}
     />
   );
 }

@@ -179,6 +179,21 @@ export const QUICK_ACTIONS: QuickAction[] = [
     ),
   },
   {
+    key: "time-off",
+    href: "/time",
+    title: "Time Off",
+    desc: "Request vacation, sick, or personal time and see your hours this week",
+    tint: "#E6F0F5",
+    iconColor: "#2C5F7A",
+    defaultOn: true,
+    icon: svg(
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4" />
+      </>
+    ),
+  },
+  {
     key: "donor-calling",
     href: "/marketing/donor-calling",
     titleKey: "selectApp.card.donorCalling.title",

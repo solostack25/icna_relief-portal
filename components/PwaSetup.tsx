@@ -230,7 +230,7 @@ export default function PwaSetup() {
         role="dialog"
         aria-label="Turn on notifications"
         className="fixed inset-x-3 z-[60] flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 shadow-[0_10px_30px_rgba(18,59,45,0.18)] sm:left-auto sm:right-4 sm:max-w-sm"
-        style={{ bottom: "calc(12px + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(12px + env(safe-area-inset-bottom) + var(--mobile-tabbar-h, 0px))" }}
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-brand-light,#e8f4ee)] text-[var(--color-accent)]">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -267,7 +267,7 @@ export default function PwaSetup() {
       role="dialog"
       aria-label="Install the ICNA Relief app"
       className="fixed inset-x-3 z-[60] flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 shadow-[0_10px_30px_rgba(18,59,45,0.18)]"
-      style={{ bottom: "calc(12px + env(safe-area-inset-bottom))" }}
+      style={{ bottom: "calc(12px + env(safe-area-inset-bottom) + var(--mobile-tabbar-h, 0px))" }}
     >
       <img src="/icons/icon-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1 text-[13px] leading-snug text-[var(--color-text)]">

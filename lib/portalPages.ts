@@ -17,6 +17,18 @@ export const PORTAL_PAGES: { name: string; path: string; description: string; ke
     keywords: ["windows 11 pro", "upgrade windows", "windows home", "product key", "license key", "join entra", "join azure ad", "work account sign in", "upgrade my pc", "upgrade my computer"],
   },
   {
+    name: "Time Off",
+    path: "/time",
+    description: "Request vacation, sick, or personal time off (goes to your supervisor), see your balances and requests, and your clocked hours this week.",
+    keywords: ["time off", "pto", "vacation", "sick day", "sick leave", "personal day", "leave request", "day off", "balance", "hours this week", "timesheet"],
+  },
+  {
+    name: "Team Time (managers)",
+    path: "/time/team",
+    description: "For supervisors: approve or deny your team's time off requests and approve weekly timesheets built from clock in/out.",
+    keywords: ["approve time off", "team time off", "approve timesheet", "timesheets", "manager approvals", "who is out", "missed punch", "overtime"],
+  },
+  {
     name: "Help Desk",
     path: "/helpdesk",
     description: "Submit and track IT, HR, Marketing, or Finance tickets.",

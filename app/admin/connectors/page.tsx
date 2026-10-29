@@ -142,6 +142,22 @@ export default async function AdminConnectorsPage() {
       </ConnectorSection>
 
       <ConnectorSection
+        id="adp"
+        title="ADP Workforce Now (time off & timesheets)"
+        description="Time off requests and weekly timesheets already work in the portal (/time and /time/team). Approved items are queued here until ADP is connected. Needs an ADP API Central / partner project for ICNA Relief: its client ID and secret, plus the mutual-TLS certificate and private key ADP issues. Paste the certificate and key as base64 (e.g. base64 -w0 adp.pem) since these fields are single-line. After that, employee-to-ADP ID matching and ICNA's time-off policy codes still need to be set up before anything is sent."
+      >
+        <ConnectorKeyField settingKey="adp_client_id" label="Client ID" envFallbackKey="ADP_CLIENT_ID" placeholder="From ADP API Central" />
+        <ConnectorKeyField settingKey="adp_client_secret" label="Client Secret" envFallbackKey="ADP_CLIENT_SECRET" placeholder="From ADP API Central" />
+        <ConnectorKeyField settingKey="adp_ssl_cert_b64" label="TLS Certificate (base64)" envFallbackKey="ADP_SSL_CERT_B64" placeholder="base64 of the .pem certificate" />
+        <ConnectorKeyField settingKey="adp_ssl_key_b64" label="TLS Private Key (base64)" envFallbackKey="ADP_SSL_KEY_B64" placeholder="base64 of the .key file" />
+        <ConnectorKeyField
+          settingKey="time_off_fallback_approver_email"
+          label="Fallback time off approver (email)"
+          placeholder="Who approves when someone has no manager in Microsoft 365, e.g. hr@icnarelief.org"
+        />
+      </ConnectorSection>
+
+      <ConnectorSection
         title="QuickBooks Desktop (Web Connector)"
         description="For QuickBooks Desktop / Enterprise: Intuit's free Web Connector runs on the finance PC, checks in on a schedule, and sends the months queued on Admin → Expenses → QuickBooks. Read-only — the only thing it asks QuickBooks for is the P&L by Class report."
       >
