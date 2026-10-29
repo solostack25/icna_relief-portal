@@ -239,6 +239,11 @@ export default async function AdminConnectorsPage() {
         <ConnectorKeyField settingKey="threecx_api_url" label="3CX API Base URL" placeholder="https://icnarelief.3cx.us" />
         <ConnectorKeyField settingKey="threecx_client_id" label="3CX API Client ID" placeholder="From Integrations → API in 3CX admin" />
         <ConnectorKeyField settingKey="threecx_client_secret" label="3CX API Client Secret" />
+        <ConnectorKeyField
+          settingKey="threecx_webclient_url"
+          label="3CX Web Client URL (optional)"
+          placeholder="Defaults to the API Base URL + /webclient"
+        />
       </ConnectorSection>
 
       <ConnectorSection

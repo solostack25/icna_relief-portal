@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { loadCallConfig, placePortalCall } from "@/lib/portalCall";
 import { useParams } from "next/navigation";
 
 type Contact = { id: string; first_name: string | null; last_name: string | null; phone: string; email: string | null };
@@ -35,6 +36,9 @@ const cardStyle: React.CSSProperties = {
 };
 
 export default function DonorCallingWorkspace() {
+  useEffect(() => {
+    loadCallConfig();
+  }, []);
   const params = useParams();
   const campaignId = params.id as string;
 
@@ -93,19 +97,14 @@ export default function DonorCallingWorkspace() {
   const call = async () => {
     if (!contact) return;
     setCalling(true);
-    const res = await fetch("/api/calling/click-to-call", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        toNumber: contact.phone,
-        toName: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim(),
-        targetType: "contact",
-        targetId: contact.id,
-      }),
+    const r = await placePortalCall({
+      toNumber: contact.phone,
+      toName: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim(),
+      targetType: "contact",
+      targetId: contact.id,
     });
-    const data = await res.json();
     setCalling(false);
-    setCallMsg(res.ok ? "Calling — check your phone/softphone" : data.error ?? "Call failed");
+    setCallMsg(r.ok ? "Calling — control it from the call bar below" : r.error ?? "Call failed");
   };
 
   const logOutcome = async () => {

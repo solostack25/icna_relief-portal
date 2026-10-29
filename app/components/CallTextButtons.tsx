@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadCallConfig, placePortalCall } from "@/lib/portalCall";
 
 export default function CallTextButtons({
   phone,
@@ -22,17 +23,19 @@ export default function CallTextButtons({
 
   if (!phone) return null;
 
+  // Knowing whether a phone is signed in decides if Call opens the 3CX
+  // phone window, which has to happen synchronously in the click.
+  useEffect(() => {
+    if (phone) loadCallConfig();
+  }, [phone]);
+
   const call = async () => {
+    if (!phone) return;
     setCalling(true);
     setCallMsg(null);
-    const res = await fetch("/api/calling/click-to-call", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toNumber: phone, toName: targetName, targetType, targetId }),
-    });
-    const data = await res.json();
+    const r = await placePortalCall({ toNumber: phone, toName: targetName, targetType, targetId });
     setCalling(false);
-    setCallMsg(res.ok ? "Calling — check your phone/softphone" : data.error ?? "Call failed");
+    setCallMsg(r.ok ? "Calling — control it from the call bar below" : r.error ?? "Call failed");
   };
 
   const sendText = async () => {

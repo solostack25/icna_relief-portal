@@ -3,6 +3,7 @@ import HadithBanner from "./HadithBanner";
 import ClockReminderWatcher from "@/components/ClockReminderWatcher";
 import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 import PwaSetup from "@/components/PwaSetup";
+import PortalCallBar from "@/components/PortalCallBar";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -70,6 +71,7 @@ export default function RootLayout({
           <HadithBanner />
           <ClockReminderWatcher />
           {children}
+          <PortalCallBar />
           <PwaSetup />
         </LanguageProvider>
       </body>

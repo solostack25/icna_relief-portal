@@ -152,29 +152,127 @@ export async function downloadThreeCxRecording(config: ThreeCxConfig, recordingU
   return Buffer.from(await res.arrayBuffer());
 }
 
+// ---------- Portal calling (call bar) ----------
+
+export type DnDevice = { dn?: string; device_id: string; user_agent?: string };
+
+/**
+ * Devices currently registered on an extension (desk phone, 3CX web
+ * client, 3CX app). Returns null when the list couldn't be read (e.g. the
+ * API client can't monitor that extension) so callers can fall back to the
+ * DN-level makecall instead of treating it as "no phone".
+ */
+export async function listDnDevices(config: ThreeCxConfig, extension: string): Promise<DnDevice[] | null> {
+  try {
+    const res = await threeCxRequest(config, `/callcontrol/${encodeURIComponent(extension)}/devices`);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data) ? (data as DnDevice[]).filter((d) => d?.device_id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The portal opens the 3CX web client as its "phone", so prefer that
+ * device; then any other 3CX client (desktop/mobile app); then whatever is
+ * registered (desk phone).
+ */
+function pickCallDevice(devices: DnDevice[]): DnDevice {
+  const ua = (d: DnDevice) => (d.user_agent ?? "").toLowerCase();
+  return (
+    devices.find((d) => /web ?client|webrtc|browser/.test(ua(d))) ??
+    devices.find((d) => /3cx/.test(ua(d))) ??
+    devices[0]
+  );
+}
+
+export const NO_DEVICE_ERROR =
+  "No phone is signed in on your extension. Open the phone from the call bar (it opens the 3CX web client) and try again.";
+
+/**
+ * Places a call from an employee's extension. Uses 3CX's device-specific
+ * makecall (the documented, deterministic form) on the picked device and
+ * falls back to the legacy DN-level makecall if the device list can't be
+ * read or the device call is rejected.
+ *
+ * waitForDeviceMs: when the portal has just opened the 3CX web client, it
+ * takes a few seconds to register - poll for a device for up to this long
+ * before giving up with code "no_device".
+ */
 export async function makeThreeCxCall(
   config: ThreeCxConfig,
   fromExtension: string,
   destination: string,
-  timeoutSec = 30
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  timeoutSec = 30,
+  opts: { waitForDeviceMs?: number } = {}
+): Promise<{ ok: true; callId?: number } | { ok: false; error: string; code?: "no_device" | "threecx" }> {
   try {
-    const token = await getAccessToken(config);
-    const res = await fetch(`${config.baseUrl}/callcontrol/${fromExtension}/makecall`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ destination, timeout: timeoutSec }),
-    });
+    const ext = encodeURIComponent(fromExtension);
+    let devices = await listDnDevices(config, fromExtension);
+    const deadline = Date.now() + Math.min(opts.waitForDeviceMs ?? 0, 15_000);
+    while (devices && devices.length === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1000));
+      devices = await listDnDevices(config, fromExtension);
+    }
+    if (devices && devices.length === 0) return { ok: false, code: "no_device", error: NO_DEVICE_ERROR };
+
+    const body = { destination, timeout: timeoutSec };
+    const send = (path: string) => threeCxRequest(config, path, { method: "POST", body });
+    let res: Response | null = null;
+    if (devices?.length) {
+      const dev = pickCallDevice(devices);
+      res = await send(`/callcontrol/${ext}/devices/${encodeURIComponent(dev.device_id)}/makecall`);
+    }
+    if (!res || (!res.ok && res.status !== 202)) res = await send(`/callcontrol/${ext}/makecall`);
 
     if (!res.ok && res.status !== 202) {
-      const body = await res.text().catch(() => "");
-      return { ok: false, error: `3CX ${res.status}: ${body || res.statusText}` };
+      const text = await res.text().catch(() => "");
+      return { ok: false, code: "threecx", error: `3CX ${res.status}: ${text || res.statusText}` };
     }
-    return { ok: true };
+    const data = await res.json().catch(() => null);
+    const callId = Number(data?.result?.callid ?? data?.callid);
+    return { ok: true, ...(Number.isFinite(callId) && callId > 0 ? { callId } : {}) };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown 3CX error" };
+    return { ok: false, code: "threecx", error: err instanceof Error ? err.message : "Unknown 3CX error" };
   }
+}
+
+export type MyCallParticipant = {
+  id: number;
+  status: string;
+  partyName: string | null;
+  partyNumber: string | null;
+  callId: number | null;
+};
+
+/** Live participants on one extension, trimmed for the call bar. */
+export async function getExtensionParticipants(config: ThreeCxConfig, extension: string): Promise<MyCallParticipant[]> {
+  const p = `/callcontrol/${encodeURIComponent(extension)}/participants`;
+  const rows = await parse<unknown>(await threeCxRequest(config, p), p);
+  return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
+    id: Number(r.id),
+    status: String(r.status ?? ""),
+    partyName: (r.party_caller_name as string) || null,
+    partyNumber: (r.party_caller_id as string) || (r.party_dn as string) || null,
+    callId: r.callid != null ? Number(r.callid) : null,
+  }));
+}
+
+/** drop / transferto / divert on a participant of one extension. */
+export async function actOnExtensionParticipant(
+  config: ThreeCxConfig,
+  extension: string,
+  participantId: number,
+  action: "drop" | "transferto" | "divert",
+  destination?: string
+) {
+  const p = `/callcontrol/${encodeURIComponent(extension)}/participants/${Number(participantId)}/${action}`;
+  const body = action === "drop" ? {} : { destination, reason: "None" };
+  return parse<unknown>(await threeCxRequest(config, p, { method: "POST", body }), p);
+}
+
+export async function getWebClientUrl(config: ThreeCxConfig): Promise<string> {
+  const custom = await getIntegrationSetting("threecx_webclient_url");
+  return (custom || `${config.baseUrl}/webclient`).replace(/\/$/, "");
 }

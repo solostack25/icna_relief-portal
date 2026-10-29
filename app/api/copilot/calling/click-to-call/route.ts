@@ -83,12 +83,23 @@ export async function POST(req: Request) {
     target_name: resolvedName,
     target_number: resolvedNumber,
     status: result.ok ? "initiated" : "failed",
-    error: result.ok ? null : result.error,
+    error: result.ok ? null : result.code === "no_device" ? `no_device: ${result.error}` : result.error,
   });
 
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+  if (!result.ok) {
+    if (result.code === "no_device") {
+      return NextResponse.json(
+        {
+          error: "no_device",
+          message: `${requester.first_name} doesn't have a phone signed in right now. A call bar has appeared at the bottom of the portal - tell them to press "Open phone & call" there and the call will go through.`,
+        },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ error: result.error }, { status: 502 });
+  }
   return NextResponse.json({
     ok: true,
-    message: `Calling ${resolvedName ?? resolvedNumber} now - ${requester.first_name}'s extension will ring first.`,
+    message: `Calling ${resolvedName ?? resolvedNumber} now. ${requester.first_name} can control the call (hang up, transfer) from the call bar at the bottom of the portal.`,
   });
 }
