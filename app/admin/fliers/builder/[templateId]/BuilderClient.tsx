@@ -127,12 +127,16 @@ export default function BuilderClient({ template }: { template: any }) {
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const mainStageRef = useRef<Konva.Stage | null>(null);
 
+  // Fit measures the stage frame (the scroller's parent), not the scroller:
+  // zooming past fit adds scrollbars to the scroller, which used to shrink it,
+  // fire the observer and snap the zoom back to fit.
+  const lastFitSize = useRef<{ w: number; h: number } | null>(null);
   const fitZoom = useCallback(() => {
-    const el = canvasAreaRef.current;
+    const el = canvasAreaRef.current?.parentElement;
     if (!el) return;
-    const wide = el.clientWidth >= 768;
-    const availW = el.clientWidth - (wide ? 140 : 48);
-    const availH = el.clientHeight - 140;
+    const wide = el.offsetWidth >= 768;
+    const availW = el.offsetWidth - (wide ? 140 : 48);
+    const availH = el.offsetHeight - 140;
     if (availW <= 0 || availH <= 0) return;
     const next = Math.min(availW / canvasWidth, availH / canvasHeight, 1.5);
     setZoom(Math.max(0.15, next));
@@ -140,13 +144,34 @@ export default function BuilderClient({ template }: { template: any }) {
 
   useEffect(() => {
     fitZoom();
-    const el = canvasAreaRef.current;
+    const el = canvasAreaRef.current?.parentElement;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => fitZoom());
+    lastFitSize.current = { w: el.offsetWidth, h: el.offsetHeight };
+    const observer = new ResizeObserver(() => {
+      const prev = lastFitSize.current;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      // Only refit when the frame really changed (window resize, panel opened/closed).
+      if (prev && Math.abs(prev.w - w) < 4 && Math.abs(prev.h - h) < 4) return;
+      lastFitSize.current = { w, h };
+      fitZoom();
+    });
     observer.observe(el);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitZoom]);
+
+  // Full-screen editor on desktop: stop the page behind it from scrolling.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => (document.documentElement.style.overflow = mq.matches ? "hidden" : "");
+    apply();
+    mq.addEventListener("change", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      document.documentElement.style.overflow = "";
+    };
+  }, []);
   const [panelTab, setPanelTab] = useState<"style" | "effects">("style");
 
   // ---- Undo/redo over the whole pages array ----
@@ -489,6 +514,26 @@ export default function BuilderClient({ template }: { template: any }) {
   }, [selectedIds, selected, elements, pages, historyIndex, history]);
 
   // ---- Save ----
+  const snapshot = () => JSON.stringify([pages, name, category, program, language, canvasWidth, canvasHeight]);
+  const savedSnapshot = useRef<string | null>(null);
+  useEffect(() => {
+    if (savedSnapshot.current === null) savedSnapshot.current = snapshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const hasUnsaved = savedSnapshot.current !== null && savedSnapshot.current !== snapshot();
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsaved]);
+  const confirmLeave = (e: React.MouseEvent) => {
+    if (hasUnsaved && !window.confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
+  };
+
   async function save() {
     setSaving(true);
     const allEditable = pages.flatMap((p) => p.elements.filter((e) => e.editable).map((e) => ({ id: e.id, type: e.type, label: (e as any).editableLabel ?? "Untitled field" })));
@@ -516,6 +561,7 @@ export default function BuilderClient({ template }: { template: any }) {
       }
     } catch {}
     setSaving(false);
+    savedSnapshot.current = snapshot();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -1120,7 +1166,19 @@ export default function BuilderClient({ template }: { template: any }) {
     <div className="flex flex-col lg:fixed lg:inset-0 lg:z-40 mt-2 lg:mt-0 rounded-2xl lg:rounded-none overflow-hidden lg:overflow-visible" style={{ background: SHELL_BG, color: INK }}>
       {/* ---------- Top bar ---------- */}
       <header className="flex items-center gap-3 px-3 sm:px-4 py-2 lg:py-0 flex-shrink-0 flex-wrap lg:flex-nowrap" style={{ minHeight: 56, background: "#fff", borderBottom: `1px solid ${LINE}` }}>
-        <Link href="/admin/fliers/builder" className="flex items-center gap-2.5 flex-shrink-0" title="Back to all templates">
+        <Link
+          href="/admin/fliers/builder"
+          className="inline-flex items-center gap-1 h-8 pl-1.5 pr-3 rounded-full text-xs font-semibold flex-shrink-0 hover:bg-black/[0.05]"
+          style={{ border: `1px solid ${LINE}`, color: INK }}
+          title="Back to all templates"
+          onClick={confirmLeave}
+        >
+          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Templates
+        </Link>
+        <Link href="/admin/fliers/builder" onClick={confirmLeave} className="flex items-center gap-2.5 flex-shrink-0" title="Back to all templates">
           <span className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, background: "#1F6F54" }}>
             <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round">
               <path d="M4 20l4-1 11-11-3-3L5 16l-1 4z" />
@@ -1140,7 +1198,13 @@ export default function BuilderClient({ template }: { template: any }) {
           <FlatIconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></FlatIconBtn>
           <FlatIconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></FlatIconBtn>
         </div>
-        {(saving || saved) && (
+        {hasUnsaved && !saving && (
+          <span className="hidden md:flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: "#C99A3D", display: "inline-block" }} />
+            Unsaved changes
+          </span>
+        )}
+        {(saving || (saved && !hasUnsaved)) && (
           <span className="hidden md:flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: saving ? "#C99A3D" : "#1F6F54", display: "inline-block" }} />
             {saving ? "Saving…" : "Saved"}
@@ -1521,13 +1585,13 @@ export default function BuilderClient({ template }: { template: any }) {
                 {cropModeId ? "Crop mode · Esc to finish" : `${pages.length > 1 ? `${page.name} · ` : ""}${sizePreset ? `${sizePreset.label} · ` : ""}${canvasWidth} × ${canvasHeight}`}
               </span>
               <span className="hidden sm:inline mx-1" style={{ width: 1, height: 16, background: LINE }} />
-              <button onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom out">
+              <button onClick={() => setZoom((z) => Math.max(0.15, Math.round((z - 0.1) * 100) / 100))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom out">
                 −
               </button>
               <button onClick={fitZoom} className="w-11 text-center hover:underline" title="Fit to screen">
                 {Math.round(zoom * 100)}%
               </button>
-              <button onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom in">
+              <button onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.1) * 100) / 100))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom in">
                 +
               </button>
             </div>
