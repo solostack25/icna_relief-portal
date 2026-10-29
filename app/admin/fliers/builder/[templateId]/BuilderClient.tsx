@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type Konva from "konva";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -59,6 +60,11 @@ const presetGroups = [...new Set(CANVAS_SIZE_PRESETS.map((p) => p.group))];
 
 const PANEL = { border: "1px solid var(--portal-line)", boxShadow: "0 1px 3px rgba(22,48,43,0.06)" };
 const DIM = "rgba(22,48,43,0.5)";
+// Editor shell tokens (Flier Builder 2.0 mockup)
+const SHELL_BG = "#EEF0EB";
+const INK = "#16302B";
+const LINE = "#DDE4DF";
+const MUTED = "#5F6E68";
 
 const PROGRAMS = ["Hunger Prevention", "Transitional Housing", "Disaster Response", "Refugee Services", "Fundraisers", "Volunteer events", "Ramadan / Eid", "Back to School", "Health Fair", "General"];
 const LANGUAGES = ["English", "Spanish", "Arabic", "Urdu", "French", "Somali"];
@@ -124,8 +130,9 @@ export default function BuilderClient({ template }: { template: any }) {
   const fitZoom = useCallback(() => {
     const el = canvasAreaRef.current;
     if (!el) return;
-    const availW = el.clientWidth - 40;
-    const availH = el.clientHeight - 40;
+    const wide = el.clientWidth >= 768;
+    const availW = el.clientWidth - (wide ? 140 : 48);
+    const availH = el.clientHeight - 140;
     if (availW <= 0 || availH <= 0) return;
     const next = Math.min(availW / canvasWidth, availH / canvasHeight, 1.5);
     setZoom(Math.max(0.15, next));
@@ -1086,84 +1093,78 @@ export default function BuilderClient({ template }: { template: any }) {
 
   const issues = useMemo(() => preflight(pages, canvasWidth, canvasHeight), [pages, canvasWidth, canvasHeight]);
 
+  const [ctxMenu, setCtxMenu] = useState<null | "align" | "layer">(null);
+  useEffect(() => setCtxMenu(null), [selectedIds]);
+  const selectedText = selected && selected.type === "text" && selectedIds.length === 1 ? selected : null;
+  const selectedImg = selected && selected.type === "image" && selectedIds.length === 1 ? selected : null;
+  const sizePreset = CANVAS_SIZE_PRESETS.find((p) => p.width === canvasWidth && p.height === canvasHeight);
+  const RAIL: { id: Exclude<RailPanel, null | "edit">; label: string; icon: React.ReactNode; gold?: boolean }[] = [
+    { id: "text", label: "Text", icon: ICONS.text },
+    { id: "photos", label: "Photos", icon: ICONS.image },
+    { id: "elements", label: "Elements", icon: ICONS.rect },
+    { id: "ai", label: "AI Studio", icon: <Icon.Effects />, gold: true },
+  ];
+  const railButtons = (
+    <>
+      <RailBtn onClick={() => setActiveRailPanel((p) => (p === "text" ? null : "text"))} label="Text" icon={ICONS.text} color="#3E7FBF" active={activeRailPanel === "text"} title="Add or style text" />
+      <RailBtn onClick={() => setActiveRailPanel((p) => (p === "photos" ? null : "photos"))} label="Photos" icon={ICONS.image} color="#B5566B" active={activeRailPanel === "photos"} title="Browse photos" />
+      <RailBtn onClick={() => setActiveRailPanel((p) => (p === "elements" ? null : "elements"))} label="Elements" icon={ICONS.rect} color="#E2892F" active={activeRailPanel === "elements"} title="Browse shapes & icons" />
+      <RailBtn onClick={() => setActiveRailPanel((p) => (p === "ai" ? null : "ai"))} label="AI Studio" icon={<Icon.Effects />} color="#C99A3D" active={activeRailPanel === "ai"} title="AI photo & design tools" />
+    </>
+  );
+  const panelTitle = activeRailPanel === "text" ? "Text" : activeRailPanel === "elements" ? "Elements" : null;
+  const panelBody =
+    activeRailPanel === "text" ? textPanelContent : activeRailPanel === "elements" ? elementsPanelContent : activeRailPanel === "edit" ? editImagePanel : activeRailPanel === "ai" ? aiStudioPanel : <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />;
+
   return (
-    <div>
-      <div className="flex items-center justify-between mt-4 mb-3 flex-wrap gap-2.5">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <input value={name} onChange={(e) => setName(e.target.value)} className="text-base font-bold outline-none rounded-full px-4 py-2.5" style={{ minWidth: 180, background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }} />
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" className="text-sm font-semibold outline-none rounded-full px-4 py-2.5" style={{ width: 130, color: "#3E7FBF", background: "#E9F1FA" }} />
-          <select value={program} onChange={(e) => setProgram(e.target.value)} className="text-sm font-semibold outline-none cursor-pointer rounded-full px-4 py-2.5" style={{ color: "#4F6B5B", background: "#EAF5EE" }} title="Program (template gallery filter)">
-            <option value="">Program…</option>
-            {PROGRAMS.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-          <select value={language} onChange={(e) => setLanguage(e.target.value)} className="text-sm font-semibold outline-none cursor-pointer rounded-full px-4 py-2.5" style={{ color: "#4F6B5B", background: "#EAF5EE" }} title="Language (template gallery filter)">
-            {LANGUAGES.map((l) => (
-              <option key={l}>{l}</option>
-            ))}
-          </select>
-          <select
-            onChange={(e) => {
-              const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
-              if (preset) {
-                if (elements.length === 0 && pages.length === 1) {
-                  setCanvasWidth(preset.width);
-                  setCanvasHeight(preset.height);
-                } else if (smartResize) smartResizeTo(preset.width, preset.height);
-                else resizeTo(preset.width, preset.height);
-              }
-              e.target.value = "";
-            }}
-            disabled={resizing}
-            className="text-sm font-bold outline-none cursor-pointer rounded-full px-4 py-2.5 disabled:opacity-60"
-            style={{ color: "#fff", background: "var(--portal-amber, #E2892F)" }}
-            defaultValue=""
-            title="Set or resize the canvas"
-          >
-            <option value="" disabled>
-              {resizing ? "Resizing…" : `${canvasWidth}×${canvasHeight} · Resize…`}
-            </option>
-            {presetGroups.map((group) => (
-              <optgroup key={group} label={group}>
-                {CANVAS_SIZE_PRESETS.map((p, i) =>
-                  p.group === group ? (
-                    <option key={p.label} value={i}>
-                      {p.label} ({p.width}×{p.height})
-                    </option>
-                  ) : null
-                )}
-              </optgroup>
-            ))}
-          </select>
-          <label className="flex items-center gap-1.5 text-xs font-bold rounded-full px-3 py-2 cursor-pointer" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)", color: smartResize ? "var(--portal-emerald)" : "#7A9186" }} title="When on, resizing repositions elements to fit the new shape instead of just scaling with empty margins">
-            <input type="checkbox" checked={smartResize} onChange={(e) => setSmartResize(e.target.checked)} className="cursor-pointer" />
-            ✨ AI resize
-          </label>
-          <div className="flex items-center gap-2 rounded-full px-3.5 py-2" style={{ background: "#fff", boxShadow: "0 3px 10px rgba(22,48,43,0.07)" }}>
-            <span className="text-xs font-bold" style={{ color: "#7A9186" }}>
-              Background
-            </span>
-            <input type="color" value={background} onChange={(e) => setBackground(e.target.value)} className="w-6 h-6 rounded-md cursor-pointer" style={{ border: "1px solid var(--portal-line)" }} />
-          </div>
+    <div className="flex flex-col lg:fixed lg:inset-0 lg:z-40 mt-2 lg:mt-0 rounded-2xl lg:rounded-none overflow-hidden lg:overflow-visible" style={{ background: SHELL_BG, color: INK }}>
+      {/* ---------- Top bar ---------- */}
+      <header className="flex items-center gap-3 px-3 sm:px-4 py-2 lg:py-0 flex-shrink-0 flex-wrap lg:flex-nowrap" style={{ minHeight: 56, background: "#fff", borderBottom: `1px solid ${LINE}` }}>
+        <Link href="/admin/fliers/builder" className="flex items-center gap-2.5 flex-shrink-0" title="Back to all templates">
+          <span className="flex items-center justify-center rounded-lg" style={{ width: 30, height: 30, background: "#1F6F54" }}>
+            <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M4 20l4-1 11-11-3-3L5 16l-1 4z" />
+            </svg>
+          </span>
+          <span className="hidden sm:inline text-sm font-bold">Flier Builder</span>
+        </Link>
+        <span className="hidden sm:inline text-xs" style={{ color: MUTED }}>/</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Template name"
+          className="text-sm font-semibold outline-none rounded-lg px-2 py-1.5 min-w-0 w-44 lg:w-56 hover:bg-black/[0.03] focus:bg-black/[0.03]"
+          style={{ color: MUTED }}
+        />
+        <div className="flex items-center gap-0.5">
+          <FlatIconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></FlatIconBtn>
+          <FlatIconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></FlatIconBtn>
         </div>
-        <div className="flex items-center gap-3">
-          {saved && (
-            <span className="text-xs font-medium" style={{ color: "var(--portal-emerald)" }}>
-              Saved ✓
-            </span>
-          )}
-          <button onClick={() => setBrandCheckOpen(true)} className="text-sm px-4 py-2.5 rounded-full font-bold cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150" style={{ color: issues.length ? "#B55139" : "var(--portal-emerald)", border: `1.5px solid ${issues.length ? "#B55139" : "var(--portal-emerald)"}`, background: "#fff" }} title="Brand + preflight check">
-            {issues.length ? `⚠ ${issues.length} check${issues.length > 1 ? "s" : ""}` : "✓ Brand check"}
-          </button>
-          <button onClick={() => setExportOpen(true)} className="text-sm px-4 py-2.5 rounded-full font-bold cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150" style={{ color: "#fff", background: "#16302B" }}>
-            Export ▾
-          </button>
-          <button onClick={save} disabled={saving} className="text-sm px-6 py-2.5 rounded-full text-white font-bold cursor-pointer disabled:opacity-60 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-transform duration-150" style={{ background: "var(--portal-emerald)", boxShadow: "0 3px 10px rgba(31,111,84,0.35)" }}>
-            {saving ? "Saving…" : "Save Template"}
-          </button>
-        </div>
-      </div>
+        {(saving || saved) && (
+          <span className="hidden md:flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: saving ? "#C99A3D" : "#1F6F54", display: "inline-block" }} />
+            {saving ? "Saving…" : "Saved"}
+          </span>
+        )}
+        <div className="flex-1" />
+        <button
+          onClick={() => setBrandCheckOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5"
+          style={issues.length ? { background: "#FCE5E0", color: "#B55139" } : { background: "#E8F4EE", color: "#1F6F54" }}
+          title="Brand + preflight check"
+        >
+          {issues.length ? `⚠ ${issues.length} brand check${issues.length > 1 ? "s" : ""}` : "✓ Brand check passed"}
+        </button>
+        <button onClick={save} disabled={saving} className="h-[34px] px-3.5 rounded-full text-xs font-semibold disabled:opacity-60" style={{ border: `1px solid ${LINE}`, background: "#fff" }}>
+          {saving ? "Saving…" : "Save template"}
+        </button>
+        <button onClick={() => setExportOpen(true)} className="h-[34px] px-4 rounded-full text-xs font-bold text-white inline-flex items-center gap-1.5" style={{ background: "#1F6F54" }}>
+          Export
+          <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 4v12M6 10l6 6 6-6" />
+          </svg>
+        </button>
+      </header>
 
       <Drawer title="Brand & preflight check" open={brandCheckOpen} onClose={() => setBrandCheckOpen(false)}>
         {issues.length === 0 ? (
@@ -1215,136 +1216,335 @@ export default function BuilderClient({ template }: { template: any }) {
         />
       )}
 
-      {showTip && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 mb-3" style={{ background: "#FCEFDD", border: "1px solid #F0D5A8" }}>
-          <span className="text-sm" style={{ color: "#8A5A1E" }}>
-            <span className="font-bold">New here?</span> Click Text, Photos, or Elements on the left to add something, then style it on the right. Shift-click to multi-select, Ctrl+G to group, Ctrl+L to lock.
-          </span>
-          <button onClick={dismissTip} className="text-xs font-bold cursor-pointer flex-shrink-0" style={{ color: "#8A5A1E" }}>
-            Got it
-          </button>
-        </div>
-      )}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        {/* ---------- Left rail ---------- */}
+        <nav className="hidden lg:flex flex-col items-center gap-0.5 pt-2.5 flex-shrink-0" style={{ width: 68, background: INK }} aria-label="Builder tools">
+          {RAIL.map((r) => {
+            const active = activeRailPanel === r.id || (r.id === "photos" && activeRailPanel === "edit");
+            return (
+              <button
+                key={r.id}
+                onClick={() => setActiveRailPanel((p) => (p === r.id ? null : r.id))}
+                className="flex flex-col items-center justify-center gap-[5px] rounded-[10px] text-[10px] transition-colors"
+                style={{ width: 58, height: 54, background: active ? "rgba(255,255,255,0.12)" : "transparent", color: r.gold ? "#E8CE96" : active ? "#fff" : "#C9D6D0", fontWeight: active || r.gold ? 700 : 600 }}
+                aria-pressed={active}
+              >
+                <span style={{ width: 18, height: 18, display: "inline-block" }}>{r.icon}</span>
+                {r.label}
+              </button>
+            );
+          })}
+        </nav>
 
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <LabeledGroup label="Undo / Redo">
-            <IconBtn onClick={undo} disabled={historyIndex === 0} title="Undo (Ctrl+Z)"><Icon.Undo /></IconBtn>
-            <IconBtn onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Shift+Z)"><Icon.Redo /></IconBtn>
-          </LabeledGroup>
-          <LabeledGroup label="Guides">
-            <button onClick={() => setSnapEnabled((s) => !s)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={{ background: snapEnabled ? "#FAE8FF" : "transparent", color: snapEnabled ? "#A21CAF" : "#7A9186" }} title="Snap to edges, centers and other elements">
-              Snap
-            </button>
-            <button onClick={() => setShowSafeMargins((s) => !s)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={{ background: showSafeMargins ? "#E3F0F5" : "transparent", color: showSafeMargins ? "#3E7C9A" : "#7A9186" }} title="Show the print-safe margin">
-              Safe margins
-            </button>
-          </LabeledGroup>
-        </div>
-        <LabeledGroup label="Zoom">
-          <IconBtn onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} title="Zoom out"><Icon.ZoomOut /></IconBtn>
-          <span className="text-xs w-10 text-center font-medium" style={{ color: DIM }}>
-            {Math.round(zoom * 100)}%
-          </span>
-          <IconBtn onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} title="Zoom in"><Icon.ZoomIn /></IconBtn>
-          <IconBtn onClick={fitZoom} title="Fit to screen"><Icon.ZoomReset /></IconBtn>
-        </LabeledGroup>
-      </div>
+        {/* ---------- Docked panel ---------- */}
+        {activeRailPanel && (
+          <aside className="hidden lg:flex flex-col flex-shrink-0 overflow-y-auto p-4" style={{ width: 300, background: "#fff", borderRight: `1px solid ${LINE}` }}>
+            {panelTitle && (
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-extrabold">{panelTitle}</h3>
+                <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }} aria-label="Close panel">
+                  ✕
+                </button>
+              </div>
+            )}
+            {panelBody}
+          </aside>
+        )}
 
-      {(() => {
-        const railButtons = (
-          <>
-            <RailBtn onClick={() => setActiveRailPanel((p) => (p === "text" ? null : "text"))} label="Text" icon={ICONS.text} color="#3E7FBF" active={activeRailPanel === "text"} title="Add or style text" />
-            <RailBtn onClick={() => setActiveRailPanel((p) => (p === "photos" ? null : "photos"))} label="Photos" icon={ICONS.image} color="#B5566B" active={activeRailPanel === "photos"} title="Browse photos" />
-            <RailBtn onClick={() => setActiveRailPanel((p) => (p === "elements" ? null : "elements"))} label="Elements" icon={ICONS.rect} color="#E2892F" active={activeRailPanel === "elements"} title="Browse shapes & icons" />
-            <RailBtn onClick={() => setActiveRailPanel((p) => (p === "ai" ? null : "ai"))} label="AI Studio" icon={<Icon.Effects />} color="#C99A3D" active={activeRailPanel === "ai"} title="AI photo & design tools" />
-          </>
-        );
-        const panelTitle = activeRailPanel === "text" ? "Text" : activeRailPanel === "elements" ? "Elements" : null;
-        const panelBody =
-          activeRailPanel === "text" ? textPanelContent : activeRailPanel === "elements" ? elementsPanelContent : activeRailPanel === "edit" ? editImagePanel : activeRailPanel === "ai" ? aiStudioPanel : <ApprovedImagePicker docked allowMore onClose={() => setActiveRailPanel(null)} onSelect={addPhoto} />;
-        return (
-          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-start">
-            <div className="hidden lg:flex lg:flex-col gap-1 w-[72px] flex-shrink-0 rounded-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
-              {railButtons}
-            </div>
-
-            {activeRailPanel && (
-              <div className="hidden lg:flex lg:flex-col w-[340px] flex-shrink-0 rounded-3xl p-4 overflow-y-auto" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)", maxHeight: "calc(100vh - 300px)" }}>
-                {panelTitle && (
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold">{panelTitle}</h3>
-                    <button onClick={() => setActiveRailPanel(null)} className="text-sm cursor-pointer" style={{ color: DIM }}>
-                      ✕
-                    </button>
+        {/* ---------- Canvas column ---------- */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+          {/* Context toolbar: what you can do with the selection (or the page) */}
+          <div className="flex items-center gap-2 px-3 overflow-x-auto flex-shrink-0 text-xs" style={{ height: 48, background: "#fff", borderBottom: `1px solid ${LINE}` }}>
+            {selected ? (
+              <>
+                {selectedText && (
+                  <>
+                    <select
+                      value={selectedText.fontFamily}
+                      onChange={(e) => updateSelected({ fontFamily: e.target.value })}
+                      aria-label="Font"
+                      className="h-8 rounded-lg px-2 text-[13px] outline-none flex-shrink-0"
+                      style={{ border: `1px solid ${LINE}`, width: 150, fontFamily: selectedText.fontFamily }}
+                    >
+                      {(["Brand", "Script", "Display", "Serif", "Sans"] as const).map((cat) => (
+                        <optgroup key={cat} label={cat}>
+                          {FONT_LIBRARY.filter((f) => f.category === cat).map((f) => (
+                            <option key={f.family} value={f.family}>
+                              {f.family}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <div className="h-8 flex items-center rounded-lg flex-shrink-0" style={{ border: `1px solid ${LINE}` }}>
+                      <button onClick={() => updateSelected({ fontSize: Math.max(6, selectedText.fontSize - 2) })} className="w-7 h-full" aria-label="Smaller">
+                        −
+                      </button>
+                      <input
+                        value={selectedText.fontSize}
+                        onChange={(e) => Number(e.target.value) > 0 && updateSelected({ fontSize: Number(e.target.value) })}
+                        aria-label="Font size"
+                        className="w-9 text-center font-bold outline-none"
+                        inputMode="numeric"
+                      />
+                      <button onClick={() => updateSelected({ fontSize: selectedText.fontSize + 2 })} className="w-7 h-full" aria-label="Bigger">
+                        +
+                      </button>
+                    </div>
+                    <CtxDivider />
+                    <label className="flex-shrink-0 cursor-pointer" title="Text color">
+                      <span className="block rounded-md" style={{ width: 24, height: 24, background: selectedText.fill, border: "2px solid #fff", boxShadow: `0 0 0 1px ${LINE}` }} />
+                      <input type="color" value={selectedText.fill} onChange={(e) => updateSelected({ fill: e.target.value })} className="sr-only" />
+                    </label>
+                    <CtxBtn active={selectedText.fontStyle.includes("bold")} onClick={() => updateSelected({ fontStyle: toggleStyle(selectedText.fontStyle, "bold") as any })} title="Bold">
+                      <b>B</b>
+                    </CtxBtn>
+                    <CtxBtn active={selectedText.fontStyle.includes("italic")} onClick={() => updateSelected({ fontStyle: toggleStyle(selectedText.fontStyle, "italic") as any })} title="Italic">
+                      <i style={{ fontFamily: "Fraunces, serif" }}>I</i>
+                    </CtxBtn>
+                    <CtxBtn active={false} onClick={() => updateSelected({ align: selectedText.align === "left" ? "center" : selectedText.align === "center" ? "right" : "left" })} title={`Align: ${selectedText.align}`}>
+                      <span style={{ width: 14, height: 14, display: "inline-block" }}>{selectedText.align === "left" ? <Icon.AlignLeft /> : selectedText.align === "right" ? <Icon.AlignRight /> : <Icon.AlignCenterH />}</span>
+                    </CtxBtn>
+                    <CtxDivider />
+                    <CtxBtn active={false} onClick={() => setStyleDrawer("color")} title="Letter spacing and line height">
+                      Spacing
+                    </CtxBtn>
+                    <CtxBtn active={!!selectedText.textEffect && selectedText.textEffect !== "none"} onClick={() => setStyleDrawer("textEffects")} title="Shadow, outline, glow, curve">
+                      Effects
+                    </CtxBtn>
+                  </>
+                )}
+                {selectedImg && (
+                  <>
+                    <CtxBtn active={false} onClick={() => setPickerOpen(true)} title="Replace photo">
+                      Replace
+                    </CtxBtn>
+                    <CtxBtn active={activeRailPanel === "edit"} onClick={() => setActiveRailPanel("edit")} title="Filters, adjust, remove background">
+                      Edit photo
+                    </CtxBtn>
+                    <CtxBtn active={cropModeId === selectedImg.id} onClick={() => setCropModeId(cropModeId === selectedImg.id ? null : selectedImg.id)} title="Crop & reposition (Esc to finish)">
+                      Crop
+                    </CtxBtn>
+                  </>
+                )}
+                {selectedIds.length > 1 && (
+                  <>
+                    <span className="font-bold flex-shrink-0" style={{ color: MUTED }}>
+                      {selectedIds.length} selected
+                    </span>
+                    <CtxBtn active={false} onClick={selectionIsGrouped ? ungroupSelected : groupSelected} title={selectionIsGrouped ? "Ungroup (Ctrl+Shift+G)" : "Group (Ctrl+G)"}>
+                      {selectionIsGrouped ? "Ungroup" : "Group"}
+                    </CtxBtn>
+                  </>
+                )}
+                <div className="flex-1" />
+                <div className="relative flex-shrink-0">
+                  <CtxBtn active={ctxMenu === "align"} onClick={() => setCtxMenu((m) => (m === "align" ? null : "align"))} title="Align on page">
+                    Position
+                  </CtxBtn>
+                  {ctxMenu === "align" && (
+                    <CtxMenu onClose={() => setCtxMenu(null)}>
+                      {(
+                        [
+                          ["left", "Left", <Icon.AlignLeft key="l" />],
+                          ["hcenter", "Center", <Icon.AlignCenterH key="c" />],
+                          ["right", "Right", <Icon.AlignRight key="r" />],
+                          ["top", "Top", <Icon.AlignTop key="t" />],
+                          ["vcenter", "Middle", <Icon.AlignCenterV key="m" />],
+                          ["bottom", "Bottom", <Icon.AlignBottom key="b" />],
+                        ] as const
+                      ).map(([pos, label, icon]) => (
+                        <CtxMenuItem key={pos} icon={icon} label={label} onClick={() => align(pos)} />
+                      ))}
+                    </CtxMenu>
+                  )}
+                </div>
+                {selectedIds.length === 1 && (
+                  <div className="relative flex-shrink-0">
+                    <CtxBtn active={ctxMenu === "layer"} onClick={() => setCtxMenu((m) => (m === "layer" ? null : "layer"))} title="Layer order">
+                      Layer
+                    </CtxBtn>
+                    {ctxMenu === "layer" && (
+                      <CtxMenu onClose={() => setCtxMenu(null)}>
+                        <CtxMenuItem icon={<Icon.BringFront />} label="Bring to front" onClick={() => reorder("front")} />
+                        <CtxMenuItem icon={<Icon.BringForward />} label="Bring forward" onClick={() => reorder("forward")} />
+                        <CtxMenuItem icon={<Icon.SendBackward />} label="Send backward" onClick={() => reorder("backward")} />
+                        <CtxMenuItem icon={<Icon.SendBack />} label="Send to back" onClick={() => reorder("back")} />
+                      </CtxMenu>
+                    )}
                   </div>
                 )}
-                {panelBody}
+                <CtxBtn active={!!selected.locked} onClick={() => toggleLock()} title="Lock (Ctrl+L)">
+                  {selected.locked ? "🔒 Locked" : "Lock"}
+                </CtxBtn>
+                <CtxIconBtn onClick={duplicateSelected} title="Duplicate (Ctrl+D)">
+                  <Icon.Duplicate />
+                </CtxIconBtn>
+                <CtxIconBtn onClick={deleteSelected} title="Delete" danger>
+                  <Icon.Delete />
+                </CtxIconBtn>
+              </>
+            ) : (
+              <>
+                <label className="h-8 flex items-center gap-2 rounded-lg px-2.5 flex-shrink-0 cursor-pointer" style={{ border: `1px solid ${LINE}` }} title="Page background">
+                  <span className="rounded" style={{ width: 16, height: 16, background, boxShadow: `0 0 0 1px ${LINE}` }} />
+                  <span className="font-semibold">Background</span>
+                  <input type="color" value={background} onChange={(e) => setBackground(e.target.value)} className="sr-only" />
+                </label>
+                <select
+                  onChange={(e) => {
+                    const preset = CANVAS_SIZE_PRESETS[Number(e.target.value)];
+                    if (preset) {
+                      if (elements.length === 0 && pages.length === 1) {
+                        setCanvasWidth(preset.width);
+                        setCanvasHeight(preset.height);
+                      } else if (smartResize) smartResizeTo(preset.width, preset.height);
+                      else resizeTo(preset.width, preset.height);
+                    }
+                    e.target.value = "";
+                  }}
+                  disabled={resizing}
+                  className="h-8 rounded-lg px-2 font-semibold outline-none cursor-pointer flex-shrink-0 disabled:opacity-60"
+                  style={{ border: `1px solid ${LINE}`, width: 120 }}
+                  defaultValue=""
+                  title="Set or resize the canvas"
+                >
+                  <option value="" disabled>
+                    {resizing ? "Resizing…" : "Resize…"}
+                  </option>
+                  {presetGroups.map((group) => (
+                    <optgroup key={group} label={group}>
+                      {CANVAS_SIZE_PRESETS.map((p, i) =>
+                        p.group === group ? (
+                          <option key={p.label} value={i}>
+                            {p.label} ({p.width}×{p.height})
+                          </option>
+                        ) : null
+                      )}
+                    </optgroup>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1.5 font-semibold cursor-pointer flex-shrink-0" style={{ color: smartResize ? "#1F6F54" : MUTED }} title="When on, resizing reflows elements to fit the new shape">
+                  <input type="checkbox" checked={smartResize} onChange={(e) => setSmartResize(e.target.checked)} />
+                  AI resize
+                </label>
+                <CtxDivider />
+                <select value={program} onChange={(e) => setProgram(e.target.value)} className="h-8 rounded-lg px-2 font-semibold outline-none cursor-pointer flex-shrink-0" style={{ border: `1px solid ${LINE}` }} title="Program (template gallery filter)">
+                  <option value="">Program…</option>
+                  {PROGRAMS.map((p) => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="h-8 rounded-lg px-2 font-semibold outline-none cursor-pointer flex-shrink-0" style={{ border: `1px solid ${LINE}` }} title="Language (template gallery filter)">
+                  {LANGUAGES.map((l) => (
+                    <option key={l}>{l}</option>
+                  ))}
+                </select>
+                <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" aria-label="Category" className="h-8 rounded-lg px-2.5 font-semibold outline-none flex-shrink-0 w-32" style={{ border: `1px solid ${LINE}` }} />
+                <div className="flex-1" />
+                <span className="hidden xl:inline flex-shrink-0" style={{ color: MUTED }}>
+                  Select something on the canvas to edit it
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Stage */}
+          <div className="relative h-[52vh] min-h-[320px] lg:h-auto lg:flex-1 lg:min-h-0" style={{ background: SHELL_BG }}>
+            <div ref={canvasAreaRef} className={`absolute inset-0 overflow-auto flex p-6 md:pl-[96px] md:pr-8 pb-16 ${showTip ? "pt-16" : ""}`}>
+              <div style={{ margin: "auto", boxShadow: "0 10px 30px rgba(22,48,43,0.18)", position: "relative", flexShrink: 0 }}>
+                <FlierCanvas
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  background={background}
+                  elements={elements}
+                  mode="builder"
+                  selectedIds={selectedIds}
+                  onSelect={selectOne}
+                  onSelectMany={selectMany}
+                  onChange={setElements}
+                  onCommit={commit}
+                  scale={zoom}
+                  showSafeMargins={showSafeMargins}
+                  snapEnabled={snapEnabled}
+                  cropModeId={cropModeId}
+                  onStageReady={(s) => (mainStageRef.current = s)}
+                  onImageMeta={(id, w, h) =>
+                    setPages((ps) => ps.map((p, i) => (i === pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? ({ ...e, naturalWidth: w, naturalHeight: h } as FlierElement) : e)) } : p)))
+                  }
+                />
+                {(aiTool === "erase" || aiTool === "fill") && selectedImage && (
+                  <MaskPainter el={selectedImage} scale={zoom} brushSize={brushSize} busy={aiBusy} onApply={runMaskedEdit} onCancel={() => setAiTool(null)} />
+                )}
+              </div>
+            </div>
+
+            {/* Pages strip */}
+            <div className="hidden md:flex absolute left-4 top-3.5 bottom-16 flex-col gap-2 overflow-y-auto overflow-x-visible pr-2 z-10" style={{ width: 72 }}>
+              {pages.map((p, i) => (
+                <PageThumb key={p.id} page={p} index={i} active={i === pageIndex} width={canvasWidth} height={canvasHeight} onClick={() => { setPageIndex(i); setSelectedIds([]); setCropModeId(null); }} onDelete={() => deletePage(i)} onMoveUp={() => movePage(i, -1)} onMoveDown={() => movePage(i, 1)} onDuplicate={() => { setPageIndex(i); setTimeout(() => addPage(true), 0); }} canDelete={pages.length > 1} />
+              ))}
+              <button onClick={() => addPage(false)} className="rounded-md text-base flex-shrink-0" style={{ width: 58, height: 32, border: "1px dashed #9AA8A2", color: MUTED }} title="Add page" aria-label="Add page">
+                +
+              </button>
+            </div>
+
+            {showTip && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-3 z-10 flex items-center gap-3 rounded-full pl-4 pr-2 py-1.5 text-xs max-w-[min(640px,calc(100%-32px))]" style={{ background: INK, color: "#fff", boxShadow: "0 8px 24px rgba(22,48,43,0.25)" }}>
+                <span className="truncate">
+                  <span className="font-bold" style={{ color: "#E8CE96" }}>
+                    Tip:
+                  </span>{" "}
+                  add from the left, style from the bar above. Shift-click to multi-select, Ctrl+G groups, Ctrl+L locks.
+                </span>
+                <button onClick={dismissTip} className="rounded-full px-3 py-1 font-bold flex-shrink-0" style={{ background: "rgba(255,255,255,0.14)" }}>
+                  Got it
+                </button>
               </div>
             )}
 
-            <div className="flex-1 min-w-0 flex gap-3">
-              {/* Pages strip */}
-              <div className="hidden md:flex flex-col gap-2 flex-shrink-0 w-[76px] rounded-3xl p-2" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
-                {pages.map((p, i) => (
-                  <PageThumb key={p.id} page={p} index={i} active={i === pageIndex} width={canvasWidth} height={canvasHeight} onClick={() => { setPageIndex(i); setSelectedIds([]); setCropModeId(null); }} onDelete={() => deletePage(i)} onMoveUp={() => movePage(i, -1)} onMoveDown={() => movePage(i, 1)} onDuplicate={() => { setPageIndex(i); setTimeout(() => addPage(true), 0); }} canDelete={pages.length > 1} />
-                ))}
-                <button onClick={() => addPage(false)} className="rounded-xl text-lg" style={{ border: "1px dashed #9AA8A2", color: "#7A9186", height: 36 }} title="Add page">
-                  +
-                </button>
-              </div>
-
-              <div ref={canvasAreaRef} className="flex-1 min-w-0 rounded-3xl overflow-auto flex items-center justify-center p-4 sm:p-8 h-[46vh] min-h-[300px] lg:h-[calc(100vh-300px)] lg:min-h-[560px] relative" style={{ background: "linear-gradient(160deg, #F3F0E8 0%, #EAF2ED 100%)" }}>
-                <div style={{ boxShadow: "0 16px 44px rgba(31,74,48,0.18)", borderRadius: 10, overflow: "hidden", position: "relative" }}>
-                  <FlierCanvas
-                    width={canvasWidth}
-                    height={canvasHeight}
-                    background={background}
-                    elements={elements}
-                    mode="builder"
-                    selectedIds={selectedIds}
-                    onSelect={selectOne}
-                    onSelectMany={selectMany}
-                    onChange={setElements}
-                    onCommit={commit}
-                    scale={zoom}
-                    showSafeMargins={showSafeMargins}
-                    snapEnabled={snapEnabled}
-                    cropModeId={cropModeId}
-                    onStageReady={(s) => (mainStageRef.current = s)}
-                    onImageMeta={(id, w, h) =>
-                      setPages((ps) => ps.map((p, i) => (i === pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? ({ ...e, naturalWidth: w, naturalHeight: h } as FlierElement) : e)) } : p)))
-                    }
-                    renderToolbar={(el) => (
-                      <FloatingToolbar
-                        el={el}
-                        multi={selectedIds.length > 1}
-                        grouped={selectionIsGrouped}
-                        onDuplicate={duplicateSelected}
-                        onDelete={deleteSelected}
-                        onAlign={align}
-                        onReorder={reorder}
-                        onEdit={() => setActiveRailPanel("edit")}
-                        onCrop={() => setCropModeId(el.id)}
-                        onGroup={groupSelected}
-                        onUngroup={ungroupSelected}
-                        onLock={() => toggleLock()}
-                      />
-                    )}
-                  />
-                  {(aiTool === "erase" || aiTool === "fill") && selectedImage && (
-                    <MaskPainter el={selectedImage} scale={zoom} brushSize={brushSize} busy={aiBusy} onApply={runMaskedEdit} onCancel={() => setAiTool(null)} />
-                  )}
-                </div>
-                <div className="absolute right-4 bottom-3 text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: "#fff", color: "#7A9186", boxShadow: "0 2px 8px rgba(22,48,43,0.08)" }}>
-                  {page.name} · {canvasWidth} × {canvasHeight}
-                  {cropModeId ? " · Crop mode (Esc to exit)" : selectedIds.length > 1 ? ` · ${selectedIds.length} selected` : ""}
-                </div>
-              </div>
+            {/* Guides */}
+            <div className="absolute left-4 md:left-[92px] bottom-3.5 flex gap-1.5 text-[11px] font-bold z-10">
+              <button onClick={() => setSnapEnabled((s) => !s)} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5" style={{ background: "#fff", border: `1px solid ${LINE}`, color: snapEnabled ? INK : "#9AA8A2" }} title="Snap to edges, centers and other elements">
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: snapEnabled ? "#D946EF" : "#DDE4DF", display: "inline-block" }} />
+                Snap guides {snapEnabled ? "on" : "off"}
+              </button>
+              <button onClick={() => setShowSafeMargins((s) => !s)} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5" style={{ background: "#fff", border: `1px solid ${LINE}`, color: showSafeMargins ? INK : "#9AA8A2" }} title="Show the print-safe margin">
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: showSafeMargins ? "#3E7C9A" : "#DDE4DF", display: "inline-block" }} />
+                Safe margins
+              </button>
             </div>
 
-            <div className="w-full lg:w-[268px] flex-shrink-0 space-y-3">
-              <div className="rounded-3xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 4px 16px rgba(22,48,43,0.08)" }}>
+            {/* Size + zoom */}
+            <div className="absolute right-4 bottom-3.5 flex items-center gap-1 rounded-full pl-3 pr-1 py-1 text-[11px] font-bold z-10" style={{ background: "#fff", border: `1px solid ${LINE}` }}>
+              <span className="hidden sm:inline truncate max-w-[220px]" style={{ color: MUTED }}>
+                {cropModeId ? "Crop mode · Esc to finish" : `${pages.length > 1 ? `${page.name} · ` : ""}${sizePreset ? `${sizePreset.label} · ` : ""}${canvasWidth} × ${canvasHeight}`}
+              </span>
+              <span className="hidden sm:inline mx-1" style={{ width: 1, height: 16, background: LINE }} />
+              <button onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom out">
+                −
+              </button>
+              <button onClick={fitZoom} className="w-11 text-center hover:underline" title="Fit to screen">
+                {Math.round(zoom * 100)}%
+              </button>
+              <button onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} className="w-6 h-6 rounded-full hover:bg-black/[0.05]" aria-label="Zoom in">
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ---------- Right panel: properties + layers ---------- */}
+        <aside className="w-full lg:w-[280px] flex-shrink-0 lg:overflow-y-auto" style={{ background: "#fff", borderLeft: `1px solid ${LINE}` }}>
+          <div className="flex items-center justify-between px-4 pt-3.5 pb-1">
+            <span className="text-[13px] font-extrabold">{!selected ? "Properties" : selectedIds.length > 1 ? "Selection" : layerLabel(selected)}</span>
+            {selected && selectedIds.length === 1 && (
+              <span className="text-[11px] capitalize" style={{ color: MUTED }}>
+                {selected.type}
+              </span>
+            )}
+          </div>
+          <div>
                 {!selected ? (
                   <p className="text-xs p-4" style={{ color: "rgba(22,48,43,0.45)" }}>
                     Select an element to edit it, or add one from the left. Double-click text to edit in place. Shift-click to multi-select, Ctrl+G to group, Ctrl+L to lock, arrows nudge.
@@ -1544,10 +1744,9 @@ export default function BuilderClient({ template }: { template: any }) {
                     </div>
                   </>
                 )}
-              </div>
-
-              {/* Layers */}
-              <div className="rounded-2xl bg-white p-3" style={PANEL}>
+          </div>
+          <div style={{ height: 1, background: LINE }} />
+          <div className="px-3 pt-3 pb-4">
                 <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wide mb-2 px-1" style={{ color: DIM }}>
                   <span className="flex items-center gap-1.5">
                     <span style={{ width: 12, height: 12 }}>
@@ -1557,7 +1756,7 @@ export default function BuilderClient({ template }: { template: any }) {
                   </span>
                   <span>{page.name}</span>
                 </div>
-                <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                <div className="space-y-0.5 max-h-56 lg:max-h-none overflow-y-auto">
                   {[...elements].reverse().map((el, idx, arr) => {
                     const prev = arr[idx - 1];
                     const groupStart = el.groupId && (!prev || prev.groupId !== el.groupId);
@@ -1606,10 +1805,12 @@ export default function BuilderClient({ template }: { template: any }) {
                     </p>
                   )}
                 </div>
-              </div>
-            </div>
+          </div>
+        </aside>
+      </div>
 
-            <div className="lg:hidden sticky bottom-0 z-30 -mx-4 sm:-mx-10">
+      {/* ---------- Phone: selection actions + tools ---------- */}
+      <div className="lg:hidden sticky bottom-0 z-30">
               {selected && (
                 <div className="flex justify-center py-2">
                   <FloatingToolbar el={selected} multi={selectedIds.length > 1} grouped={selectionIsGrouped} onDuplicate={duplicateSelected} onDelete={deleteSelected} onAlign={align} onReorder={reorder} onEdit={() => setActiveRailPanel("edit")} onCrop={() => setCropModeId(selected.id)} onGroup={groupSelected} onUngroup={ungroupSelected} onLock={() => toggleLock()} />
@@ -1618,10 +1819,7 @@ export default function BuilderClient({ template }: { template: any }) {
               <div className="flex flex-row gap-1 overflow-x-auto rounded-t-3xl p-2.5" style={{ background: "#fff", boxShadow: "0 -4px 16px rgba(22,48,43,0.08)", paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
                 {railButtons}
               </div>
-            </div>
-          </div>
-        );
-      })()}
+      </div>
 
       {activeRailPanel && (
         <div className="lg:hidden fixed inset-0 flex items-end justify-center z-50" style={{ background: "rgba(22,48,43,0.5)" }} onClick={() => setActiveRailPanel(null)}>
@@ -2016,9 +2214,13 @@ function PageThumb({ page, index, active, width, height, onClick, onDelete, onMo
         title={`${page.name} · right-click for options`}
       >
         {/* Miniature: just boxes where elements sit - cheap and honest */}
-        {page.elements.slice(0, 40).map((e) => (
-          <span key={e.id} style={{ position: "absolute", left: (e.x / width) * thumbW, top: (e.y / height) * thumbH, width: Math.max(1, (e.width / width) * thumbW), height: Math.max(1, (e.height / height) * thumbH), background: e.type === "text" ? "#16302B" : e.type === "image" ? "#C99A3D" : (e as any).fill ?? "#1F6F54", opacity: e.type === "text" ? 0.45 : 0.7, borderRadius: e.type === "circle" ? "50%" : 1 }} />
-        ))}
+        {page.elements.slice(0, 40).map((e) => {
+          const box: React.CSSProperties = { position: "absolute", left: (e.x / width) * thumbW, top: (e.y / height) * thumbH, width: Math.max(1, (e.width / width) * thumbW), height: Math.max(1, (e.height / height) * thumbH), borderRadius: e.type === "circle" ? "50%" : 1, overflow: "hidden" };
+          const url = e.type === "image" ? (e as any).imageUrl : null;
+          // eslint-disable-next-line @next/next/no-img-element
+          if (url) return <img key={e.id} src={url} alt="" style={{ ...box, objectFit: "cover" }} />;
+          return <span key={e.id} style={{ ...box, background: e.type === "text" ? "#16302B" : e.type === "image" ? "#C99A3D" : (e as any).fill ?? "#1F6F54", opacity: e.type === "text" ? 0.45 : 0.7 }} />;
+        })}
         <span className="absolute left-1 bottom-0.5 text-[9px] font-extrabold" style={{ color: active ? "var(--portal-emerald)" : "#7A9186" }}>
           {index + 1}
         </span>
@@ -2397,5 +2599,76 @@ function BorderShadowOpacityControls({ selected, updateSelected, bare = false }:
       <PanelDivider />
       <SliderRow label="Opacity" min={0} max={1} step={0.05} value={selected.opacity ?? 1} onChange={(v) => updateSelected({ opacity: v }, false)} onCommit={(v) => updateSelected({ opacity: v })} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Editor shell controls
+// ---------------------------------------------------------------------
+function FlatIconBtn({ children, onClick, disabled, title }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title: string }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title} aria-label={title} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-black/[0.05] disabled:opacity-30 disabled:hover:bg-transparent" style={{ color: INK }}>
+      <span style={{ width: 16, height: 16, display: "inline-block" }}>{children}</span>
+    </button>
+  );
+}
+
+function CtxBtn({ children, onClick, active, title }: { children: React.ReactNode; onClick: () => void; active: boolean; title: string }) {
+  return (
+    <button onClick={onClick} title={title} aria-pressed={active} className="h-[30px] min-w-[30px] px-2.5 rounded-md font-semibold flex-shrink-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap hover:bg-black/[0.04]" style={active ? { background: "#E8F4EE", color: "#1F6F54", fontWeight: 700 } : { color: INK }}>
+      {children}
+    </button>
+  );
+}
+
+function CtxIconBtn({ children, onClick, title, danger }: { children: React.ReactNode; onClick: () => void; title: string; danger?: boolean }) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title} className="w-[30px] h-[30px] rounded-md flex items-center justify-center flex-shrink-0 hover:bg-black/[0.04]" style={{ color: danger ? "#B55139" : INK }}>
+      <span style={{ width: 15, height: 15, display: "inline-block" }}>{children}</span>
+    </button>
+  );
+}
+
+function CtxDivider() {
+  return <span aria-hidden className="flex-shrink-0" style={{ width: 1, height: 22, background: LINE }} />;
+}
+
+/** Dropdown under a context-bar button. Rendered fixed so the bar's horizontal scroll can't clip it. */
+function CtxMenu({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useEffect(() => {
+    const onClose = () => closeRef.current();
+    const anchor = ref.current?.parentElement;
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    }
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.parentElement?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  return (
+    <div ref={ref} role="menu" className="fixed z-[55] rounded-xl py-1.5 min-w-[180px]" style={{ top: pos?.top ?? -9999, right: pos?.right ?? 0, background: "#fff", border: `1px solid ${LINE}`, boxShadow: "0 12px 30px rgba(22,48,43,0.18)" }}>
+      {children}
+    </div>
+  );
+}
+
+function CtxMenuItem({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button role="menuitem" onClick={onClick} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-left hover:bg-black/[0.04]" style={{ color: INK }}>
+      <span style={{ width: 14, height: 14, display: "inline-block", color: MUTED }}>{icon}</span>
+      {label}
+    </button>
   );
 }

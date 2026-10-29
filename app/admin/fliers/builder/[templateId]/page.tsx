@@ -1,5 +1,4 @@
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getFlierMarketingAccess } from "@/lib/flierMarketingAccess";
 import BuilderClient from "./BuilderClient";
@@ -14,11 +13,6 @@ export default async function TemplateEditorPage({ params }: { params: Promise<{
   if (!template) notFound();
 
   return (
-    <div>
-      <Link href="/admin/fliers/builder" className="text-sm" style={{ color: "rgba(22,48,43,0.5)" }}>
-        ← All Templates
-      </Link>
-      <BuilderClient template={template} />
-    </div>
+    <BuilderClient template={template} />
   );
 }
