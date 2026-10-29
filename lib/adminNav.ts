@@ -94,6 +94,18 @@ export const HUBS = {
       ]),
     prefixes: ["/admin/security"],
   },
+  // Phone system: 3CX (PBX) and Skyetel (trunks, numbers, SMS). IT only.
+  phones: {
+    tabs: (a) =>
+      tabs([
+        a.canManageDevices && { href: "/admin/phones", labelKey: "phonesHub.tab.live", exact: true },
+        a.canManageDevices && { href: "/admin/phones/extensions", labelKey: "phonesHub.tab.extensions" },
+        a.canManageDevices && { href: "/admin/phones/history", labelKey: "phonesHub.tab.history" },
+        a.canManageDevices && { href: "/admin/phones/routing", labelKey: "phonesHub.tab.routing" },
+        a.canManageDevices && { href: "/admin/phones/skyetel", labelKey: "phonesHub.tab.skyetel" },
+      ]),
+    prefixes: ["/admin/phones"],
+  },
   // Set-once setup screens, out of the day-to-day sidebar.
   settings: {
     tabs: (a) =>

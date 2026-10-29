@@ -148,6 +148,11 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M9 12l2 2 4-4" />
     </svg>
   ),
+  phones: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" />
+    </svg>
+  ),
   devices: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="2" y="4" width="14" height="10" rx="1.5" />
@@ -236,6 +241,7 @@ export default function AdminSidebar({ access }: { access: AdminAccess }) {
       items: [
         hub("people", t("sidebar.section.peopleAccess"), "entraDirectory"),
         hub("devices", t("sidebar.nav.devices"), "devices"),
+        hub("phones", t("sidebar.nav.phones"), "phones"),
         hub("security", t("sidebar.nav.security"), "security"),
         hub("settings", t("sidebar.nav.settings"), "connectors"),
       ].filter(Boolean) as NavItem[],
