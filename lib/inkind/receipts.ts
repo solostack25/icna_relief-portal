@@ -6,23 +6,26 @@ import { getKioskViewer, resolveIntakeOffice, type InkindOffice } from "@/lib/in
 // A session = one Excel sheet; each scanned receipt = one row.
 
 export const RECEIPTS_BUCKET = "inkind-receipts";
-export const MAX_RECEIPT_PHOTOS = 4; // long receipts can take a few photos
+export const MAX_RECEIPT_PHOTOS = 4; // a receipt can take a few photos (front/back, close-ups)
 
-export type ReceiptItem = { description: string; qty: number | null; unit_price: number | null; amount: number | null };
+export type ReceiptItem = {
+  category: string | null; // printed row it's written on, e.g. "Clothing (Lbs)"
+  description: string; // what was written, e.g. "Shoe rack"
+  qty: number | null;
+  unit: string | null; // "lbs" for weighed rows, otherwise null (count)
+  condition: "used" | "new" | null;
+};
 
+// One handwritten ICNA Relief donation receipt. Only what staff wrote in —
+// never the form's printed ICNA address, tax ID, hours or disclaimer.
 export type ReceiptFields = {
-  merchant: string | null;
-  merchant_address: string | null;
-  receipt_date: string | null; // YYYY-MM-DD
-  receipt_time: string | null;
+  donor_name: string | null;
+  donor_phone: string | null;
+  donor_email: string | null;
+  donor_address: string | null;
   receipt_number: string | null;
-  payment_method: string | null;
-  card_last4: string | null;
-  subtotal: number | null;
-  tax: number | null;
-  tip: number | null;
-  discount: number | null;
-  total: number | null;
+  receipt_date: string | null; // YYYY-MM-DD
+  received_by: string | null;
   items: ReceiptItem[];
   notes: string | null;
 };
@@ -30,11 +33,11 @@ export type ReceiptFields = {
 export type ReceiptRow = ReceiptFields & { id: string; session_id: string; image_paths: string[] | null; created_at: string };
 
 export const RECEIPT_COLUMNS =
-  "id, session_id, merchant, merchant_address, receipt_date, receipt_time, receipt_number, payment_method, card_last4, subtotal, tax, tip, discount, total, items, notes, image_paths, created_at";
+  "id, session_id, donor_name, donor_phone, donor_email, donor_address, receipt_number, receipt_date, received_by, items, notes, image_paths, created_at";
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/[$,\s]/g, ""));
+  const n = typeof v === "number" ? v : Number(String(v).replace(/[,\s]/g, ""));
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
@@ -44,74 +47,76 @@ function str(v: unknown, max: number): string | null {
   return s || null;
 }
 
+// 10-digit US numbers as 832-660-7819; anything else kept as written.
+export function formatPhone(raw: string | null): string | null {
+  if (!raw) return null;
+  const d = raw.replace(/\D/g, "");
+  const ten = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+  return ten.length === 10 ? `${ten.slice(0, 3)}-${ten.slice(3, 6)}-${ten.slice(6)}` : raw.trim();
+}
+
 // Clean anything (AI output or a staff edit) into storable receipt fields.
 export function cleanReceiptFields(raw: any): ReceiptFields {
   const date = typeof raw?.receipt_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.receipt_date) ? raw.receipt_date : null;
-  const last4 = str(raw?.card_last4, 8)?.replace(/\D/g, "").slice(-4) || null;
   const items: ReceiptItem[] = (Array.isArray(raw?.items) ? raw.items : [])
-    .map((i: any) => ({
-      description: String(i?.description ?? "").trim().slice(0, 160),
-      qty: num(i?.qty),
-      unit_price: num(i?.unit_price),
-      amount: num(i?.amount),
-    }))
-    .filter((i: ReceiptItem) => i.description)
+    .map((i: any) => {
+      const cond = String(i?.condition ?? "").toLowerCase();
+      return {
+        category: str(i?.category, 80),
+        description: String(i?.description ?? "").trim().slice(0, 160),
+        qty: num(i?.qty),
+        unit: str(i?.unit, 20),
+        condition: cond === "used" || cond === "new" ? cond : null,
+      } as ReceiptItem;
+    })
+    .filter((i: ReceiptItem) => i.description || i.category)
+    .map((i: ReceiptItem) => ({ ...i, description: i.description || i.category || "" }))
     .slice(0, 200);
   return {
-    merchant: str(raw?.merchant, 150),
-    merchant_address: str(raw?.merchant_address, 250),
+    donor_name: str(raw?.donor_name, 150),
+    donor_phone: formatPhone(str(raw?.donor_phone, 40)),
+    donor_email: str(raw?.donor_email, 150)?.toLowerCase() ?? null,
+    donor_address: str(raw?.donor_address, 250),
+    receipt_number: str(raw?.receipt_number, 40),
     receipt_date: date,
-    receipt_time: str(raw?.receipt_time, 20),
-    receipt_number: str(raw?.receipt_number, 80),
-    payment_method: str(raw?.payment_method, 40),
-    card_last4: last4,
-    subtotal: num(raw?.subtotal),
-    tax: num(raw?.tax),
-    tip: num(raw?.tip),
-    discount: num(raw?.discount),
-    total: num(raw?.total),
+    received_by: str(raw?.received_by, 100),
     items,
     notes: str(raw?.notes, 500),
   };
 }
 
 export async function extractReceipt(imageDataUris: string[]): Promise<{ fields: ReceiptFields; warnings: string[] }> {
-  const system = `You read store / purchase receipts and turn them into structured data.
+  const system = `You read ICNA Relief in-kind donation receipts: a printed form that staff fill in BY HAND when someone drops off donated goods. Extract ONLY what was handwritten (plus the pre-printed receipt number). Ignore the form's printed ICNA Relief header, office address, phone, hours, tax ID, website and disclaimer text completely.
 Return ONLY a JSON object with this shape:
 {
-  "merchant": string|null,
-  "merchant_address": string|null,
-  "receipt_date": "YYYY-MM-DD"|null,
-  "receipt_time": string|null,
+  "donor_name": string|null,
+  "donor_phone": string|null,
+  "donor_email": string|null,
+  "donor_address": string|null,
   "receipt_number": string|null,
-  "payment_method": string|null,
-  "card_last4": string|null,
-  "subtotal": number|null,
-  "tax": number|null,
-  "tip": number|null,
-  "discount": number|null,
-  "total": number|null,
-  "items": [{ "description": string, "qty": number|null, "unit_price": number|null, "amount": number|null }],
+  "receipt_date": "YYYY-MM-DD"|null,
+  "received_by": string|null,
+  "items": [{ "category": string|null, "description": string, "qty": number|null, "unit": "lbs"|null, "condition": "used"|"new"|null }],
   "warnings": string[]
 }
 Rules:
-- "merchant" is the store / business name as printed at the top. "merchant_address" is its street, city, state, zip on one line.
-- "receipt_date" is the purchase date. "receipt_time" is the printed time (e.g. "2:41 PM").
-- "receipt_number" is the receipt / transaction / order / invoice number (prefer the transaction #).
-- "payment_method" is how it was paid: "Visa", "Mastercard", "Amex", "Discover", "Debit", "Cash", "Check", "EBT", "Gift Card", etc.
-- "card_last4" is only the last 4 digits of the card if printed (never more).
-- Money values are plain numbers with no $ sign. "discount" is the total savings/coupons as a positive number.
-- "total" is the final amount paid (grand total), including tax and tip.
-- One "items" entry per purchased product line, across ALL photos. Skip subtotal/tax/total/change/tender rows. "amount" is the line's extended price; negative only for refunds.
-- If several photos are given, they are parts of the SAME receipt in order (top to bottom); don't double-count overlapping lines.
-- Put anything staff should double-check (blurry text, cut-off receipt, totals that don't add up) in "warnings".
-Never invent values that aren't on the receipt; use null.`;
+- The photo may be rotated sideways or upside down; read it in whatever orientation the text runs.
+- "donor_name", "donor_phone", "donor_email", "donor_address" are what's handwritten in the NAME / PHONE / EMAIL / ADDRESS boxes. Capitalize names normally ("ABEER FAREED" -> "Abeer Fareed"). Phone as digits with dashes. null if a box is blank.
+- "receipt_number" is the printed/stamped number next to "RECEIPT #" / "No" (keep leading zeros, e.g. "009651").
+- "receipt_date" is the handwritten DATE. "received_by" is the handwritten name after "RECEIVED BY".
+- Items: the form has printed rows (Clothing (Lbs), Cups & Glasses, Plates, Bowls, Bed Sheets, Shoes/H.Bags, Toaster/Blender/Grill, Rice Cooker/Slow Cooker, Insta Pot/Iron, Kitchen Gadget Small, Comforter/Blankets, Decoration/Toys, Meat (Lbs), Prepared Meals (Qty), Grocery (Lbs), etc.) with USED and NEW tick columns. Make one item for every row that has anything handwritten on it, and one for every extra handwritten line in blank rows.
+  - "category" is the printed row label it's written on, or null for a blank row.
+  - "description" is the handwritten item text (e.g. "Shoe rack", "Drill", "Kitchen stress mats"). If staff only wrote a number/tick on a printed row, use the printed label as the description. If the printed label is crossed out and something else written, the handwritten text is the description.
+  - "qty" is the handwritten number (e.g. "Shoe rack 3" -> 3, "180 lb" -> 180, "20+10" -> 30). If a row lists two things with two numbers, make two items.
+  - "unit" is "lbs" for weighed rows (Clothing/Meat/Grocery (Lbs)) or when "lb" is written, else null.
+  - "condition" is "used" or "new" from which column is ticked/written on that line; null if neither or unclear.
+- Fix only obvious handwriting misreads. Never invent items. Put anything staff should double-check (hard-to-read words or numbers, rows you weren't sure about) in "warnings", naming the row.`;
 
   const n = imageDataUris.length;
   const raw = await extractJsonFromImages<any>(
     imageDataUris,
     system,
-    n === 1 ? "Here is the receipt. Extract it." : `Here are ${n} photos of one receipt, top to bottom. Extract it.`
+    n === 1 ? "Here is the donation receipt. Extract it." : `Here are ${n} photos of one donation receipt, in order. Extract it.`
   );
   const warnings = (Array.isArray(raw?.warnings) ? raw.warnings : []).map((w: unknown) => String(w).slice(0, 300)).slice(0, 8);
   return { fields: cleanReceiptFields(raw), warnings };

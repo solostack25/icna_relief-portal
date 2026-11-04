@@ -5,20 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import StationOfficeBar, { useStationOffice } from "@/app/inkind/components/StationOffice";
 
-type Item = { description: string; qty: number | null; unit_price: number | null; amount: number | null };
+type Item = { category: string | null; description: string; qty: number | null; unit: string | null; condition: "used" | "new" | null };
 type Fields = {
-  merchant: string | null;
-  merchant_address: string | null;
-  receipt_date: string | null;
-  receipt_time: string | null;
+  donor_name: string | null;
+  donor_phone: string | null;
+  donor_email: string | null;
+  donor_address: string | null;
   receipt_number: string | null;
-  payment_method: string | null;
-  card_last4: string | null;
-  subtotal: number | null;
-  tax: number | null;
-  tip: number | null;
-  discount: number | null;
-  total: number | null;
+  receipt_date: string | null;
+  received_by: string | null;
   items: Item[];
   notes: string | null;
 };
@@ -27,8 +22,6 @@ type Session = { id: string; name: string };
 type Photo = { url: string; blob: Blob };
 
 const MAX_PHOTOS = 4;
-const usd = (n: number | null | undefined) =>
-  n == null ? "—" : `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Same in-browser shrink as the food bank intake, so uploads stay small.
 async function shrinkImage(file: Blob, maxSide = 2000, quality = 0.8): Promise<Blob> {
@@ -142,7 +135,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
         setFlash("Row updated");
       } else {
         setReceipts((prev) => [...prev, data.receipt]);
-        setFlash(`Added as line ${receipts.length + 1}`);
+        setFlash(`Added ${data.receipt.donor_name ?? "receipt"} as line ${receipts.length + 1}`);
       }
       closeDraft();
       setTimeout(() => setFlash(null), 3000);
@@ -181,7 +174,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
   }
 
   async function deleteRow(r: Receipt, line: number) {
-    if (!officeId || !confirm(`Delete line ${line} (${r.merchant ?? "receipt"})? Rows below it move up.`)) return;
+    if (!officeId || !confirm(`Delete line ${line} (${r.donor_name ?? "receipt"})? Rows below it move up.`)) return;
     const res = await fetch(`/api/inkind/receipts/sessions/${sessionId}/receipts/${r.id}?officeId=${officeId}`, { method: "DELETE" });
     if (res.ok) setReceipts((prev) => prev.filter((x) => x.id !== r.id));
     else setError((await res.json().catch(() => ({}))).error ?? "Couldn't delete");
@@ -207,7 +200,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
   }
 
   const set = (patch: Partial<Fields>) => setDraft((d) => (d ? { ...d, ...patch } : d));
-  const grandTotal = receipts.reduce((a, r) => a + (Number(r.total) || 0), 0);
+  const itemCount = receipts.reduce((a, r) => a + (r.items?.length ?? 0), 0);
 
   if (!station.loaded) return null;
   if (!station.office) {
@@ -269,7 +262,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
               </h1>
             )}
             <p className="text-sm text-gray-500">
-              {receipts.length} receipt{receipts.length === 1 ? "" : "s"} · {usd(grandTotal)} total
+              {receipts.length} receipt{receipts.length === 1 ? "" : "s"} · {itemCount} item{itemCount === 1 ? "" : "s"}
             </p>
           </div>
           <a
@@ -340,7 +333,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
                       onClick={() => cameraRef.current?.click()}
                       className="tap-target rounded-2xl border-2 border-brand bg-white px-6 py-4 font-semibold text-brand-dark active:scale-95 transition"
                     >
-                      + Add photo (long receipt)
+                      + Add another photo
                     </button>
                   )}
                 </div>
@@ -370,57 +363,60 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Text label="Merchant" value={draft.merchant} onChange={(v) => set({ merchant: v })} />
+              <Text label="Donor name" value={draft.donor_name} onChange={(v) => set({ donor_name: v })} />
+              <Text label="Phone" type="tel" value={draft.donor_phone} onChange={(v) => set({ donor_phone: v })} />
+              <Text label="Email" type="email" value={draft.donor_email} onChange={(v) => set({ donor_email: v })} />
               <Text label="Receipt #" value={draft.receipt_number} onChange={(v) => set({ receipt_number: v })} />
-              <Text label="Address" value={draft.merchant_address} onChange={(v) => set({ merchant_address: v })} className="sm:col-span-2" />
+              <Text label="Address" value={draft.donor_address} onChange={(v) => set({ donor_address: v })} className="sm:col-span-2" />
               <Text label="Date" type="date" value={draft.receipt_date} onChange={(v) => set({ receipt_date: v })} />
-              <Text label="Time" value={draft.receipt_time} onChange={(v) => set({ receipt_time: v })} />
-              <Text label="Payment method" value={draft.payment_method} onChange={(v) => set({ payment_method: v })} />
-              <Text label="Card last 4" value={draft.card_last4} onChange={(v) => set({ card_last4: v?.replace(/\D/g, "").slice(0, 4) ?? null })} />
+              <Text label="Received by" value={draft.received_by} onChange={(v) => set({ received_by: v })} />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <Money label="Subtotal" value={draft.subtotal} onChange={(v) => set({ subtotal: v })} />
-              <Money label="Tax" value={draft.tax} onChange={(v) => set({ tax: v })} />
-              <Money label="Tip" value={draft.tip} onChange={(v) => set({ tip: v })} />
-              <Money label="Discount" value={draft.discount} onChange={(v) => set({ discount: v })} />
-              <Money label="Total" value={draft.total} onChange={(v) => set({ total: v })} strong />
-            </div>
+            {!draft.donor_name || !draft.donor_phone ? (
+              <p className="text-sm text-amber-700">Name or phone wasn&apos;t read — fill it in from the receipt.</p>
+            ) : null}
 
-            <details className="rounded-lg border border-gray-200" open={draft.items.length <= 8}>
+            <details className="rounded-lg border border-gray-200" open>
               <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-gray-700">
-                Items ({draft.items.length})
+                Items ({draft.items.length}) — saved on the separate Items tab
               </summary>
               <div className="p-3 space-y-2">
-                {draft.items.map((it, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <input
-                      value={it.description}
-                      onChange={(e) => set({ items: draft.items.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)) })}
-                      className="flex-1 min-w-0 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                    />
-                    <NumInput
-                      value={it.qty}
-                      placeholder="Qty"
-                      onChange={(v) => set({ items: draft.items.map((x, j) => (j === i ? { ...x, qty: v } : x)) })}
-                      className="w-16 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                    />
-                    <NumInput
-                      value={it.amount}
-                      placeholder="Amount"
-                      onChange={(v) => set({ items: draft.items.map((x, j) => (j === i ? { ...x, amount: v } : x)) })}
-                      className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                    />
-                    <button
-                      onClick={() => set({ items: draft.items.filter((_, j) => j !== i) })}
-                      className="text-red-600 text-sm px-1"
-                      aria-label="Remove item"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                {draft.items.map((it, i) => {
+                  const upd = (patch: Partial<Item>) => set({ items: draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                  return (
+                    <div key={i} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                      <input
+                        value={it.description}
+                        onChange={(e) => upd({ description: e.target.value })}
+                        placeholder="Item"
+                        title={it.category ?? undefined}
+                        className="flex-1 min-w-[10rem] rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                      />
+                      <NumInput value={it.qty} placeholder="Qty" onChange={(v) => upd({ qty: v })} className="w-16 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
+                      <select
+                        value={it.unit ?? ""}
+                        onChange={(e) => upd({ unit: e.target.value || null })}
+                        className="rounded-lg border border-gray-300 px-1 py-1.5 text-sm"
+                      >
+                        <option value="">ea</option>
+                        <option value="lbs">lbs</option>
+                      </select>
+                      <select
+                        value={it.condition ?? ""}
+                        onChange={(e) => upd({ condition: (e.target.value || null) as Item["condition"] })}
+                        className="rounded-lg border border-gray-300 px-1 py-1.5 text-sm"
+                      >
+                        <option value="">—</option>
+                        <option value="used">Used</option>
+                        <option value="new">New</option>
+                      </select>
+                      <button onClick={() => set({ items: draft.items.filter((_, j) => j !== i) })} className="text-red-600 text-sm px-1" aria-label="Remove item">
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
                 <button
-                  onClick={() => set({ items: [...draft.items, { description: "", qty: 1, unit_price: null, amount: null }] })}
+                  onClick={() => set({ items: [...draft.items, { category: null, description: "", qty: 1, unit: null, condition: null }] })}
                   className="text-sm text-brand-dark underline"
                 >
                   + Add item
@@ -455,12 +451,12 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-3 py-2">Line</th>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Merchant</th>
                 <th className="px-3 py-2">Receipt #</th>
-                <th className="px-3 py-2">Payment</th>
+                <th className="px-3 py-2">Donor</th>
+                <th className="px-3 py-2">Phone</th>
+                <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2 text-right">Items</th>
-                <th className="px-3 py-2 text-right">Total</th>
+                <th className="px-3 py-2">Received by</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -475,15 +471,12 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
                 receipts.map((r, i) => (
                   <tr key={r.id} className={`border-t border-gray-100 ${editId === r.id ? "bg-brand-light" : ""}`}>
                     <td className="px-3 py-2 font-semibold">{i + 1}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{r.receipt_date ?? "—"}</td>
-                    <td className="px-3 py-2">{r.merchant ?? "—"}</td>
                     <td className="px-3 py-2">{r.receipt_number ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {r.payment_method ?? "—"}
-                      {r.card_last4 ? ` ••${r.card_last4}` : ""}
-                    </td>
+                    <td className="px-3 py-2 font-medium">{r.donor_name ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.donor_phone ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.receipt_date ?? "—"}</td>
                     <td className="px-3 py-2 text-right">{r.items?.length ?? 0}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{usd(r.total)}</td>
+                    <td className="px-3 py-2">{r.received_by ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-right space-x-3">
                       {r.image_paths?.length ? (
                         <a
@@ -578,18 +571,5 @@ function NumInput({
       }}
       className={className}
     />
-  );
-}
-
-function Money({ label, value, onChange, strong }: { label: string; value: number | null; onChange: (v: number | null) => void; strong?: boolean }) {
-  return (
-    <label className="block">
-      <span className={`block text-xs font-semibold mb-1 ${strong ? "text-brand-dark" : "text-gray-600"}`}>{label}</span>
-      <NumInput
-        value={value}
-        onChange={onChange}
-        className={`w-full rounded-lg border px-3 py-2 text-base ${strong ? "border-brand font-semibold" : "border-gray-300"}`}
-      />
-    </label>
   );
 }

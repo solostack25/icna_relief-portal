@@ -7,26 +7,22 @@ export const dynamic = "force-dynamic";
 
 const HEADERS = [
   "Line",
-  "Date",
-  "Time",
-  "Merchant",
-  "Address",
   "Receipt #",
-  "Payment Method",
-  "Card Last 4",
+  "Date",
+  "Donor Name",
+  "Phone",
+  "Email",
+  "Address",
+  "Received By",
   "Item Count",
   "Items",
-  "Subtotal",
-  "Tax",
-  "Tip",
-  "Discount",
-  "Total",
   "Notes",
   "Scanned At",
 ];
 
 // GET ?officeId= — the session as an Excel file. Sheet 1 has one row per
-// receipt in scan order (line 1, line 2, ...); sheet 2 lists every item.
+// receipt in scan order (line 1, line 2, ...) with the donor info;
+// sheet 2 lists every item separately.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await receiptAccess(req.nextUrl.searchParams.get("officeId"), params.id);
   if ("error" in access || !access.session) {
@@ -44,62 +40,43 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const scannedAt = (iso: string) =>
     new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", dateStyle: "short", timeStyle: "short" });
 
+  const itemText = (it: ReceiptRow["items"][number]) =>
+    [it.qty != null ? `${it.qty}${it.unit ? ` ${it.unit}` : ""}` : null, it.description, it.condition ? `(${it.condition})` : null]
+      .filter(Boolean)
+      .join(" ");
+
+  // Sheet 1: one row per receipt — the handwritten donor info.
   const rows: (string | number | null)[][] = [HEADERS];
   receipts.forEach((r, i) => {
     const items = r.items ?? [];
     rows.push([
       i + 1,
-      r.receipt_date,
-      r.receipt_time,
-      r.merchant,
-      r.merchant_address,
       r.receipt_number,
-      r.payment_method,
-      r.card_last4,
+      r.receipt_date,
+      r.donor_name,
+      r.donor_phone,
+      r.donor_email,
+      r.donor_address,
+      r.received_by,
       items.length,
-      items.map((it) => (it.qty && it.qty !== 1 ? `${it.qty} x ${it.description}` : it.description)).join("; ").slice(0, 32000),
-      r.subtotal,
-      r.tax,
-      r.tip,
-      r.discount,
-      r.total,
+      items.map(itemText).join("; ").slice(0, 32000),
       r.notes,
       scannedAt(r.created_at),
     ]);
   });
-  const sum = (k: "subtotal" | "tax" | "tip" | "discount" | "total") =>
-    Math.round(receipts.reduce((a, r) => a + (Number(r[k]) || 0), 0) * 100) / 100;
-  if (receipts.length) {
-    rows.push([]);
-    rows.push(["TOTAL", null, null, `${receipts.length} receipt${receipts.length === 1 ? "" : "s"}`, null, null, null, null,
-      receipts.reduce((a, r) => a + (r.items?.length ?? 0), 0), null, sum("subtotal"), sum("tax"), sum("tip"), sum("discount"), sum("total"), null, null]);
-  }
-
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [6, 11, 9, 28, 34, 16, 14, 10, 9, 60, 11, 9, 9, 10, 11, 30, 16].map((wch) => ({ wch }));
+  ws["!cols"] = [6, 11, 11, 24, 15, 26, 32, 16, 9, 70, 30, 16].map((wch) => ({ wch }));
   ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(receipts.length, 1), c: HEADERS.length - 1 } }) };
-  // Money columns as currency.
-  for (let r = 1; r < rows.length; r++) {
-    for (const c of [10, 11, 12, 13, 14]) {
-      const cell = ws[XLSX.utils.encode_cell({ r, c })];
-      if (cell && typeof cell.v === "number") cell.z = "$#,##0.00";
-    }
-  }
 
-  const itemRows: (string | number | null)[][] = [["Line", "Date", "Merchant", "Receipt #", "Item", "Qty", "Unit Price", "Amount"]];
+  // Sheet 2: every item, kept separate from the donor info.
+  const itemRows: (string | number | null)[][] = [["Line", "Receipt #", "Donor Name", "Category", "Item", "Qty", "Unit", "Condition"]];
   receipts.forEach((r, i) => {
     for (const it of r.items ?? []) {
-      itemRows.push([i + 1, r.receipt_date, r.merchant, r.receipt_number, it.description, it.qty, it.unit_price, it.amount]);
+      itemRows.push([i + 1, r.receipt_number, r.donor_name, it.category, it.description, it.qty, it.unit, it.condition ? it.condition[0].toUpperCase() + it.condition.slice(1) : null]);
     }
   });
   const wsItems = XLSX.utils.aoa_to_sheet(itemRows);
-  wsItems["!cols"] = [6, 11, 28, 16, 44, 7, 11, 11].map((wch) => ({ wch }));
-  for (let r = 1; r < itemRows.length; r++) {
-    for (const c of [6, 7]) {
-      const cell = wsItems[XLSX.utils.encode_cell({ r, c })];
-      if (cell && typeof cell.v === "number") cell.z = "$#,##0.00";
-    }
-  }
+  wsItems["!cols"] = [6, 11, 24, 24, 34, 7, 7, 10].map((wch) => ({ wch }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Receipts");

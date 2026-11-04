@@ -23,20 +23,14 @@ export async function GET(req: NextRequest) {
   const list = (sessions ?? []) as S[];
   const ids = list.map((s) => s.id);
   const { data: rows } = ids.length
-    ? await admin.from("inkind_receipts").select("session_id, total").in("session_id", ids)
-    : { data: [] as { session_id: string; total: number | null }[] };
-  const stats = new Map<string, { count: number; total: number }>();
-  for (const r of rows ?? []) {
-    const s = stats.get(r.session_id) ?? { count: 0, total: 0 };
-    s.count++;
-    s.total += Number(r.total) || 0;
-    stats.set(r.session_id, s);
-  }
+    ? await admin.from("inkind_receipts").select("session_id").in("session_id", ids)
+    : { data: [] as { session_id: string }[] };
+  const counts = new Map<string, number>();
+  for (const r of rows ?? []) counts.set(r.session_id, (counts.get(r.session_id) ?? 0) + 1);
   return NextResponse.json({
     sessions: list.map((s) => ({
       ...s,
-      receiptCount: stats.get(s.id)?.count ?? 0,
-      total: Math.round((stats.get(s.id)?.total ?? 0) * 100) / 100,
+      receiptCount: counts.get(s.id) ?? 0,
     })),
   });
 }

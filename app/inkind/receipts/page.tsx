@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import Logo from "@/app/inkind/components/Logo";
 import StationOfficeBar, { useStationOffice } from "@/app/inkind/components/StationOffice";
 
-type Session = { id: string; name: string; created_at: string; updated_at: string; receiptCount: number; total: number };
+type Session = { id: string; name: string; created_at: string; updated_at: string; receiptCount: number };
 
-const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -78,7 +77,7 @@ export default function ReceiptSessionsPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startSession()}
-            placeholder="Name (optional) — e.g. Walmart run, Nov 4"
+            placeholder="Name (optional) — e.g. Saturday drop-offs, Nov 4"
             className="flex-1 rounded-xl border border-gray-300 px-3 py-3 text-base"
           />
           <button
@@ -112,8 +111,7 @@ export default function ReceiptSessionsPage() {
                     <p className="text-xs text-gray-500">Last updated {when(s.updated_at)}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-semibold">{usd(s.total)}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-semibold">
                       {s.receiptCount} receipt{s.receiptCount === 1 ? "" : "s"}
                     </p>
                   </div>
