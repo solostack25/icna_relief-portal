@@ -10,6 +10,7 @@ import SquareLocationMapClient from "./SquareLocationMapClient";
 import PowerBiSignIn from "./PowerBiSignIn";
 import { QuickBooksDesktopConnect, QuickBooksOnlineConnect } from "./QuickBooksConnect";
 import AmazonBusinessConnect from "./AmazonBusinessConnect";
+import EnvExportPanel from "./EnvExportPanel";
 
 // One page for every external service the portal connects to, rather
 // than a separate admin page per integration - as more get added (ADP,
@@ -38,6 +39,8 @@ export default async function AdminConnectorsPage() {
         Every external service this portal connects to, in one place. Updates here take effect
         immediately — no deploy needed.
       </p>
+
+      <EnvExportPanel />
 
       <ConnectorSection
         title="AI Assist (Copilot Studio)"
