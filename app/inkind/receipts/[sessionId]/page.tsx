@@ -60,6 +60,7 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
 
   const [renaming, setRenaming] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     if (!officeId) return;
@@ -180,6 +181,28 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
     else setError((await res.json().catch(() => ({}))).error ?? "Couldn't delete");
   }
 
+  // Always asks the server for a fresh file (cache-busting param) and saves
+  // it under the server's time-stamped name.
+  async function downloadExcel() {
+    setDownloading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/inkind/receipts/sessions/${sessionId}/export?officeId=${officeId}&t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't build the Excel file");
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "Receipts.xlsx";
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e: any) {
+      setError(e.message ?? "Couldn't build the Excel file");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function rename() {
     const name = nameInput.trim();
     if (!name || !officeId) return setRenaming(false);
@@ -265,14 +288,15 @@ export default function ReceiptSessionPage({ params }: { params: { sessionId: st
               {receipts.length} receipt{receipts.length === 1 ? "" : "s"} · {itemCount} item{itemCount === 1 ? "" : "s"}
             </p>
           </div>
-          <a
-            href={`/api/inkind/receipts/sessions/${sessionId}/export?officeId=${officeId}`}
+          <button
+            onClick={downloadExcel}
+            disabled={!receipts.length || downloading}
             className={`tap-target rounded-xl px-5 py-3 font-semibold shadow transition ${
-              receipts.length ? "bg-brand-dark text-white active:scale-95" : "bg-gray-200 text-gray-400 pointer-events-none"
+              receipts.length ? "bg-brand-dark text-white active:scale-95" : "bg-gray-200 text-gray-400"
             }`}
           >
-            ⬇ Download Excel
-          </a>
+            {downloading ? "Preparing…" : `⬇ Download Excel (${receipts.length})`}
+          </button>
         </div>
 
         {/* Scan */}

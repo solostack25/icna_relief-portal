@@ -83,12 +83,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   XLSX.utils.book_append_sheet(wb, wsItems, "Items");
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 
-  const base = access.session.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "Receipts";
+  // Time-stamped so each download is its own file (no "(1)" copies or an
+  // older copy still open in Excel getting mistaken for the latest).
+  const stamp = new Date()
+    .toLocaleString("sv-SE", { timeZone: "America/Chicago", hour12: false })
+    .slice(0, 16)
+    .replace(" ", "_")
+    .replace(":", "");
+  const base = `${access.session.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "Receipts"}_${stamp}`;
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${base}.xlsx"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store, max-age=0",
+      Pragma: "no-cache",
     },
   });
 }
