@@ -51,7 +51,18 @@ export default function HomePage() {
         >
           Start New Donation
         </button>
-      ) : (
+      ) : null}
+      {!choosing && (
+        <button
+          onClick={() => router.push("/inkind/receipts")}
+          disabled={!station.office}
+          className="tap-target rounded-2xl border-2 border-brand bg-white px-10 py-5 text-lg font-semibold text-brand-dark shadow active:scale-95 transition disabled:opacity-50"
+        >
+          📷 Scan Receipts
+          <span className="block text-sm font-normal text-gray-500">Receipts → Excel sheet</span>
+        </button>
+      )}
+      {choosing && (
         <div className="w-full max-w-md space-y-4">
           <p className="text-gray-600 font-medium">What kind of donation is this?</p>
           <button
